@@ -6,7 +6,7 @@ from threading import Thread
 
 # Tokens
 TELEGRAM_BOT_TOKEN = '8638662433:AAGKc6Uo-X06W6i2Sdt5Ul1bIpv_FoXhVjQ'
-GEMINI_API_KEY ='AIzaSyBBBHTLrEx3bkD-mv8XQU5e4M4uRvKWbjU'
+GEMINI_API_KEY ='AIzaSyBEUVJNNmOUXmynujhZUG6sYZ-NUYb0X-s'
 
 # Configure Gemini
 genai.configure(api_key=GEMINI_API_KEY)
