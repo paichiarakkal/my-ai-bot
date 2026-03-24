@@ -34,3 +34,4 @@ def run():
 if __name__ == "__main__":
     Thread(target=run).start()
     bot.infinity_polling()
+    
