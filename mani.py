@@ -2,7 +2,7 @@ import telebot
 import google.generativeai as genai
 import os
 from flask import Flask
-from threading import Thread
+from threading import Threadi
 
 # Tokens
 TELEGRAM_BOT_TOKEN = '8638662433:AAGKc6Uo-X06w6i2Sdt5Ul1bIpv_FoxHvJQ'
