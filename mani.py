@@ -4,9 +4,9 @@ import os
 from flask import Flask
 from threading import Thread
 
-# Updated Token
+# Updated Tokens
 TELEGRAM_BOT_TOKEN = '8638662433:AAGebohbfT4OAqiZ8Jz6snrWFYwd4tFohXg'
-GEMINI_API_KEY = 'AIzaSyBEUVJNnOUXnynujhZUG6sYZ-hUYbOX-s'
+GEMINI_API_KEY = 'AIzaSyC19R9rkdHHUN8bgz5WoDbOM7lulLprpAU'
 
 # Configure Gemini
 genai.configure(api_key=GEMINI_API_KEY)
