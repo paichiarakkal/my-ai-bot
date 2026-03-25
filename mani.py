@@ -20,7 +20,7 @@ server = Flask(__name__)
 def webhook():
     return "Bot is active!", 200
 
-@bot.message_handler(func=lambda message: True)
+@ message: True)
 def chat_with_ai(message):
     try:
         response = model.generate_content(message.text + " (reply in malayalam briefly)")
