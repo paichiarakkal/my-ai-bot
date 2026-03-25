@@ -6,11 +6,11 @@ from threading import Thread
 
 # Tokens
 TELEGRAM_BOT_TOKEN = '8638662433:AAGKc6Uo-X06W6i2Sdt5Ul1bIpv_FoXhVjQ'
-GEMINI_API_KEY ='AIzaSyBEUVJNNmOUXmynujhZUG6sYZ-NUYb0X-s'
+GEMINI_API_KEY = 'AIzaSyBEUVJNnOUXnynujhZUG6sYZ-hUYbOX-s'
 
 # Configure Gemini
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-pro')
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 server = Flask(__name__)
@@ -22,6 +22,7 @@ def webhook():
 @bot.message_handler(func=lambda message: True)
 def chat_with_ai(message):
     try:
+        # Prompt: മലയാളത്തിൽ മറുപടി നൽകാൻ നിർദ്ദേശിക്കുന്നു
         response = model.generate_content(message.text + " (reply in malayalam briefly as Paichi arakkal)")
         bot.reply_to(message, response.text)
     except Exception as e:
@@ -32,5 +33,5 @@ def run():
     server.run(host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
-    Threa
-
+    Thread(target=run).start()
+    bot.infinity_polling()
