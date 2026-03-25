@@ -6,8 +6,8 @@ from flask import Flask
 from threading import Thread
 
 # Tokens
-TELEGRAM_BOT_TOKEN = '8638662433:AAGebohbfT4OAqiZ8Jz6snrWFYwd4tFohXg'
-GEMINI_API_KEY = 'AIzaSyC19R9rkdHHUN8bgz5WoDbOM7lulLprpAU'
+TELEGRAM_BOT_TOKEN = '8638662433:AAHXPSoEJASPGimZZmwAvov1wgjF5UuzdrM'
+GEMINI_API_KEY = 'AIzaSyB_hnsmETwaIGEb-XfNu6PV-zMgyTDISvI'
 
 # Configure Gemini
 genai.configure(api_key=GEMINI_API_KEY)
