@@ -32,6 +32,5 @@ def run():
     server.run(host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
-    Thread(target=run).start()
-    bot.infinity_polling()
+    Threa
 
