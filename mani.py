@@ -10,7 +10,7 @@ GEMINI_API_KEY = 'AIzaSyC19R9rkdHHUN8bgz5WoDbOM7lulLprpAU'
 
 # Configure Gemini
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 server = Flask(__name__)
