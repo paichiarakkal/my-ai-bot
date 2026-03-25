@@ -4,8 +4,8 @@ import os
 from flask import Flask
 from threading import Thread
 
-# Tokens
-TELEGRAM_BOT_TOKEN = '8638662433:AAGKc6Uo-X06W6i2Sdt5Ul1bIpv_FoXhVjQ'
+# Updated Token
+TELEGRAM_BOT_TOKEN = '8638662433:AAGebohbfT4OAqiZ8Jz6snrWFYwd4tFohXg'
 GEMINI_API_KEY = 'AIzaSyBEUVJNnOUXnynujhZUG6sYZ-hUYbOX-s'
 
 # Configure Gemini
