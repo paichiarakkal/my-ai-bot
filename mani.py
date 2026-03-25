@@ -1,42 +1,39 @@
 import telebot
-import google.generativeai as genai
+from google import genai
 import os
-import time
 from flask import Flask
 from threading import Thread
 
-# Tokens
-TELEGRAM_BOT_TOKEN = '8638662433:AAHXPSoEJASPGimZZmwAvov1wgjF5UuzdrM'
-GEMINI_API_KEY = 'AIzaSyB_hnsmETwaIGEb-XfNu6PV-zMgyTDISvI'
+# കീകൾ എടുക്കുന്നു
+TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
-# Configure Gemini
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
-
+client = genai.Client(api_key=GEMINI_API_KEY)
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
-server = Flask(__name__)
+app = Flask(__name__)
 
-@server.route("/")
-def webhook():
-    return "Bot is active!", 200
+@app.route('/')
+def index():
+    return "Bot is running!"
 
-@message: True)
+@bot.message_handler(func=lambda message: True)
 def chat_with_ai(message):
     try:
-        response = model.generate_content(message.text + " (reply in malayalam briefly)")
+        response = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=message.text + " (reply in Malayalam)"
+        )
         bot.reply_to(message, response.text)
     except Exception as e:
-        bot.reply_to(message, "Error: " + str(e))
+        bot.reply_to(message, f"Error: {e}")
 
-def run():
-    port = int(os.environ.get('PORT', 10000))
-    server.run(host="0.0.0.0", port=port)
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
 
 if __name__ == "__main__":
-    # പഴയ കണക്ഷൻ ഒഴിവാക്കാൻ ഇത് സഹായിക്കും
-    bot.remove_webhook()
-    time.sleep(1) 
-    
-    Thread(target=run).start()
-    bot.infinity_polling(timeout=20, long_polling_timeout=10)
-
+    # Flask സെർവർ പശ്ചാത്തലത്തിൽ തുടങ്ങുന്നു
+    Thread(target=run_flask).start()
+    # ബോട്ട് റൺ ചെയ്യുന്നു
+    print("Bot is starting...")
+    bot.infinity_polling()
