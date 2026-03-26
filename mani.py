@@ -19,7 +19,6 @@ app = Flask(__name__)
 def index():
     return "Bot is Active!"
 
-# ശരിയായ ഡെക്കറേറ്റർ (func=)
 @bot.message_handler(func=lambda message: True)
 def chat_with_ai(message):
     try:
@@ -37,8 +36,6 @@ def run_flask():
     app.run(host='0.0.0.0', port=port)
 
 if __name__ == "__main__":
-    # Flask സെർവർ ഒരു ത്രെഡിൽ റൺ ചെയ്യുക
     Thread(target=run_flask).start()
     print("Starting Telegram Bot...")
-    # ബോട്ട് പോളിംഗ് സ്റ്റാർട്ട് ചെയ്യുക
     bot.infinity_polling()
