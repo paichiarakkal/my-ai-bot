@@ -22,7 +22,7 @@ def index():
 def chat_with_ai(message):
     try:
         response = client.models.generate_content(
-            model="gemini-1.5-pro",            # <--- മാറ്റി
+            model="gemini-3.1-pro-preview"           # <--- മാറ്റി
             contents=message.text + " (reply in Malayalam)"
         )
         bot.reply_to(message, response.text)
