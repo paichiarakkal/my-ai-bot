@@ -4,11 +4,13 @@ import os
 from flask import Flask
 from threading import Thread
 
-# Environment Variables എടുക്കുന്നു
+# Environment Variables
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
-# Client സെറ്റ് ചെയ്യുന്നു
+if not TELEGRAM_BOT_TOKEN or not GEMINI_API_KEY:
+    raise ValueError("Missing TELEGRAM_BOT_TOKEN or GEMINI_API_KEY")
+
 client = genai.Client(api_key=GEMINI_API_KEY)
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 app = Flask(__name__)
@@ -17,14 +19,14 @@ app = Flask(__name__)
 def index():
     return "Bot is Active!"
 
+# ശരിയായ ഡെക്കറേറ്റർ (func=)
 @bot.message_handler(func=lambda message: True)
 def chat_with_ai(message):
     try:
-        # മോഡൽ കൃത്യമായി നൽകുന്നു
+        # ശരിയായ parameter: contents=
         response = client.models.generate_content(
-    model="gemini-2.0-flash-exp",
-    contents=message.text + " (reply in Malayalam)"
-        )
+            model="gemini-2.0-flash-exp",
+            contents=message.text + " (reply in Malayalam)"
         )
         bot.reply_to(message, response.text)
     except Exception as e:
@@ -35,8 +37,8 @@ def run_flask():
     app.run(host='0.0.0.0', port=port)
 
 if __name__ == "__main__":
-    # Flask പശ്ചാത്തലത്തിൽ റൺ ചെയ്യാൻ ത്രെഡ് ഉപയോഗിക്കുന്നു
+    # Flask സെർവർ ഒരു ത്രെഡിൽ റൺ ചെയ്യുക
     Thread(target=run_flask).start()
     print("Starting Telegram Bot...")
+    # ബോട്ട് പോളിംഗ് സ്റ്റാർട്ട് ചെയ്യുക
     bot.infinity_polling()
-
