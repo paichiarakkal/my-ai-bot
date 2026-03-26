@@ -22,8 +22,9 @@ def chat_with_ai(message):
     try:
         # മോഡൽ കൃത്യമായി നൽകുന്നു
         response = client.models.generate_content(
-            model="gemini-1.5-flash", 
-            contents=message.text + " (reply in Malayalam)"
+    model="gemini-2.0-flash-exp",
+    contents=message.text + " (reply in Malayalam)"
+        )
         )
         bot.reply_to(message, response.text)
     except Exception as e:
