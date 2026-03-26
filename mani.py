@@ -39,3 +39,4 @@ if __name__ == "__main__":
     Thread(target=run_flask).start()
     print("Starting Telegram Bot...")
     bot.infinity_polling()
+    
