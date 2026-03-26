@@ -3,17 +3,18 @@ import os
 from flask import Flask, request
 from groq import Groq
 
+# Environment Variables
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
 
 if not TELEGRAM_BOT_TOKEN or not GROQ_API_KEY:
-    raise ValueError("Missing tokens")
+    raise ValueError("Missing TELEGRAM_BOT_TOKEN or GROQ_API_KEY")
 
 client = Groq(api_key=GROQ_API_KEY)
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 app = Flask(__name__)
 
-# Webhook endpoint (Telegram updates വരുന്നത് ഇവിടെ)
+# Webhook endpoint
 @app.route(f'/{TELEGRAM_BOT_TOKEN}', methods=['POST'])
 def webhook():
     json_str = request.get_data().decode('UTF-8')
