@@ -42,3 +42,4 @@ def chat_with_ai(message):
         bot.reply_to(message, completion.choices[0].message.content)
     except Exception as e:
         bot.reply_to(message, f"Error: {e}")
+        
