@@ -4,7 +4,6 @@ import os
 from flask import Flask
 from threading import Thread
 
-# Environment Variables
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
@@ -22,9 +21,8 @@ def index():
 @bot.message_handler(func=lambda message: True)
 def chat_with_ai(message):
     try:
-        # ശരിയായ parameter: contents=
         response = client.models.generate_content(
-            model="gemini-2.0-flash-exp",
+            model="gemini-1.5-pro",            # <--- മാറ്റി
             contents=message.text + " (reply in Malayalam)"
         )
         bot.reply_to(message, response.text)
