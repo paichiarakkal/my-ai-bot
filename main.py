@@ -45,3 +45,4 @@ def chat_with_ai(message):
     except Exception as e:
         print(f"Error in handler: {e}")
         bot.reply_to(message, f"Error: {e}")
+        
