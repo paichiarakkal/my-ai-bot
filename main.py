@@ -18,7 +18,7 @@ def webhook():
     json_str = request.get_data().decode('UTF-8')
     update = telebot.types.Update.de_json(json_str)
     if update.message:
-        chat_with_ai(update.message)   # നേരിട്ട് വിളിക്കുന്നു
+        chat_with_ai(update.message)
     return 'OK', 200
 
 @app.route('/')
