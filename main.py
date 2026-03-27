@@ -13,22 +13,20 @@ client = Groq(api_key=GROQ_API_KEY)
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 app = Flask(__name__)
 
-# Webhook endpoint – correct f-string (single braces)
 @app.route(f'/{TELEGRAM_BOT_TOKEN}', methods=['POST'])
 def webhook():
     json_str = request.get_data().decode('UTF-8')
     update = telebot.types.Update.de_json(json_str)
-    bot.process_new_updates([update])
+    if update.message:
+        chat_with_ai(update.message)   # നേരിട്ട് വിളിക്കുന്നു
     return 'OK', 200
 
-# Health check
 @app.route('/')
 def index():
     return "Bot is Active!"
 
-@bot.message_handler(func=lambda message: True)
 def chat_with_ai(message):
-    print(f"Received message: {message.text}")
+    print(f"Received: {message.text}")
     try:
         completion = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
@@ -43,6 +41,5 @@ def chat_with_ai(message):
         print(f"Reply: {reply}")
         bot.reply_to(message, reply)
     except Exception as e:
-        print(f"Error in handler: {e}")
+        print(f"Error: {e}")
         bot.reply_to(message, f"Error: {e}")
-        
