@@ -43,3 +43,10 @@ def chat_with_ai(message):
     except Exception as e:
         print(f"Error: {e}")
         bot.reply_to(message, f"Error: {e}")
+if __name__ == "__main__":
+    # വെബ്ഹുക്ക് സെറ്റ് ചെയ്യാൻ താഴെ വരി ചേർക്കുക
+    bot.remove_webhook()
+    bot.set_webhook(url=f"https://my-ai-bot-a1d1.onrender.com/{TELEGRAM_BOT_TOKEN}")
+    
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
