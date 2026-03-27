@@ -3,7 +3,6 @@ import os
 from flask import Flask, request
 from groq import Groq
 
-# Environment Variables
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
 
@@ -14,11 +13,11 @@ client = Groq(api_key=GROQ_API_KEY)
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 app = Flask(__name__)
 
-# Webhook endpoint – note the correct f-string
+# Webhook endpoint – correct f-string (single braces)
 @app.route(f'/{TELEGRAM_BOT_TOKEN}', methods=['POST'])
 def webhook():
     json_str = request.get_data().decode('UTF-8')
-    update = telebot.types.Update.de_json(json_str)  # lowercase 'types'
+    update = telebot.types.Update.de_json(json_str)
     bot.process_new_updates([update])
     return 'OK', 200
 
@@ -29,8 +28,8 @@ def index():
 
 @bot.message_handler(func=lambda message: True)
 def chat_with_ai(message):
+    print(f"Received message: {message.text}")
     try:
-        # Call Groq API
         completion = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
@@ -40,10 +39,9 @@ def chat_with_ai(message):
             temperature=0.7,
             max_tokens=500
         )
-        # Extract reply correctly
         reply = completion.choices[0].message.content
+        print(f"Reply: {reply}")
         bot.reply_to(message, reply)
     except Exception as e:
-        # Log error to console (visible in Render logs)
-        print(f"Error: {e}")
+        print(f"Error in handler: {e}")
         bot.reply_to(message, f"Error: {e}")
