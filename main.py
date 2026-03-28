@@ -8,7 +8,7 @@ import threading
 import time
 import requests
 
-# API KEYS (Render-ലെ Environment Variables-ൽ ഇവ ഉണ്ടെന്ന് ഉറപ്പാക്കുക)
+# API KEYS
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
 
@@ -16,15 +16,15 @@ client = Groq(api_key=GROQ_API_KEY)
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN, threaded=False)
 app = Flask(__name__)
 
-# സൂപ്പർട്രെൻഡ് സിഗ്നൽ കണക്കാക്കുന്ന ഫംഗ്ഷൻ
+# സിഗ്നൽ കണക്കാക്കുന്ന ഫംഗ്ഷൻ
 def get_supertrend_signal(symbol):
     try:
-        # 5 മിനിറ്റ് കാൻഡിലിൽ ഡാറ്റ എടുക്കുന്നു
-        df = yf.download(symbol, interval="5m", period="1d", progress=False)
-        if df.empty: return "ഡാറ്റ ലഭ്യമല്ല."
+        # 5 മിനിറ്റ് ഇന്റർവലിൽ ഡാറ്റ എടുക്കുന്നു
+        df = yf.download(symbol, interval="5m", period="2d", progress=False)
+        if df.empty: return "വിവരങ്ങൾ ലഭ്യമല്ല. പേര് ശരിയാണോ എന്ന് പരിശോധിക്കുക."
         
         high, low, close = df['High'], df['Low'], df['Close']
-        atr = (high - low).rolling(10).mean() # ATR കണക്കാക്കുന്നു
+        atr = (high - low).rolling(10).mean()
         upper_band = (high + low) / 2 + 3 * atr
         
         last_close = float(close.iloc[-1])
@@ -32,18 +32,13 @@ def get_supertrend_signal(symbol):
         
         signal = "BUY 🟢" if last_close > last_upper else "SELL 🔴"
         
-        # പേര് ഭംഗിയായി കാണിക്കാൻ
-        names = {
-            "QM=F": "Crude Oil", 
-            "^NSEI": "Nifty 50", 
-            "^NSEBANK": "Bank Nifty", 
-            "NIFTY_FIN_SERVICE.NS": "Fin Nifty"
-        }
+        # ഡിസ്‌പ്ലേ പേര് ശരിയാക്കുന്നു
+        names = {"QM=F": "Crude Oil", "^NSEI": "Nifty 50", "^NSEBANK": "Bank Nifty", "NIFTY_FIN_SERVICE.NS": "Fin Nifty"}
         disp_name = names.get(symbol, symbol.replace(".NS", ""))
         
         return f"📊 *({disp_name})*\n💰 വില: {last_close:.2f}\n⚡️ സിഗ്നൽ: {signal}"
-    except Exception as e:
-        return f"Error: {str(e)}"
+    except:
+        return "ഡാറ്റ എടുക്കുന്നതിൽ തടസ്സം നേരിട്ടു."
 
 @app.route(f'/{TELEGRAM_BOT_TOKEN}', methods=['POST'])
 def webhook():
@@ -57,39 +52,38 @@ def webhook():
 @app.route('/')
 def index(): return "Bot is Active!"
 
-# മെസ്സേജുകൾ കൈകാര്യം ചെയ്യുന്ന ഭാഗം
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
-    text = message.text.upper().strip() # മെസ്സേജ് വലിയ അക്ഷരത്തിലേക്ക് മാറ്റുന്നു
+    text = message.text.upper().strip()
     
     # പ്രധാന ഇൻഡക്സുകൾ
-    if text == "CRUDE":
+    if "CRUDE" in text:
         bot.reply_to(message, get_supertrend_signal("QM=F"), parse_mode='Markdown')
-    elif text == "NIFTY":
-        bot.reply_to(message, get_supertrend_signal("^NSEI"), parse_mode='Markdown')
-    elif text == "BANK":
+    elif "BANK" in text:
         bot.reply_to(message, get_supertrend_signal("^NSEBANK"), parse_mode='Markdown')
-    elif text == "FIN":
+    elif "FIN" in text:
         bot.reply_to(message, get_supertrend_signal("NIFTY_FIN_SERVICE.NS"), parse_mode='Markdown')
+    elif "NIFTY" in text:
+        bot.reply_to(message, get_supertrend_signal("^NSEI"), parse_mode='Markdown')
     
-    # ഏതൊരു സ്റ്റോക്ക് പേര് അയച്ചാലും (ഉദാഹരണത്തിന്: SBIN, TATASTEEL)
+    # സ്റ്റോക്ക് സിഗ്നലുകൾ (ഉദാ: TATASTEEL, SBIN)
     else:
-        # ഇന്ത്യൻ സ്റ്റോക്കുകൾക്ക് തനിയെ .NS ചേർക്കുന്നു
-        symbol = text if ".NS" in text or "=" in text or "^" in text else f"{text}.NS"
-        signal_result = get_supertrend_signal(symbol)
+        # പേരിന്റെ കൂടെ തനിയെ .NS ചേർക്കുന്നു
+        symbol = text if any(x in text for x in [".NS", "=", "^"]) else f"{text}.NS"
+        result = get_supertrend_signal(symbol)
         
-        # സിഗ്നൽ ലഭിച്ചാൽ അത് അയക്കുന്നു, അല്ലെങ്കിൽ AI വഴി മറുപടി നൽകുന്നു
-        if "ലഭ്യമല്ല" in signal_result or "Error" in signal_result:
+        if "വിവരങ്ങൾ ലഭ്യമല്ല" in result:
             try:
+                # AI മറുപടി നൽകുന്നു
                 completion = client.chat.completions.create(
                     model="llama3-70b-8192",
                     messages=[{"role": "user", "content": message.text}]
                 )
                 bot.reply_to(message, completion.choices[0].message.content)
             except:
-                bot.reply_to(message, "വിവരങ്ങൾ ലഭ്യമല്ല.")
+                bot.reply_to(message, result)
         else:
-            bot.reply_to(message, signal_result, parse_mode='Markdown')
+            bot.reply_to(message, result, parse_mode='Markdown')
 
 if __name__ == "__main__":
     bot.remove_webhook()
