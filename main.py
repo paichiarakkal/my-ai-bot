@@ -50,3 +50,20 @@ if __name__ == "__main__":
     
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
+import threading
+import time
+import requests
+
+def keep_alive():
+    while True:
+        try:
+            # നിങ്ങളുടെ ബോട്ടിന്റെ URL ഇവിടെ നൽകുക
+            url = "https://my-ai-bot-a1d1.onrender.com/"
+            requests.get(url)
+            print("Pinged bot to keep it alive!")
+        except Exception as e:
+            print(f"Ping failed: {e}")
+        time.sleep(600) # 10 മിനിറ്റ് (600 സെക്കൻഡ്) ഇടവേള
+
+# ബോട്ട് സ്റ്റാർട്ട് ചെയ്യുന്നതിന് മുൻപായി ഇത് റൺ ചെയ്യുക
+threading.Thread(target=keep_alive, daemon=True).start()
