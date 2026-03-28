@@ -16,18 +16,15 @@ client = Groq(api_key=GROQ_API_KEY)
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 app = Flask(__name__)
 
-# സൂപ്പർട്രെൻഡ് കണക്കാക്കാനുള്ള ഫംഗ്ഷൻ (ലൈബ്രറി ഇല്ലാതെ)
-def get_supertrend(symbol):
+# Price Fetch Function
+def get_price(symbol):
     try:
         df = yf.download(symbol, interval="5m", period="1d")
-        if df.empty: return "Data not found"
-        
-        # ലളിതമായ സൂപ്പർട്രെൻഡ് ലോജിക് ഇവിടെ ചേർക്കാം
-        # തൽക്കാലം നമുക്ക് ക്ലോസിംഗ് പ്രൈസ് നോക്കാം
+        if df.empty: return "ഡാറ്റ ലഭ്യമല്ല."
         last_price = round(df['Close'].iloc[-1], 2)
-        return f"Current Price of {symbol}: {last_price}"
+        return f"{symbol} നിലവിലെ വില: {last_price}"
     except:
-        return "Error fetching data"
+        return "വില പരിശോധിക്കുന്നതിൽ തടസ്സം നേരിട്ടു."
 
 @app.route(f'/{TELEGRAM_BOT_TOKEN}', methods=['POST'])
 def webhook():
@@ -38,25 +35,24 @@ def webhook():
 
 @app.route('/')
 def index():
-    return "Bot is Active and Running!"
+    return "Bot is Active!"
 
 @bot.message_handler(func=lambda message: True)
 def handle_messages(message):
     text = message.text.lower()
-    
     if "price" in text or "crude" in text:
-        price_info = get_supertrend("CL=F") # Crude Oil Symbol
-        bot.reply_to(message, price_info)
+        # Crude Oil Price
+        info = get_price("CL=F")
+        bot.reply_to(message, info)
     else:
         try:
-            # മോഡൽ നെയിം തിരുത്തിയിട്ടുണ്ട് (llama-3.1)
             completion = client.chat.completions.create(
                 model="llama-3.1-70b-versatile",
                 messages=[{"role": "user", "content": message.text}]
             )
             bot.reply_to(message, completion.choices[0].message.content)
         except Exception as e:
-            bot.reply_to(message, f"Error: {e}")
+            bot.reply_to(message, "ക്ഷമിക്കണം, ഒരു എറർ സംഭവിച്ചു.")
 
 def keep_alive():
     while True:
