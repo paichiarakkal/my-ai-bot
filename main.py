@@ -12,72 +12,87 @@ import requests
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
 
+if not TELEGRAM_BOT_TOKEN or not GROQ_API_KEY:
+    raise ValueError("Missing TELEGRAM_BOT_TOKEN or GROQ_API_KEY")
+
 client = Groq(api_key=GROQ_API_KEY)
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 app = Flask(__name__)
 
-# സൂപ്പർട്രെൻഡ് സിഗ്നൽ കണക്കാക്കാനുള്ള ഫംഗ്ഷൻ
+# Supertrend signal for crude/nifty
 def get_supertrend_signal(symbol):
     try:
-        df = yf.download(symbol, interval="5m", period="2d")
-        if df.empty: return "ഡാറ്റ ലഭ്യമല്ല."
-
-        high_low = df['High'] - df['Low']
-        high_cp = abs(df['High'] - df['Close'].shift())
-        low_cp = abs(df['Low'] - df['Close'].shift())
-        tr = pd.concat([high_low, high_cp, low_cp], axis=1).max(axis=1)
-        atr = tr.ewm(alpha=1/10, adjust=False).mean()
-
-        hl2 = (df['High'] + df['Low']) / 2
-        upperband = hl2 + (3 * atr)
-        
-        last_close = df['Close'].iloc[-1]
-        last_upper = upperband.iloc[-1]
-
-        signal = "BUY 🟢" if last_close > last_upper else "SELL 🔴"
-        return f"📊 *({symbol})* \n💰 വില: {round(last_close, 2)}\n⚡️ സിഗ്നൽ: {signal}"
+        df = yf.download(symbol, interval="5m", period="2d", progress=False)
+        if df.empty:
+            return "No data available"
+        high = df['High']
+        low = df['Low']
+        close = df['Close']
+        # Basic Supertrend logic (simplified)
+        atr = (high - low).rolling(14).mean()
+        upper_band = (high + low) / 2 + 2 * atr
+        lower_band = (high + low) / 2 - 2 * atr
+        last_close = close.iloc[-1]
+        last_upper = upper_band.iloc[-1]
+        last_lower = lower_band.iloc[-1]
+        if last_close > last_upper:
+            signal = "BUY"
+        elif last_close < last_lower:
+            signal = "SELL"
+        else:
+            signal = "NEUTRAL"
+        return f"{signal} @ {last_close:.2f}"
     except Exception as e:
         return f"Error: {e}"
 
+# Webhook endpoint (must match the token)
 @app.route(f'/{TELEGRAM_BOT_TOKEN}', methods=['POST'])
 def webhook():
-    if request.headers.get('content-type') == 'application/json':
-        json_string = request.get_data().decode('utf-8')
-        update = telebot.types.Update.de_json(json_string)
-        bot.process_new_updates([update])
-        return '', 200
-    return 'Forbidden', 403
+    json_str = request.get_data().decode('UTF-8')
+    update = telebot.types.Update.de_json(json_str)
+    bot.process_new_updates([update])
+    return 'OK', 200
 
 @app.route('/')
 def index():
     return "Bot is Active!"
 
 @bot.message_handler(func=lambda message: True)
-def handle_messages(message):
+def handle_message(message):
     text = message.text.lower().strip()
-    
     if "crude" in text:
-        bot.reply_to(message, get_supertrend_signal("CL=F"), parse_mode='Markdown')
+        reply = get_supertrend_signal("CL=F")
+        bot.reply_to(message, reply)
     elif "nifty" in text:
-        bot.reply_to(message, get_supertrend_signal("^NSEI"), parse_mode='Markdown')
+        reply = get_supertrend_signal("NSEI")
+        bot.reply_to(message, reply)
     else:
         try:
             completion = client.chat.completions.create(
-                model="llama-3.1-70b-versatile",
-                messages=[{"role": "user", "content": message.text}]
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": "നീ ഒരു സഹായി. എല്ലാ ഉത്തരവും മലയാളത്തിൽ തരിക."},
+                    {"role": "user", "content": message.text}
+                ],
+                temperature=0.7,
+                max_tokens=500
             )
-            bot.reply_to(message, completion.choices[0].message.content)
-        except:
-            bot.reply_to(message, "ക്ഷമിക്കണം, എനിക്ക് ഇപ്പോൾ മറുപടി നൽകാൻ കഴിയുന്നില്ല.")
+            reply = completion.choices[0].message.content
+            bot.reply_to(message, reply)
+        except Exception as e:
+            bot.reply_to(message, f"Error: {e}")
 
+# Keep-alive thread (optional, to avoid spin down)
 def keep_alive():
     while True:
         try:
-            requests.get("https://my-ai-bot-a1d1.onrender.com/")
-        except: pass
+            requests.get("https://my-ai-bot-aid1.onrender.com/")
+        except:
+            pass
         time.sleep(600)
 
 if __name__ == "__main__":
     threading.Thread(target=keep_alive, daemon=True).start()
+    # This block is only for local testing; on Render, gunicorn will run the app.
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
