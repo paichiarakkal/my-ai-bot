@@ -67,3 +67,22 @@ def keep_alive():
 
 # ബോട്ട് സ്റ്റാർട്ട് ചെയ്യുന്നതിന് മുൻപായി ഇത് റൺ ചെയ്യുക
 threading.Thread(target=keep_alive, daemon=True).start()
+import pandas as pd
+import pandas_ta as ta
+import yfinance as yf
+
+def check_supertrend_signal(symbol):
+    # ലൈവ് ഡാറ്റ എടുക്കുന്നു (ഉദാഹരണത്തിന് Crude Oil)
+    df = yf.download(symbol, interval="5m", period="1d")
+    
+    # സൂപ്പർട്രെൻഡ് കണക്കാക്കുന്നു
+    sti = ta.supertrend(df['High'], df['Low'], df['Close'], length=10, multiplier=3)
+    
+    # ഏറ്റവും പുതിയ സിഗ്നൽ നോക്കുന്നു
+    current_direction = sti['SUPERTd_10_3.0'].iloc[-1] # 1 എന്നാൽ Buy, -1 എന്നാൽ Sell
+    
+    if current_direction == 1:
+        return "BUY SIGNAL 🟢"
+    else:
+        return "SELL SIGNAL 🔴"
+        
