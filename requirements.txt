@@ -4,5 +4,5 @@ flask
 gunicorn
 requests
 pandas
-pandas-ta
 yfinance
+https://github.com/twopirllc/pandas-ta/archive/refs/heads/main.zip
