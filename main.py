@@ -1,4 +1,25 @@
-import telebot
+def calculate_supertrend(df, period=7, multiplier=3):
+    # ATR കണക്കാക്കുന്നു
+    high_low = df['High'] - df['Low']
+    high_cp = abs(df['High'] - df['Close'].shift())
+    low_cp = abs(df['Low'] - df['Close'].shift())
+    tr = pd.concat([high_low, high_cp, low_cp], axis=1).max(axis=1)
+    atr = tr.ewm(alpha=1/period, adjust=False).mean()
+
+    # Upper and Lower Bands
+    hl2 = (df['High'] + df['Low']) / 2
+    final_upperband = hl2 + (multiplier * atr)
+    final_lowerband = hl2 - (multiplier * atr)
+    
+    # സൂപ്പർട്രെൻഡ് സിഗ്നൽ കണ്ടുപിടിക്കുന്നു
+    # (ഇവിടെ ലളിതമായ രൂപം നൽകുന്നു, ട്രെൻഡ് അനുസരിച്ച് ഇത് മാറും)
+    last_close = df['Close'].iloc[-1]
+    last_upper = final_upperband.iloc[-1]
+    
+    if last_close < last_upper:
+        return "SELL 🔴"
+    else:
+        return "BUY 🟢"import telebot
 import os
 from flask import Flask, request
 from groq import Groq
