@@ -16,40 +16,55 @@ client = Groq(api_key=GROQ_API_KEY)
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN, threaded=False)
 app = Flask(__name__)
 
+# RSI കണക്കാക്കുന്ന ഫംഗ്ഷൻ
+def calculate_rsi(data, window=14):
+    delta = data.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
+    rs = gain / loss
+    return 100 - (100 / (1 + rs))
+
 # സിഗ്നൽ കണക്കാക്കുന്ന ഫംഗ്ഷൻ
-def get_supertrend_signal(symbol):
+def get_trading_signal(symbol):
     try:
-        # MCX Crude Oil ആണെങ്കിൽ മാത്രം ഈ സിംബൽ ഉപയോഗിക്കുന്നു
         if symbol == "CRUDE_MCX":
-            search_symbol = "MCXCRUDEOIL1!" # അല്ലെങ്കിൽ "CRUDEOIL.NS" പരീക്ഷിക്കാം
+            search_symbol = "MCXCRUDEOIL1!" 
         else:
             search_symbol = symbol
 
-        # 5 മിനിറ്റ് ഇന്റർവലിൽ ഡാറ്റ എടുക്കുന്നു
         df = yf.download(search_symbol, interval="5m", period="2d", progress=False)
         
-        if df.empty or len(df) < 11: 
+        if df.empty or len(df) < 20: 
             return "വിവരങ്ങൾ ലഭ്യമല്ല. മാർക്കറ്റ് ഓഫ് ആണോ എന്ന് നോക്കുക."
         
-        high, low, close = df['High'], df['Low'], df['Close']
-        atr = (high - low).rolling(10).mean()
-        upper_band = (high + low) / 2 + 3 * atr
+        close_prices = df['Close']
+        high_prices = df['High']
+        low_prices = df['Low']
+
+        # 1. Supertrend Calculation
+        atr = (high_prices - low_prices).rolling(10).mean()
+        upper_band = (high_prices + low_prices) / 2 + 3 * atr
+        last_close = float(close_prices.iloc[-1])
+        st_signal = "BUY 🟢" if last_close > float(upper_band.iloc[-1]) else "SELL 🔴"
+
+        # 2. RSI Calculation (14 period)
+        rsi_values = calculate_rsi(close_prices)
+        last_rsi = float(rsi_values.iloc[-1])
         
-        last_close = float(close.iloc[-1])
-        last_upper = float(upper_band.iloc[-1])
-        
-        signal = "BUY 🟢" if last_close > last_upper else "SELL 🔴"
-        
+        rsi_status = ""
+        if last_rsi >= 70: rsi_status = "(Overbought ⚠️)"
+        elif last_rsi <= 30: rsi_status = "(Oversold ⚠️)"
+
         # പേര് സെറ്റ് ചെയ്യുന്നു
-        names = {
-            "CRUDE_MCX": "Crude Oil (MCX)", 
-            "^NSEI": "Nifty 50", 
-            "^NSEBANK": "Bank Nifty", 
-            "NIFTY_FIN_SERVICE.NS": "Fin Nifty"
-        }
+        names = {"CRUDE_MCX": "Crude Oil (MCX)", "^NSEI": "Nifty 50", "^NSEBANK": "Bank Nifty"}
         disp_name = names.get(symbol, symbol.replace(".NS", ""))
         
-        return f"📊 *({disp_name})*\n💰 വില: ₹{last_close:.2f}\n⚡️ സിഗ്നൽ: {signal}"
+        currency = "₹" if "MCX" in symbol or ".NS" in symbol or "^" in symbol else "$"
+        
+        return (f"📊 *({disp_name})*\n"
+                f"💰 വില: {currency}{last_close:.2f}\n"
+                f"⚡️ സിഗ്നൽ: {st_signal}\n"
+                f"📈 RSI: {last_rsi:.2f} {rsi_status}")
     except:
         return "ഡാറ്റ എടുക്കുന്നതിൽ തടസ്സം നേരിട്ടു."
 
@@ -63,26 +78,21 @@ def webhook():
     return 'Forbidden', 403
 
 @app.route('/')
-def index(): return "Bot is Active!"
+def index(): return "Bot is Active with RSI!"
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     text = message.text.upper().strip()
     
-    # പ്രധാന ഇൻഡക്സുകൾ
     if "CRUDE" in text:
-        bot.reply_to(message, get_supertrend_signal("CRUDE_MCX"), parse_mode='Markdown')
+        bot.reply_to(message, get_trading_signal("CRUDE_MCX"), parse_mode='Markdown')
     elif "BANK" in text:
-        bot.reply_to(message, get_supertrend_signal("^NSEBANK"), parse_mode='Markdown')
-    elif "FIN" in text:
-        bot.reply_to(message, get_supertrend_signal("NIFTY_FIN_SERVICE.NS"), parse_mode='Markdown')
-    elif "NIFTY" in text or "GIFT" in text:
-        bot.reply_to(message, get_supertrend_signal("^NSEI"), parse_mode='Markdown')
-    
-    # സ്റ്റോക്ക് സിഗ്നലുകൾ (ഉദാ: SBIN, TATASTEEL)
+        bot.reply_to(message, get_trading_signal("^NSEBANK"), parse_mode='Markdown')
+    elif "NIFTY" in text:
+        bot.reply_to(message, get_trading_signal("^NSEI"), parse_mode='Markdown')
     else:
         symbol = text if any(x in text for x in [".NS", "=", "^"]) else f"{text}.NS"
-        result = get_supertrend_signal(symbol)
+        result = get_trading_signal(symbol)
         
         if "വിവരങ്ങൾ ലഭ്യമല്ല" in result:
             try:
@@ -91,8 +101,7 @@ def handle_message(message):
                     messages=[{"role": "user", "content": message.text}]
                 )
                 bot.reply_to(message, completion.choices[0].message.content)
-            except:
-                bot.reply_to(message, result)
+            except: bot.reply_to(message, result)
         else:
             bot.reply_to(message, result, parse_mode='Markdown')
 
