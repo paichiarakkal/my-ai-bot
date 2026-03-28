@@ -16,7 +16,17 @@ client = Groq(api_key=GROQ_API_KEY)
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN, threaded=False)
 app = Flask(__name__)
 
-# RSI കണക്കാക്കുന്ന ഫംഗ്ഷൻ
+# 5 മിനിറ്റ് ഇടവേളയിൽ സെർവർ ഉണർത്തുന്ന ഫംഗ്ഷൻ
+def keep_alive():
+    while True:
+        try:
+            # നിങ്ങളുടെ Render URL
+            requests.get("https://my-ai-bot-a1d1.onrender.com/")
+            print("Pinged server (5 min interval)...")
+        except:
+            print("Ping failed")
+        time.sleep(300) # 5 മിനിറ്റ് = 300 സെക്കൻഡ്
+
 def calculate_rsi(data, window=14):
     delta = data.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
@@ -24,14 +34,9 @@ def calculate_rsi(data, window=14):
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
-# സിഗ്നൽ കണക്കാക്കുന്ന ഫംഗ്ഷൻ
 def get_trading_signal(symbol):
     try:
-        if symbol == "CRUDE_MCX":
-            search_symbol = "MCXCRUDEOIL1!" 
-        else:
-            search_symbol = symbol
-
+        search_symbol = "MCXCRUDEOIL1!" if symbol == "CRUDE_MCX" else symbol
         df = yf.download(search_symbol, interval="5m", period="2d", progress=False)
         
         if df.empty or len(df) < 20: 
@@ -41,30 +46,20 @@ def get_trading_signal(symbol):
         high_prices = df['High']
         low_prices = df['Low']
 
-        # 1. Supertrend Calculation
         atr = (high_prices - low_prices).rolling(10).mean()
         upper_band = (high_prices + low_prices) / 2 + 3 * atr
         last_close = float(close_prices.iloc[-1])
         st_signal = "BUY 🟢" if last_close > float(upper_band.iloc[-1]) else "SELL 🔴"
 
-        # 2. RSI Calculation (14 period)
         rsi_values = calculate_rsi(close_prices)
         last_rsi = float(rsi_values.iloc[-1])
-        
-        rsi_status = ""
-        if last_rsi >= 70: rsi_status = "(Overbought ⚠️)"
-        elif last_rsi <= 30: rsi_status = "(Oversold ⚠️)"
+        rsi_status = "(Overbought ⚠️)" if last_rsi >= 70 else ("(Oversold ⚠️)" if last_rsi <= 30 else "")
 
-        # പേര് സെറ്റ് ചെയ്യുന്നു
         names = {"CRUDE_MCX": "Crude Oil (MCX)", "^NSEI": "Nifty 50", "^NSEBANK": "Bank Nifty"}
         disp_name = names.get(symbol, symbol.replace(".NS", ""))
-        
         currency = "₹" if "MCX" in symbol or ".NS" in symbol or "^" in symbol else "$"
         
-        return (f"📊 *({disp_name})*\n"
-                f"💰 വില: {currency}{last_close:.2f}\n"
-                f"⚡️ സിഗ്നൽ: {st_signal}\n"
-                f"📈 RSI: {last_rsi:.2f} {rsi_status}")
+        return (f"📊 *({disp_name})*\n💰 വില: {currency}{last_close:.2f}\n⚡️ സിഗ്നൽ: {st_signal}\n📈 RSI: {last_rsi:.2f} {rsi_status}")
     except:
         return "ഡാറ്റ എടുക്കുന്നതിൽ തടസ്സം നേരിട്ടു."
 
@@ -78,12 +73,11 @@ def webhook():
     return 'Forbidden', 403
 
 @app.route('/')
-def index(): return "Bot is Active with RSI!"
+def index(): return "Bot is Active!"
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     text = message.text.upper().strip()
-    
     if "CRUDE" in text:
         bot.reply_to(message, get_trading_signal("CRUDE_MCX"), parse_mode='Markdown')
     elif "BANK" in text:
@@ -93,13 +87,9 @@ def handle_message(message):
     else:
         symbol = text if any(x in text for x in [".NS", "=", "^"]) else f"{text}.NS"
         result = get_trading_signal(symbol)
-        
         if "വിവരങ്ങൾ ലഭ്യമല്ല" in result:
             try:
-                completion = client.chat.completions.create(
-                    model="llama3-70b-8192",
-                    messages=[{"role": "user", "content": message.text}]
-                )
+                completion = client.chat.completions.create(model="llama3-70b-8192", messages=[{"role": "user", "content": message.text}])
                 bot.reply_to(message, completion.choices[0].message.content)
             except: bot.reply_to(message, result)
         else:
@@ -109,5 +99,8 @@ if __name__ == "__main__":
     bot.remove_webhook()
     time.sleep(1)
     bot.set_webhook(url=f"https://my-ai-bot-a1d1.onrender.com/{TELEGRAM_BOT_TOKEN}")
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+    
+    # Keep Alive ത്രെഡ് സ്റ്റാർട്ട് ചെയ്യുന്നു
+    threading.Thread(target=keep_alive, daemon=True).start()
+    
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
