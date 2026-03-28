@@ -19,11 +19,9 @@ app = Flask(__name__)
 # സൂപ്പർട്രെൻഡ് സിഗ്നൽ കണക്കാക്കാനുള്ള ഫംഗ്ഷൻ
 def get_supertrend_signal(symbol):
     try:
-        # 5 മിനിറ്റ് കാൻഡിൽ ഡാറ്റ എടുക്കുന്നു
         df = yf.download(symbol, interval="5m", period="2d")
         if df.empty: return "ഡാറ്റ ലഭ്യമല്ല."
 
-        # ATR കണക്കാക്കുന്നു
         high_low = df['High'] - df['Low']
         high_cp = abs(df['High'] - df['Close'].shift())
         low_cp = abs(df['Low'] - df['Close'].shift())
@@ -35,18 +33,20 @@ def get_supertrend_signal(symbol):
         
         last_close = df['Close'].iloc[-1]
         last_upper = upperband.iloc[-1]
-        
+
         signal = "BUY 🟢" if last_close > last_upper else "SELL 🔴"
-        return f"📊 *{symbol}* \n💰 വില: {round(last_close, 2)}\n⚡ സിഗ്നൽ: {signal}"
+        return f"📊 *({symbol})* \n💰 വില: {round(last_close, 2)}\n⚡️ സിഗ്നൽ: {signal}"
     except Exception as e:
         return f"Error: {e}"
 
 @app.route(f'/{TELEGRAM_BOT_TOKEN}', methods=['POST'])
 def webhook():
-    json_str = request.get_data().decode('UTF-8')
-    update = telebot.types.Update.de_json(json_str)
-    bot.process_new_updates([update])
-    return 'OK', 200
+    if request.headers.get('content-type') == 'application/json':
+        json_string = request.get_data().decode('utf-8')
+        update = telebot.types.Update.de_json(json_string)
+        bot.process_new_updates([update])
+        return '', 200
+    return 'Forbidden', 403
 
 @app.route('/')
 def index():
@@ -54,29 +54,22 @@ def index():
 
 @bot.message_handler(func=lambda message: True)
 def handle_messages(message):
-    text = message.text.lower()
+    text = message.text.lower().strip()
     
-    # ട്രേഡിംഗ് കമാൻഡുകൾ
     if "crude" in text:
         bot.reply_to(message, get_supertrend_signal("CL=F"), parse_mode='Markdown')
     elif "nifty" in text:
         bot.reply_to(message, get_supertrend_signal("^NSEI"), parse_mode='Markdown')
-    
-    # മറ്റുള്ളവയ്ക്ക് AI മറുപടി നൽകുന്നു
     else:
         try:
             completion = client.chat.completions.create(
                 model="llama-3.1-70b-versatile",
-                messages=[
-                    {"role": "system", "content": "നീ ഒരു മലയാളം സഹായിയാണ്."},
-                    {"role": "user", "content": message.text}
-                ]
+                messages=[{"role": "user", "content": message.text}]
             )
             bot.reply_to(message, completion.choices[0].message.content)
         except:
             bot.reply_to(message, "ക്ഷമിക്കണം, എനിക്ക് ഇപ്പോൾ മറുപടി നൽകാൻ കഴിയുന്നില്ല.")
 
-# ബോട്ട് ഓഫ് ആകാതിരിക്കാൻ (Keep Alive)
 def keep_alive():
     while True:
         try:
@@ -86,8 +79,5 @@ def keep_alive():
 
 if __name__ == "__main__":
     threading.Thread(target=keep_alive, daemon=True).start()
-    bot.remove_webhook()
-    webhook_url = f"https://my-ai-bot-a1d1.onrender.com/{TELEGRAM_BOT_TOKEN}"
-    bot.set_webhook(url=webhook_url)
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
