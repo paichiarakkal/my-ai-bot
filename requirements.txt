@@ -6,3 +6,4 @@ requests
 pandas
 yfinance
 twilio
+pandas-ta
