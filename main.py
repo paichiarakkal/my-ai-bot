@@ -29,23 +29,24 @@ def get_crypto_price(symbol):
             return (f"📊 *{symbol.upper()} (Live)*\n"
                     f"💵 USD: ${price_usd:,.2f}\n"
                     f"🇮🇳 INR: ₹{price_inr:,.2f}\n"
-                    f"🇦🇪 AED: {price_aed:,.2f} Dh")
+                    f"🇦🇪 AED: {price_aed:,.2f} Dh\n"
+                    f"━━━━━━━━━━━━━━")
         return None
-    except Exception as e:
-        print(f"Error fetching price: {e}")
+    except:
         return None
 
 @app.route("/whatsapp", methods=['POST'])
 def whatsapp_reply():
-    msg_body = request.values.get('Body', '').upper().strip()
+    # വരുന്ന മെസ്സേജിനെ ചെറിയ അക്ഷരങ്ങളാക്കി മാറ്റുന്നു (btc, BTC, Btc എല്ലാം ഒന്നായി കാണും)
+    msg_body = request.values.get('Body', '').strip().lower()
     resp = MessagingResponse()
     
-    if "BTC" in msg_body:
+    if "btc" in msg_body:
         result = get_crypto_price("BTC")
         if result:
             resp.message().body(result)
         else:
-            resp.message().body("⚠️ ബിറ്റ്‌കോയിൻ വില ഇപ്പോൾ ലഭ്യമല്ല. അല്പം കഴിഞ്ഞ് ശ്രമിക്കൂ.")
+            resp.message().body("⚠️ ഇപ്പോൾ വില ലഭ്യമാക്കാൻ കഴിയുന്നില്ല. പിന്നീട് ശ്രമിക്കൂ.")
     else:
         resp.message().body("💡 ബിറ്റ്‌കോയിൻ വില അറിയാൻ *BTC* എന്ന് അയക്കുക.")
     
@@ -53,8 +54,8 @@ def whatsapp_reply():
 
 @bot.message_handler(func=lambda message: True)
 def handle_telegram(message):
-    msg = message.text.upper()
-    if "BTC" in msg:
+    msg = message.text.lower()
+    if "btc" in msg:
         res = get_crypto_price("BTC")
         if res:
             bot.reply_to(message, res, parse_mode='Markdown')
@@ -67,4 +68,7 @@ def handle_telegram(message):
 def home(): return "Bot is Online"
 
 if __name__ == "__main__":
+    # Webhook സെറ്റ് ചെയ്യുന്നു (Render URL ശ്രദ്ധിക്കുക)
+    bot.remove_webhook()
+    bot.set_webhook(url=f"https://my-ai-bot-a1d1.onrender.com/{TELEGRAM_BOT_TOKEN}")
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
