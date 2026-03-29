@@ -4,28 +4,28 @@ from flask import Flask, request
 import requests
 from twilio.twiml.messaging_response import MessagingResponse
 
-# API KEYS
+# API KEYS (Render Environment Variables-ൽ സെറ്റ് ചെയ്തത്)
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN, threaded=False)
 app = Flask(__name__)
 
 def get_btc_price():
     try:
-        # Binance API (വളരെ വേഗത്തിൽ വില ലഭിക്കും)
-        url = "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
-        response = requests.get(url, timeout=10)
-        data = response.json()
+        # കൂടുതൽ സ്റ്റേബിൾ ആയ CoinGecko API
+        url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,inr,aed"
+        r = requests.get(url, timeout=10)
+        data = r.json()
         
-        if 'price' in data:
-            price_usd = float(data['price'])
-            # ഏകദേശ കണക്ക് (INR: 83.5, AED: 3.67)
-            return (f"📊 *BITCOIN (Live)*\n"
-                    f"💵 USD: ${price_usd:,.2f}\n"
-                    f"🇮🇳 INR: ₹{price_usd * 83.5:,.2f}\n"
-                    f"🇦🇪 AED: {price_usd * 3.67:,.2f} Dh\n"
+        if 'bitcoin' in data:
+            btc = data['bitcoin']
+            return (f"📊 *BITCOIN LIVE*\n"
+                    f"💵 USD: ${btc['usd']:,.2f}\n"
+                    f"🇮🇳 INR: ₹{btc['inr']:,.2f}\n"
+                    f"🇦🇪 AED: {btc['aed']:,.2f} Dh\n"
                     f"━━━━━━━━━━━━━━")
         return None
-    except:
+    except Exception as e:
+        print(f"Error: {e}")
         return None
 
 # WhatsApp Webhook
@@ -39,9 +39,9 @@ def whatsapp_reply():
         if result:
             resp.message(result)
         else:
-            resp.message("⚠️ ഡാറ്റ ലഭ്യമല്ല. അല്പം കഴിഞ്ഞ് ശ്രമിക്കൂ.")
+            resp.message("⚠️ ഡാറ്റ ലഭ്യമല്ല. ഒന്ന് കൂടി ശ്രമിക്കൂ.")
     else:
-        resp.message("💡 ബിറ്റ്‌കോയിൻ വില അറിയാൻ *BTC* എന്ന് അയക്കുക.")
+        resp.message("💡 BTC വില അറിയാൻ *BTC* എന്ന് അയക്കുക.")
     
     return str(resp)
 
@@ -68,7 +68,7 @@ def handle_telegram(message):
 
 @app.route('/')
 def home():
-    return "Bot is Live! WhatsApp URL: /whatsapp"
+    return "Bot is Active! 🚀"
 
 if __name__ == "__main__":
     # Render URL സെറ്റ് ചെയ്യുന്നു
