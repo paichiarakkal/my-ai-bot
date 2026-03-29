@@ -3,10 +3,9 @@ import os
 from flask import Flask, request
 from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
-import yfinance as yf
-import pandas as pd
+import requests # ഇത് ഡാറ്റ എടുക്കാൻ സഹായിക്കും
 
-# API KEYS (നിങ്ങൾ നേരത്തെ Render-ൽ സെറ്റ് ചെയ്തവ)
+# API KEYS
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 TWILIO_SID = os.environ.get('TWILIO_SID')
 TWILIO_TOKEN = os.environ.get('TWILIO_TOKEN')
@@ -16,41 +15,32 @@ bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN, threaded=False)
 twilio_client = Client(TWILIO_SID, TWILIO_TOKEN)
 app = Flask(__name__)
 
-def get_trading_signal(symbol):
+def get_btc_price():
     try:
-        msg = symbol.upper().strip()
-        # BTC എന്ന് അയച്ചാൽ അത് BTC-USD ആണെന്ന് ഉറപ്പുവരുത്തുന്നു
-        if "BTC" in msg: search_sym = "BTC-USD"
-        elif "GOLD" in msg: search_sym = "GC=F"
-        elif "CRUDE" in msg: search_sym = "CL=F"
-        elif "NIFTY" in msg: search_sym = "^NSEI"
-        else: search_sym = f"{msg}.NS"
-
-        # ഞായറാഴ്ച ആയതുകൊണ്ട് 7 ദിവസത്തെ ഡാറ്റ എടുക്കുന്നു (അപ്പോൾ എറർ വരില്ല)
-        df = yf.download(search_sym, period="7d", interval="1d", progress=False)
+        # ബിറ്റ്‌കോയിൻ വില നേരിട്ട് എടുക്കുന്നു
+        url = "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
+        response = requests.get(url).json()
+        price_usd = float(response['price'])
         
-        if df.empty:
-            return f"❌ {msg}: ഇപ്പോൾ വിവരങ്ങൾ ലഭ്യമല്ല."
-
-        # ഏറ്റവും പുതിയ വില
-        last_price_usd = float(df['Close'].iloc[-1])
+        # കറൻസി നിരക്കുകൾ
+        price_inr = price_usd * 83.35
+        price_aed = price_usd * 3.67
         
-        # കറൻസി എക്സ്ചേഞ്ച് (INR & AED)
-        price_inr = last_price_usd * 83.35
-        price_aed = last_price_usd * 3.67
-        
-        return (f"📊 *{msg}*\n"
-                f"💵 USD: ${last_price_usd:,.2f}\n"
+        return (f"📊 *BTC-USD (Live)*\n"
+                f"💵 USD: ${price_usd:,.2f}\n"
                 f"🇮🇳 INR: ₹{price_inr:,.2f}\n"
-                f"🇦🇪 AED: {price_aed:,.2f} Dh\n"
-                f"━━━━━━━━━━━━━━")
-    except Exception as e:
-        return f"⚠️ ഡാറ്റാ പിശക്: പിന്നീട് ശ്രമിക്കുക."
+                f"🇦🇪 AED: {price_aed:,.2f} Dh")
+    except:
+        return "⚠️ ഇപ്പോൾ വില ലഭ്യമാക്കാൻ കഴിയുന്നില്ല."
 
 @app.route("/whatsapp", methods=['POST'])
 def whatsapp_reply():
     msg_body = request.values.get('Body', '').upper().strip()
-    result = get_trading_signal(msg_body)
+    if "BTC" in msg_body:
+        result = get_btc_price()
+    else:
+        result = "💡 ബിറ്റ്‌കോയിൻ വില അറിയാൻ *BTC* എന്ന് അയക്കുക. നാളെ രാവിലെ മുതൽ നിഫ്റ്റി ലഭ്യമാകും."
+    
     resp = MessagingResponse()
     resp.message().body(result)
     return str(resp)
@@ -63,7 +53,10 @@ def telegram_webhook():
 
 @bot.message_handler(func=lambda message: True)
 def handle_telegram(message):
-    res = get_trading_signal(message.text)
+    if "BTC" in message.text.upper():
+        res = get_btc_price()
+    else:
+        res = "BTC എന്ന് അയച്ചു നോക്കൂ!"
     bot.reply_to(message, res, parse_mode='Markdown')
 
 @app.route('/')
