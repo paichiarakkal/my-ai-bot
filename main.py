@@ -5,7 +5,6 @@ from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
 import yfinance as yf
 import pandas as pd
-import time
 
 # API KEYS
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
@@ -17,50 +16,43 @@ bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN, threaded=False)
 twilio_client = Client(TWILIO_SID, TWILIO_TOKEN)
 app = Flask(__name__)
 
-# RSI കണക്കാക്കുന്ന ഫംഗ്ഷൻ
-def calculate_rsi(series, period=14):
-    delta = series.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-    rs = gain / loss
-    return 100 - (100 / (1 + rs))
+def get_exchange_rates():
+    try:
+        # ലൈവ് എക്സ്ചേഞ്ച് റേറ്റ് എടുക്കുന്നു
+        inr_data = yf.download("USDINR=X", period="1d", progress=False)
+        aed_data = yf.download("USDAED=X", period="1d", progress=False)
+        return float(inr_data['Close'].iloc[-1]), float(aed_data['Close'].iloc[-1])
+    except:
+        return 83.30, 3.67 # പിശക് വന്നാൽ പഴയ റേറ്റ് ഉപയോഗിക്കും
 
 def get_trading_signal(symbol):
     try:
         msg = symbol.upper().strip()
-        # സിംബലുകൾ സെറ്റ് ചെയ്യുന്നു
         if "BTC" in msg: search_sym = "BTC-USD"
         elif "GOLD" in msg: search_sym = "GC=F"
         elif "CRUDE" in msg: search_sym = "CL=F"
         elif "NIFTY" in msg: search_sym = "^NSEI"
         else: search_sym = f"{msg}.NS"
 
-        # ഇന്ന് ഞായറാഴ്ച ആയതുകൊണ്ട് '1d' ഇന്റർവെൽ ഉപയോഗിക്കുന്നു
-        df = yf.download(search_sym, period="30d", interval="1d", progress=False)
+        df = yf.download(search_sym, period="5d", interval="1d", progress=False)
         
-        if df.empty or len(df) < 15:
-            return f"❌ {msg}: ഇപ്പോൾ വിവരങ്ങൾ ലഭ്യമല്ല."
+        if df.empty:
+            return f"❌ {msg}: വിവരങ്ങൾ ലഭ്യമല്ല."
 
-        # വിലയും RSI-യും എടുക്കുന്നു
         last_price_usd = float(df['Close'].iloc[-1])
-        df['RSI'] = calculate_rsi(df['Close'])
-        rsi_val = float(df['RSI'].iloc[-1])
+        inr_rate, aed_rate = get_exchange_rates()
         
-        # കറൻസി റേറ്റ് (ഏകദേശം)
-        price_inr = last_price_usd * 83.30
-        price_aed = last_price_usd * 3.67
-        
-        # സിഗ്നൽ ലോജിക്
-        signal = "BUY 🟢" if rsi_val > 50 else "SELL 🔴"
+        price_inr = last_price_usd * inr_rate
+        price_aed = last_price_usd * aed_rate
         
         return (f"📊 *{msg}*\n"
                 f"💵 USD: ${last_price_usd:,.2f}\n"
                 f"🇮🇳 INR: ₹{price_inr:,.2f}\n"
                 f"🇦🇪 AED: {price_aed:,.2f} Dh\n"
-                f"📈 RSI: {rsi_val:.1f}\n"
-                f"⚡ സിഗ്നൽ: {signal}")
-    except Exception as e:
-        return "⚠️ കണക്കുകൂട്ടലിൽ പിശക് നേരിട്ടു."
+                f"━━━━━━━━━━━━━━\n"
+                f"💱 Rate: $1 = ₹{inr_rate:.2f} / {aed_rate:.2f} Dh")
+    except:
+        return "⚠️ ഡാറ്റ എടുക്കാൻ സാധിക്കുന്നില്ല."
 
 @app.route("/whatsapp", methods=['POST'])
 def whatsapp_reply():
@@ -82,7 +74,7 @@ def handle_telegram(message):
     bot.reply_to(message, res, parse_mode='Markdown')
 
 @app.route('/')
-def home(): return "Bot Active"
+def home(): return "Bot Active with Live Exchange Rates"
 
 if __name__ == "__main__":
     bot.remove_webhook()
