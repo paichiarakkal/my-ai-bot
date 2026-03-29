@@ -6,7 +6,7 @@ from twilio.twiml.messaging_response import MessagingResponse
 import yfinance as yf
 import pandas as pd
 
-# API KEYS
+# API KEYS (നിങ്ങൾ നേരത്തെ Render-ൽ സെറ്റ് ചെയ്തവ)
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 TWILIO_SID = os.environ.get('TWILIO_SID')
 TWILIO_TOKEN = os.environ.get('TWILIO_TOKEN')
@@ -26,16 +26,17 @@ def get_trading_signal(symbol):
         elif "NIFTY" in msg: search_sym = "^NSEI"
         else: search_sym = f"{msg}.NS"
 
-        # ഇന്ന് ഞായറാഴ്ച ആയതുകൊണ്ട് ഡാറ്റ കിട്ടാൻ period='5d' ആക്കുന്നു
-        df = yf.download(search_sym, period="5d", interval="1d", progress=False)
+        # ഞായറാഴ്ച ആയതുകൊണ്ട് 7 ദിവസത്തെ ഡാറ്റ എടുക്കുന്നു (അപ്പോൾ എറർ വരില്ല)
+        df = yf.download(search_sym, period="7d", interval="1d", progress=False)
         
         if df.empty:
             return f"❌ {msg}: ഇപ്പോൾ വിവരങ്ങൾ ലഭ്യമല്ല."
 
+        # ഏറ്റവും പുതിയ വില
         last_price_usd = float(df['Close'].iloc[-1])
         
-        # എക്സ്ചേഞ്ച് റേറ്റുകൾ
-        price_inr = last_price_usd * 83.30
+        # കറൻസി എക്സ്ചേഞ്ച് (INR & AED)
+        price_inr = last_price_usd * 83.35
         price_aed = last_price_usd * 3.67
         
         return (f"📊 *{msg}*\n"
