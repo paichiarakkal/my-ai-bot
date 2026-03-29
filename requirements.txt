@@ -3,5 +3,5 @@ flask
 yfinance
 twilio
 pandas
-pandas-ta
+numpy
 gunicorn
