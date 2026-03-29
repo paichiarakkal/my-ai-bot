@@ -4,32 +4,31 @@ from flask import Flask, request
 import requests
 from twilio.twiml.messaging_response import MessagingResponse
 
-# API KEYS (Render Environment Variables-ൽ നൽകുക)
+# API KEYS
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN, threaded=False)
 app = Flask(__name__)
 
 def get_btc_price():
     try:
-        # Binance API ഉപയോഗിച്ച് ലൈവ് ബിറ്റ്‌കോയിൻ വില എടുക്കുന്നു
+        # Binance API (വളരെ വേഗത്തിൽ വില ലഭിക്കും)
         url = "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
         response = requests.get(url, timeout=10)
         data = response.json()
         
         if 'price' in data:
             price_usd = float(data['price'])
-            # ഏകദേശ കണക്ക് (നാളെ നമുക്ക് ഇത് ലൈവ് ആക്കാം)
+            # ഏകദേശ കണക്ക് (INR: 83.5, AED: 3.67)
             return (f"📊 *BITCOIN (Live)*\n"
                     f"💵 USD: ${price_usd:,.2f}\n"
                     f"🇮🇳 INR: ₹{price_usd * 83.5:,.2f}\n"
                     f"🇦🇪 AED: {price_usd * 3.67:,.2f} Dh\n"
                     f"━━━━━━━━━━━━━━")
         return None
-    except Exception as e:
-        print(f"Error: {e}")
+    except:
         return None
 
-# WhatsApp Webhook (Twilio വഴി വരുന്നത്)
+# WhatsApp Webhook
 @app.route("/whatsapp", methods=['POST'])
 def whatsapp_reply():
     msg_body = request.values.get('Body', '').strip().lower()
@@ -69,10 +68,10 @@ def handle_telegram(message):
 
 @app.route('/')
 def home():
-    return "Bot is Live! WhatsApp Webhook: /whatsapp"
+    return "Bot is Live! WhatsApp URL: /whatsapp"
 
 if __name__ == "__main__":
-    # Webhook സെറ്റ് ചെയ്യുന്നു
+    # Render URL സെറ്റ് ചെയ്യുന്നു
     RENDER_URL = f"https://my-ai-bot-a1d1.onrender.com/{TELEGRAM_BOT_TOKEN}"
     bot.remove_webhook()
     bot.set_webhook(url=RENDER_URL)
