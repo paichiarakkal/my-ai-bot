@@ -1,9 +1,7 @@
 pyTelegramBotAPI
-groq
 flask
-gunicorn
-requests
-pandas
 yfinance
 twilio
+pandas
 pandas-ta
+gunicorn
