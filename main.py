@@ -4,10 +4,12 @@ from flask import Flask, request
 from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
 import yfinance as yf
+import pandas as pd
+import pandas_ta as ta
 import threading
 import time
 
-# API KEYS (Render-ൽ നിങ്ങൾ നേരത്തെ സെറ്റ് ചെയ്തവ)
+# API KEYS
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 TWILIO_SID = os.environ.get('TWILIO_SID')
 TWILIO_TOKEN = os.environ.get('TWILIO_TOKEN')
@@ -17,49 +19,67 @@ bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN, threaded=False)
 twilio_client = Client(TWILIO_SID, TWILIO_TOKEN)
 app = Flask(__name__)
 
-# വാട്സാപ്പിലേക്ക് മെസ്സേജ് അയക്കുന്ന ഫംഗ്ഷൻ
-def send_whatsapp_msg(msg_text):
-    try:
-        twilio_client.messages.create(
-            from_='whatsapp:+14155238886', # Twilio Sandbox Number
-            body=msg_text,
-            to=MY_NUMBER
-        )
-    except Exception as e:
-        print(f"WhatsApp Error: {e}")
+# താൽക്കാലികമായി അലേർട്ടുകൾ സൂക്ഷിക്കാൻ
+alerts = {"CRUDE": 6500, "GOLD": 75000} 
 
-# സിഗ്നൽ കണക്കാക്കുന്ന ഫംഗ്ഷൻ
+def get_indicators(df):
+    # RSI & Supertrend കണക്കാക്കുന്നു
+    df['RSI'] = ta.rsi(df['Close'], length=14)
+    sti = ta.supertrend(df['High'], df['Low'], df['Close'], length=10, multiplier=3)
+    df = pd.concat([df, sti], axis=1)
+    return df
+
 def get_trading_signal(symbol):
     try:
-        search_symbol = "MCXCRUDEOIL1!" if "CRUDE" in symbol.upper() else symbol
-        # NSE ഓഹരികൾക്ക് .NS ചേർക്കുന്നു
-        if symbol.upper() not in ["^NSEI", "^NSEBANK", "MCXCRUDEOIL1!"]:
-            search_symbol = f"{symbol.upper()}.NS"
-            
-        df = yf.download(search_symbol, interval="5m", period="2d", progress=False)
-        if df.empty: return "ഡാറ്റ ലഭ്യമല്ല. ടിക്കർ ശരിയാണോ എന്ന് നോക്കുക."
+        sym = symbol.upper().strip()
+        search_sym = "CL=F" if "CRUDE" in sym else "GC=F" if "GOLD" in sym else "^NSEI" if "NIFTY" in sym else f"{sym}.NS"
         
-        last_price = float(df['Close'].iloc[-1])
-        # ലളിതമായ സിഗ്നൽ ലോജിക്
-        signal = "BUY 🟢" if last_price > float(df['Open'].iloc[-1]) else "SELL 🔴"
-        
-        return f"📊 *{symbol.upper()}*\n💰 വില: ₹{last_price:.2f}\n⚡️ സിഗ്നൽ: {signal}"
-    except:
-        return "സിഗ്നൽ എടുക്കുന്നതിൽ ചെറിയൊരു തടസ്സം."
+        df = yf.download(search_sym, interval="5m", period="2d", progress=False)
+        if df.empty: return "❌ വിവരങ്ങൾ ലഭ്യമല്ല."
 
-# --- വാട്സാപ്പ് വഴി മെസ്സേജ് വരുമ്പോൾ (Webhook) ---
+        df = get_indicators(df)
+        last_price = float(df['Close'].iloc[-1])
+        rsi_val = float(df['RSI'].iloc[-1])
+        trend = df['SUPERTd_10_3.0'].iloc[-1] # 1 = BUY, -1 = SELL
+
+        signal = "Strong BUY 🟢🔥" if (trend == 1 and rsi_val > 50) else "Strong SELL 🔴🔥" if (trend == -1 and rsi_val < 50) else "Neutral ⚪"
+        
+        return f"📊 *{sym}*\n💰 വില: {last_price:.2f}\n📈 RSI: {rsi_val:.1f}\n⚡ സിഗ്നൽ: {signal}"
+    except: return "⚠️ Error!"
+
+# 1. ഓട്ടോമാറ്റിക് പ്രൈസ് അലേർട്ട് സിസ്റ്റം (Background Task)
+def check_price_alerts():
+    while True:
+        try:
+            # Crude Oil മാത്രം തൽക്കാലം ചെക്ക് ചെയ്യുന്നു
+            df = yf.download("CL=F", period="1d", interval="1m", progress=False)
+            curr_price = float(df['Close'].iloc[-1])
+            
+            if curr_price >= alerts["CRUDE"]:
+                msg = f"🔔 ALERT: Crude Oil {curr_price} കടന്നു! ഉടൻ ശ്രദ്ധിക്കുക."
+                twilio_client.messages.create(from_='whatsapp:+14155238886', body=msg, to=MY_NUMBER)
+                time.sleep(300) # 5 മിനിറ്റ് ബ്രേക്ക്
+        except: pass
+        time.sleep(60) # ഓരോ മിനിറ്റിലും ചെക്ക് ചെയ്യും
+
+# അലേർട്ട് സിസ്റ്റം സ്റ്റാർട്ട് ചെയ്യുന്നു
+threading.Thread(target=check_price_alerts, daemon=True).start()
+
+# --- വാട്സാപ്പ് & ടെലിഗ്രാം ഹാൻഡ്ലേഴ്സ് ---
 @app.route("/whatsapp", methods=['POST'])
 def whatsapp_reply():
-    incoming_msg = request.values.get('Body', '').upper().strip()
-    # വാട്സാപ്പിൽ വന്ന മെസ്സേജിനുള്ള മറുപടി കണക്കാക്കുന്നു
-    result = get_trading_signal(incoming_msg)
+    msg_body = request.values.get('Body', '').upper().strip()
     
+    # 3. പ്രോഫിറ്റ് ട്രാക്കർ (സിമ്പിൾ ലോജിക്)
+    if "PROFIT" in msg_body:
+        res = "💰 ഇന്നത്തെ ലാഭം: ₹1,500 (Demo)"
+    else:
+        res = get_trading_signal(msg_body)
+        
     resp = MessagingResponse()
-    msg = resp.message()
-    msg.body(result)
+    resp.message().body(res)
     return str(resp)
 
-# --- ടെലിഗ്രാം വഴി മെസ്സേജ് വരുമ്പോൾ ---
 @app.route(f'/{TELEGRAM_BOT_TOKEN}', methods=['POST'])
 def telegram_webhook():
     update = telebot.types.Update.de_json(request.get_data().decode('utf-8'))
@@ -68,16 +88,13 @@ def telegram_webhook():
 
 @bot.message_handler(func=lambda message: True)
 def handle_telegram(message):
-    res = get_trading_signal(message.text.upper())
+    res = get_trading_signal(message.text)
     bot.reply_to(message, res, parse_mode='Markdown')
-    # ടെലിഗ്രാമിൽ ചോദിക്കുമ്പോൾ വാട്സാപ്പിലും നോട്ടിഫിക്കേഷൻ അയക്കുന്നു
-    send_whatsapp_msg(f"Telegram Notification:\n{res}")
 
 @app.route('/')
-def home(): return "Bot is Active!"
+def home(): return "All Systems Active!"
 
 if __name__ == "__main__":
     bot.remove_webhook()
-    time.sleep(1)
     bot.set_webhook(url=f"https://my-ai-bot-a1d1.onrender.com/{TELEGRAM_BOT_TOKEN}")
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
