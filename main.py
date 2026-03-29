@@ -16,43 +16,35 @@ bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN, threaded=False)
 twilio_client = Client(TWILIO_SID, TWILIO_TOKEN)
 app = Flask(__name__)
 
-def get_exchange_rates():
-    try:
-        # ലൈവ് എക്സ്ചേഞ്ച് റേറ്റ് എടുക്കുന്നു
-        inr_data = yf.download("USDINR=X", period="1d", progress=False)
-        aed_data = yf.download("USDAED=X", period="1d", progress=False)
-        return float(inr_data['Close'].iloc[-1]), float(aed_data['Close'].iloc[-1])
-    except:
-        return 83.30, 3.67 # പിശക് വന്നാൽ പഴയ റേറ്റ് ഉപയോഗിക്കും
-
 def get_trading_signal(symbol):
     try:
         msg = symbol.upper().strip()
+        # BTC എന്ന് അയച്ചാൽ അത് BTC-USD ആണെന്ന് ഉറപ്പുവരുത്തുന്നു
         if "BTC" in msg: search_sym = "BTC-USD"
         elif "GOLD" in msg: search_sym = "GC=F"
         elif "CRUDE" in msg: search_sym = "CL=F"
         elif "NIFTY" in msg: search_sym = "^NSEI"
         else: search_sym = f"{msg}.NS"
 
+        # ഇന്ന് ഞായറാഴ്ച ആയതുകൊണ്ട് ഡാറ്റ കിട്ടാൻ period='5d' ആക്കുന്നു
         df = yf.download(search_sym, period="5d", interval="1d", progress=False)
         
         if df.empty:
-            return f"❌ {msg}: വിവരങ്ങൾ ലഭ്യമല്ല."
+            return f"❌ {msg}: ഇപ്പോൾ വിവരങ്ങൾ ലഭ്യമല്ല."
 
         last_price_usd = float(df['Close'].iloc[-1])
-        inr_rate, aed_rate = get_exchange_rates()
         
-        price_inr = last_price_usd * inr_rate
-        price_aed = last_price_usd * aed_rate
+        # എക്സ്ചേഞ്ച് റേറ്റുകൾ
+        price_inr = last_price_usd * 83.30
+        price_aed = last_price_usd * 3.67
         
         return (f"📊 *{msg}*\n"
                 f"💵 USD: ${last_price_usd:,.2f}\n"
                 f"🇮🇳 INR: ₹{price_inr:,.2f}\n"
                 f"🇦🇪 AED: {price_aed:,.2f} Dh\n"
-                f"━━━━━━━━━━━━━━\n"
-                f"💱 Rate: $1 = ₹{inr_rate:.2f} / {aed_rate:.2f} Dh")
-    except:
-        return "⚠️ ഡാറ്റ എടുക്കാൻ സാധിക്കുന്നില്ല."
+                f"━━━━━━━━━━━━━━")
+    except Exception as e:
+        return f"⚠️ ഡാറ്റാ പിശക്: പിന്നീട് ശ്രമിക്കുക."
 
 @app.route("/whatsapp", methods=['POST'])
 def whatsapp_reply():
@@ -74,7 +66,7 @@ def handle_telegram(message):
     bot.reply_to(message, res, parse_mode='Markdown')
 
 @app.route('/')
-def home(): return "Bot Active with Live Exchange Rates"
+def home(): return "Bot Active"
 
 if __name__ == "__main__":
     bot.remove_webhook()
