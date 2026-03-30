@@ -2,76 +2,92 @@ import telebot
 import os
 from flask import Flask, request
 import yfinance as yf
+import pandas as pd
 from twilio.twiml.messaging_response import MessagingResponse
 
 app = Flask(__name__)
 TELEGRAM_BOT_TOKEN = "8638662433:AAEI4BwJuO7Bg8XTEv8OHmfP6CexFe2SiwA"
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN, threaded=False)
 
-# Stop Loss & Target Calculator
+# 1. Stop Loss & Target Calculator
 def calculate_sl_target(text):
     try:
-        parts = text.split()
-        entry = float(parts[1])
-        # 1:2 Risk-Reward (20 pts SL, 40 pts Target for Option)
-        sl = entry - 20
-        target = entry + 40
-        return f"🎯 *TRADE PLAN*\nEntry: ₹{entry}\n🛑 SL (20pts): ₹{sl}\n✅ Target (40pts): ₹{target}"
-    except:
-        return "⚠️ Format: `sl [Entry Price]`\nEx: `sl 350`"
+        entry = float(text.split()[1])
+        return f"🎯 *TRADE PLAN*\nEntry: ₹{entry}\n🛑 SL (20pts): ₹{entry-20}\n✅ Target (40pts): ₹{entry+40}"
+    except: return "⚠️ Format: `sl [Price]`"
 
-# Lot Cost Calculator
+# 2. Lot Cost Calculator
 def calculate_lot_cost(text):
     try:
-        parts = text.split()
-        premium = float(parts[1])
+        premium = float(text.split()[1])
         return f"💰 *BANK NIFTY COST*\nTotal: ₹{premium * 15:,.2f} (15 Qty)"
-    except:
-        return "⚠️ Format: `lot [Premium]`"
+    except: return "⚠️ Format: `lot [Premium]`"
 
+# 3. Market Analysis Engine (All Signals & Levels)
 def get_market_analysis():
     try:
-        symbols = {"Nifty 50": "^NSEI", "Bank Nifty": "^NSEBANK", "Crude Fut": "CL=F"}
+        symbols = {
+            "Nifty 50": "^NSEI", 
+            "Bank Nifty": "^NSEBANK", 
+            "Crude Fut": "CL=F",
+            "HDFC Bank": "HDFCBANK.NS",
+            "Reliance": "RELIANCE.NS"
+        }
         output = "🚀 *FAISAL'S PRO TERMINAL*\n\n"
+        
         for name, sym in symbols.items():
             df = yf.Ticker(sym).history(period="5d", interval="5m")
             if df.empty: continue
+            
             last_price = df['Close'].iloc[-1]
             high, low, close = df['High'].iloc[-2], df['Low'].iloc[-2], df['Close'].iloc[-2]
+            
+            # Pivot & RSI
             pivot = (high + low + close) / 3
             r1, s1 = (2 * pivot) - low, (2 * pivot) - high
-            signal = "🚀 BUY CALL" if last_price > pivot else "📉 BUY PUT"
-            output += f"📈 *{name}*: {last_price:,.2f}\n💡 *{signal}* | S1:{s1:.0f} R1:{r1:.0f}\n---\n"
+            ema_20 = df['Close'].ewm(span=20, adjust=False).mean().iloc[-1]
+            
+            delta = df['Close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+            rsi = 100 - (100 / (1 + (gain / loss).iloc[-1]))
+            
+            # Signal Logic
+            if last_price > ema_20 and rsi > 50: signal = "🚀 BUY CALL"
+            elif last_price < ema_20 and rsi < 50: signal = "📉 BUY PUT"
+            else: signal = "⚖️ WAIT"
+            
+            if name == "Crude Fut":
+                price = last_price * 83.5 * 1.15
+                output += f"🛢️ *{name}*: ₹{price:,.0f}\n"
+            else:
+                output += f"📈 *{name}*: {last_price:,.2f}\n"
+            
+            output += f"💡 *{signal}* | S1:{s1:.0f} R1:{r1:.0f}\n"
+            output += "------------------\n"
+            
         return output + "\nCommands: `lot`, `calc`, `sl`"
-    except:
-        return "⚠️ ഡാറ്റ ലഭ്യമല്ല."
+    except: return "⚠️ ഡാറ്റ ലഭ്യമല്ല."
 
 @app.route("/whatsapp", methods=['POST'])
 def whatsapp_reply():
     body = request.values.get('Body', '').lower()
     resp = MessagingResponse()
-    if body.startswith('sl'):
-        resp.message(calculate_sl_target(body))
-    elif body.startswith('lot'):
-        resp.message(calculate_lot_cost(body))
+    if body.startswith('sl'): resp.message(calculate_sl_target(body))
+    elif body.startswith('lot'): resp.message(calculate_lot_cost(body))
     elif body.startswith('calc'):
-        parts = body.split()
-        res = f"P&L: ₹{(float(parts[2])-float(parts[1]))*int(parts[3]):.2f}"
-        resp.message(res)
-    else:
-        resp.message(get_market_analysis())
+        p = body.split()
+        resp.message(f"P&L: ₹{(float(p[2])-float(p[1]))*int(p[2]):.2f}")
+    else: resp.message(get_market_analysis())
     return str(resp)
 
 @bot.message_handler(func=lambda message: True)
 def telegram_reply(message):
-    text = message.text.lower()
-    if text.startswith('sl'):
-        bot.reply_to(message, calculate_sl_target(text))
-    elif text.startswith('lot'):
-        bot.reply_to(message, calculate_lot_cost(text))
-    else:
-        bot.reply_to(message, get_market_analysis())
+    t = message.text.lower()
+    if t.startswith('sl'): bot.reply_to(message, calculate_sl_target(t))
+    elif t.startswith('lot'): bot.reply_to(message, calculate_lot_cost(t))
+    else: bot.reply_to(message, get_market_analysis())
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
+    
