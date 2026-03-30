@@ -1,89 +1,79 @@
-import subprocess
-import sys
-import os
-
-# 1. ആവശ്യമായ ലൈബ്രറി (plotly) ഉണ്ടോ എന്ന് നോക്കുന്നു, ഇല്ലെങ്കിൽ ഇൻസ്റ്റാൾ ചെയ്യുന്നു
-def install_if_missing(package):
-    try:
-        __import__(package)
-    except ImportError:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
-
-install_if_missing('plotly')
-install_if_missing('pandas_ta') # സൂപ്പർ ട്രെൻഡ് കണക്കാക്കാൻ ഇത് സഹായിക്കും
-
-# 2. ലൈബ്രറികൾ ഇമ്പോർട്ട് ചെയ്യുന്നു
 import streamlit as st
 import pandas as pd
 import yfinance as yf
 import plotly.graph_objects as go
 import pandas_ta as ta
+import telebot
+import threading
 from datetime import datetime
 
-# 3. ആപ്പ് ഡിസൈൻ
+# 1. ടെലിഗ്രാം ബോട്ട് സെറ്റപ്പ്
+API_TOKEN = '8638662433:AAEI4BwJuO7Bg8XTEv8OHmfP6CexFe2SiwA'
+bot = telebot.TeleBot(API_TOKEN)
+
+# ബോട്ട് കമാൻഡുകൾ
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    bot.reply_to(message, "നമസ്കാരം ഫൈസൽ! നിങ്ങളുടെ ട്രേഡിംഗ് ബോട്ട് ഇപ്പോൾ ഓൺലൈൻ ആണ്. 🚀")
+
+@bot.message_handler(func=lambda message: True)
+def echo_all(message):
+    bot.reply_to(message, f"നിങ്ങൾ പറഞ്ഞത്: {message.text}. ചാർട്ടുകൾ കാണാൻ വെബ് ലിങ്ക് നോക്കുക.")
+
+# ബോട്ട് ബാക്ക്ഗ്രൗണ്ടിൽ റൺ ചെയ്യാനുള്ള ഫങ്ക്ഷൻ
+def run_bot():
+    try:
+        bot.infinity_polling(timeout=10, long_polling_timeout=5)
+    except Exception as e:
+        print(f"Bot Error: {e}")
+
+# ബോട്ട് ഒരു തവണ മാത്രം സ്റ്റാർട്ട് ചെയ്യുന്നു എന്ന് ഉറപ്പാക്കുന്നു
+if "bot_started" not in st.session_state:
+    thread = threading.Thread(target=run_bot, daemon=True)
+    thread.start()
+    st.session_state.bot_started = True
+
+# 2. സ്റ്റ്രീംലിറ്റ് ഡാഷ്‌ബോർഡ് (UI)
 st.set_page_config(page_title="Faisal Pro Smart Bot", layout="wide")
 
-st.markdown("<h1 style='text-align: center; color: #1E88E5;'>📊 ഫൈസൽ പ്രോ സൂപ്പർ ട്രെൻഡ് ചാർട്ട്</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color: #1E88E5;'>📊 ഫൈസൽ പ്രോ ട്രേഡിംഗ് & ബോട്ട്</h1>", unsafe_allow_html=True)
 
-# സൈഡ് ബാർ - കറൻസി കൺവെർട്ടർ
+# സൈഡ് ബാർ
+st.sidebar.success("✅ ടെലിഗ്രാം ബോട്ട് ഇപ്പോൾ പ്രവർത്തിക്കുന്നുണ്ട്!")
 st.sidebar.header("💰 AED to INR")
 try:
     live_rate_data = yf.Ticker("AEDINR=X").history(period="1d")
     if not live_rate_data.empty:
         live_rate = live_rate_data['Close'].iloc[-1]
         aed = st.sidebar.number_input("ദിർഹം (AED)", min_value=0.0, value=1000.0)
-        st.sidebar.success(f"ഇന്നത്തെ തുക: ₹{(aed * live_rate):.2f}")
+        st.sidebar.write(f"ഇന്നത്തെ തുക: ₹{(aed * live_rate):.2f}")
 except:
-    st.sidebar.warning("Currency rate fetch error")
+    pass
 
-# 4. സൂപ്പർ ട്രെൻഡ് ചാർട്ട് ഫങ്ക്ഷൻ
+# ചാർട്ട് ഫങ്ക്ഷൻ (Supertrend ഉൾപ്പെടുത്തിയത്)
 def draw_supertrend_chart(name, symbol):
     try:
-        # ഡാറ്റ എടുക്കുന്നു (കുറഞ്ഞത് 100 കാൻഡിലുകൾ വേണം സൂപ്പർ ട്രെൻഡ് കൃത്യമാകാൻ)
         df = yf.Ticker(symbol).history(period="5d", interval="5m")
-        
         if not df.empty:
-            # സൂപ്പർ ട്രെൻഡ് കണക്കാക്കുന്നു (Period: 7, Multiplier: 3)
+            # സൂപ്പർ ട്രെൻഡ് കണക്കാക്കുന്നു
             sti = ta.supertrend(df['High'], df['Low'], df['Close'], length=7, multiplier=3)
-            
-            # സൂപ്പർ ട്രെൻഡ് ഡാറ്റ മെയിൻ ഡാറ്റാഫ്രെയിമിലേക്ക് ചേർക്കുന്നു
             df['ST'] = sti['SUPERT_7_3.0']
-            df['ST_Dir'] = sti['SUPERTd_7_3.0'] # 1 (Buy), -1 (Sell)
-
+            
             fig = go.Figure()
-
-            # കാൻഡിൽസ്റ്റിക് ചാർട്ട്
-            fig.add_trace(go.Candlestick(
-                x=df.index, open=df['Open'], high=df['High'],
-                low=df['Low'], close=df['Close'], name='വില'
-            ))
-
-            # സൂപ്പർ ട്രെൻഡ് ലൈൻ (പച്ച/ചുവപ്പ്)
-            # ഡയറക്ഷൻ 1 ആണെങ്കിൽ പച്ച (Buy), -1 ആണെങ്കിൽ ചുവപ്പ് (Sell)
-            colors = ['green' if d == 1 else 'red' for d in df['ST_Dir']]
+            # Candlestick
+            fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name='വില'))
+            # Supertrend Line
+            fig.add_trace(go.Scatter(x=df.index, y=df['ST'], line=dict(color='yellow', width=2), name='Supertrend'))
             
-            fig.add_trace(go.Scatter(
-                x=df.index, y=df['ST'], 
-                line=dict(width=2, color='yellow'), # ട്രെൻഡ് ലൈൻ മഞ്ഞയിൽ
-                name='Supertrend'
-            ))
-
-            fig.update_layout(
-                title=f"{name} ലൈവ് ചാർട്ട് (Supertrend 7,3)",
-                xaxis_rangeslider_visible=False,
-                template='plotly_dark',
-                height=600
-            )
-            
+            fig.update_layout(title=f"{name} ലൈവ് ചാർട്ട്", xaxis_rangeslider_visible=False, template='plotly_dark', height=500)
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.warning(f"{name} ഡാറ്റ ഇപ്പോൾ ലഭ്യമല്ല.")
-            
+            st.error(f"{name} ഡാറ്റ ലഭ്യമല്ല.")
     except Exception as e:
-        st.error(f"Error loading {name}: {e}")
+        st.error(f"Error: {e}")
 
-# 5. ചാർട്ടുകൾ ഡിസ്പ്ലേ ചെയ്യുന്നു
+# ചാർട്ടുകൾ കാണിക്കുന്നു
 draw_supertrend_chart("Nifty 50", "^NSEI")
-draw_supertrend_chart("Crude Oil (CL=F)", "CL=F")
+draw_supertrend_chart("Crude Oil", "CL=F")
 
-st.info("💡 മഞ്ഞ ലൈനിന് മുകളിൽ കാൻഡിൽ വന്നാൽ 'Buy' എന്നും താഴെ വന്നാൽ 'Sell' എന്നും മനസ്സിലാക്കാം.")
+st.info("💡 ടെലിഗ്രാം ബോട്ടും ചാർട്ടുകളും ഇപ്പോൾ ഒരേ സമയം പ്രവർത്തിക്കുന്നുണ്ട്.")
