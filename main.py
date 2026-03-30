@@ -2,47 +2,42 @@ import telebot
 import os
 from flask import Flask, request
 import yfinance as yf
-import pandas as pd
 from twilio.twiml.messaging_response import MessagingResponse
 
 app = Flask(__name__)
-
 TELEGRAM_BOT_TOKEN = "8638662433:AAEI4BwJuO7Bg8XTEv8OHmfP6CexFe2SiwA"
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN, threaded=False)
 
-def calculate_pnl(text):
-    try:
-        # Format: calc 500 550 15 (Buy Sell Qty)
-        parts = text.split()
-        buy = float(parts[1])
-        sell = float(parts[2])
-        qty = int(parts[3])
-        
-        pnl = (sell - buy) * qty
-        status = "💰 PROFIT" if pnl > 0 else "📉 LOSS"
-        return f"{status}: ₹{abs(pnl):,.2f}\nPoints: {sell-buy:.2f}"
-    except:
-        return "⚠️ Format: `calc [Buy] [Sell] [Qty]`\nEx: `calc 450 480 15`"
-
 def get_market_analysis():
     try:
-        symbols = {"Nifty 50": "^NSEI", "Bank Nifty": "^NSEBANK", "Fin Nifty": "NIFTY_FIN_SERVICE.NS", "Crude Fut": "CL=F"}
-        output = "📊 *TRADE ASSISTANT LIVE*\n\n"
+        # പ്രധാന ഇൻഡക്സുകളും സ്റ്റോക്കുകളും
+        symbols = {
+            "Nifty 50": "^NSEI", 
+            "Bank Nifty": "^NSEBANK", 
+            "Crude Fut": "CL=F",
+            "HDFC Bank": "HDFCBANK.NS",
+            "Reliance": "RELIANCE.NS"
+        }
+        
+        output = "🚀 *FAISAL'S PRO TERMINAL*\n\n"
         
         for name, sym in symbols.items():
-            df = yf.Ticker(sym).history(period="2d", interval="5m")
+            ticker = yf.Ticker(sym)
+            df = ticker.history(period="2d", interval="5m")
             if df.empty: continue
             
             last_price = df['Close'].iloc[-1]
-            ema_20 = df['Close'].ewm(span=20, adjust=False).mean().iloc[-1]
+            high = df['High'].iloc[-2]
+            low = df['Low'].iloc[-2]
+            close = df['Close'].iloc[-2]
             
-            # RSI
-            delta = df['Close'].diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-            rsi = 100 - (100 / (1 + (gain / loss).iloc[-1]))
+            # Pivot Point Calculation
+            pivot = (high + low + close) / 3
+            r1 = (2 * pivot) - low
+            s1 = (2 * pivot) - high
             
-            signal = "🚀 BUY CALL" if last_price > ema_20 and rsi > 50 else "📉 BUY PUT" if last_price < ema_20 and rsi < 50 else "⚖️ WAIT"
+            # Simple Signal
+            signal = "🟢 BULLISH" if last_price > pivot else "🔴 BEARISH"
             
             if name == "Crude Fut":
                 price = last_price * 83.5 * 1.15
@@ -50,29 +45,24 @@ def get_market_analysis():
             else:
                 output += f"📈 *{name}*: {last_price:,.2f}\n"
             
-            output += f"💡 SIGNAL: *{signal}*\n------------------\n"
+            output += f"ST: {signal} | S1: {s1:.0f} | R1: {r1:.0f}\n"
+            output += "------------------\n"
             
-        return output + "\nUse `calc 100 120 15` for P&L"
+        return output + "\n`calc [Buy] [Sell] [Qty]` for P&L"
     except:
         return "⚠️ ഡാറ്റ ലഭ്യമല്ല."
 
+# WhatsApp & Telegram Handlers (നമ്മൾ നേരത്തെ ചെയ്തത് പോലെ)
 @app.route("/whatsapp", methods=['POST'])
 def whatsapp_reply():
     body = request.values.get('Body', '').lower()
     resp = MessagingResponse()
-    if body.startswith('calc'):
-        resp.message(calculate_pnl(body))
-    else:
-        resp.message(get_market_analysis())
+    resp.message(get_market_analysis())
     return str(resp)
 
 @bot.message_handler(func=lambda message: True)
 def telegram_reply(message):
-    text = message.text.lower()
-    if text.startswith('calc'):
-        bot.reply_to(message, calculate_pnl(text))
-    else:
-        bot.reply_to(message, get_market_analysis())
+    bot.reply_to(message, get_market_analysis())
 
 @app.route(f"/{TELEGRAM_BOT_TOKEN}", methods=['POST'])
 def getMessage():
