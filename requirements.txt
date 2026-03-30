@@ -1,12 +1,7 @@
-pyTelegramBotAPI
-flask
-yfinance
-twilio
-pandas
-numpy
-gunicorn
-requests
-plotly
 streamlit
-Pillow
+pandas
+plotly
+yfinance
 pandas_ta
+pyTelegramBotAPI
+numpy
