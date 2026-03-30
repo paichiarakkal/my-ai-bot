@@ -7,3 +7,5 @@ numpy
 gunicorn
 requests
 plotly
+streamlit
+Pillow
