@@ -1,62 +1,56 @@
-import streamlit as st
-import yfinance as yf
-from PIL import Image
+import subprocess
+import sys
 import os
-import plotly.graph_objects as go
 
-# 1. പേജ് സെറ്റപ്പ്
+# 1. ആവശ്യമായ ലൈബ്രറികൾ ഇൻസ്റ്റാൾ ചെയ്യാനുള്ള ഫങ്ക്ഷൻ
+def install_if_missing(package):
+    try:
+        __import__(package)
+    except ImportError:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+
+# Plotly നിർബന്ധമായും ഇൻസ്റ്റാൾ ചെയ്യുന്നു
+install_if_missing('plotly')
+
+# 2. ഇപ്പോൾ ലൈബ്രറികൾ ഇമ്പോർട്ട് ചെയ്യുന്നു
+import streamlit as st
+import pandas as pd
+import yfinance as yf
+import plotly.graph_objects as go
+from datetime import datetime
+
+# 3. ഡാഷ്‌ബോർഡ് ഡിസൈൻ തുടങ്ങുന്നു
 st.set_page_config(page_title="Faisal Pro Smart Bot", layout="wide")
 
-# 2. ഹെഡർ
-cols = st.columns([1, 4, 1])
-with cols[1]:
-    if os.path.exists("image_12.png"):
-        st.image(Image.open("image_12.png"), width=150)
-    st.markdown("<h1 style='text-align: center; color: #1E88E5;'>📊 ഫൈസൽസ് പ്രോ ട്രേഡിംഗ് ചാർട്ട്സ്</h1>", unsafe_allow_html=True)
+# ഹെഡർ
+st.markdown("<h1 style='text-align: center; color: #1E88E5;'>📊 ഫൈസൽ പ്രോ ട്രേഡിംഗ് ചാർട്ടുകൾ</h1>", unsafe_allow_html=True)
 
-# 3. കറൻസി കൺവെർട്ടർ (Sidebar)
+# സൈഡ് ബാർ - കറൻസി കൺവെർട്ടർ
 st.sidebar.header("💰 AED to INR")
-currency_data = yf.Ticker("AEDINR=X").history(period="1d")
-live_rate = currency_data['Close'].iloc[-1]
-aed = st.sidebar.number_input("ദിർഹം (AED)", min_value=0.0, value=1000.0)
-st.sidebar.success(f"നാട്ടിലെ തുക: ₹{aed * live_rate:,.2f}")
+live_rate_data = yf.Ticker("AEDINR=X").history(period="1d")
+if not live_rate_data.empty:
+    live_rate = live_rate_data['Close'].iloc[-1]
+    aed = st.sidebar.number_input("ദിർഹം (AED)", min_value=0.0, value=1000.0)
+    st.sidebar.success(f"ഇന്നത്തെ തുക: ₹{(aed * live_rate):.2f}")
 
-# 4. Candlestick Chart ഉണ്ടാക്കുന്ന ഫങ്ക്ഷൻ
-def draw_upstox_chart(name, sym, multi):
-    df = yf.Ticker(sym).history(period="1d", interval="5m")
+# ചാർട്ട് വരയ്ക്കാനുള്ള ഫങ്ക്ഷൻ
+def draw_chart(name, symbol):
+    df = yf.Ticker(symbol).history(period="1d", interval="5m")
     if not df.empty:
-        # വില കറക്റ്റ് ചെയ്യുന്നു
-        df['Open'] *= multi
-        df['High'] *= multi
-        df['Low'] *= multi
-        df['Close'] *= multi
-        
         fig = go.Figure(data=[go.Candlestick(
             x=df.index,
             open=df['Open'],
             high=df['High'],
             low=df['Low'],
-            close=df['Close'],
-            increasing_line_color= '#26a69a', decreasing_line_color= '#ef5350'
+            close=df['Close']
         )])
-        
-        fig.update_layout(
-            title=f"{name} ലൈവ് ചാർട്ട് (5 min)",
-            xaxis_rangeslider_visible=False,
-            template="plotly_dark",
-            height=400
-        )
+        fig.update_layout(title=f"{name} ലൈവ് ചാർട്ട് (5 min)", xaxis_rangeslider_visible=False, height=450)
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.error(f"{name} ഡാറ്റ കിട്ടിയില്ല")
+        st.error(f"{name} ഡാറ്റ ലഭ്യമല്ല.")
 
-# 5. മെയിൻ ഡിസ്‌പ്ലേ
-symbols = {
-    "Nifty 50": {"sym": "^NSEI", "multi": 1},
-    "Crude Oil (INR)": {"sym": "CL=F", "multi": 83.30}
-}
-
-for name, info in symbols.items():
-    draw_upstox_chart(name, info["sym"], info["multi"])
+# ചാർട്ടുകൾ പ്രദർശിപ്പിക്കുന്നു
+draw_chart("Nifty 50", "^NSEI")
+draw_chart("Crude Oil (CL=F)", "CL=F")
 
 st.info("💡 Upstox-ൽ കാണുന്നതുപോലെ ചാർട്ടിൽ തൊട്ടാൽ നിങ്ങൾക്ക് വില അറിയാൻ സാധിക്കും.")
