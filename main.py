@@ -13,17 +13,17 @@ bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN, threaded=False)
 def calculate_sl_target(text):
     try:
         entry = float(text.split()[1])
-        return f"🎯 *TRADE PLAN*\nEntry: ₹{entry}\n🛑 SL (20pts): ₹{entry-20}\n✅ Target (40pts): ₹{entry+40}"
+        return f"🎯 *TRADE PLAN*\nEntry: ₹{entry}\n🛑 SL: ₹{entry-20}\n✅ Target: ₹{entry+40}"
     except: return "⚠️ Format: `sl [Price]`"
 
 # 2. Lot Cost Calculator
 def calculate_lot_cost(text):
     try:
         premium = float(text.split()[1])
-        return f"💰 *BANK NIFTY COST*\nTotal: ₹{premium * 15:,.2f} (15 Qty)"
+        return f"💰 *BANK NIFTY COST*\nTotal: ₹{premium * 15:,.2f}"
     except: return "⚠️ Format: `lot [Premium]`"
 
-# 3. Market Analysis Engine (All Signals & Levels)
+# 3. Market Analysis Engine
 def get_market_analysis():
     try:
         symbols = {
@@ -42,7 +42,7 @@ def get_market_analysis():
             last_price = df['Close'].iloc[-1]
             high, low, close = df['High'].iloc[-2], df['Low'].iloc[-2], df['Close'].iloc[-2]
             
-            # Pivot & RSI
+            # Pivot & RSI Logic
             pivot = (high + low + close) / 3
             r1, s1 = (2 * pivot) - low, (2 * pivot) - high
             ema_20 = df['Close'].ewm(span=20, adjust=False).mean().iloc[-1]
@@ -52,14 +52,15 @@ def get_market_analysis():
             loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
             rsi = 100 - (100 / (1 + (gain / loss).iloc[-1]))
             
-            # Signal Logic
+            # Signal
             if last_price > ema_20 and rsi > 50: signal = "🚀 BUY CALL"
             elif last_price < ema_20 and rsi < 50: signal = "📉 BUY PUT"
             else: signal = "⚖️ WAIT"
             
+            # Price Formatting
             if name == "Crude Fut":
-                price = last_price * 83.5 * 1.15
-                output += f"🛢️ *{name}*: ₹{price:,.0f}\n"
+                final_price = last_price * 83.5 * 1.15 # പഴയ റേഞ്ചിലേക്ക് മാറ്റാൻ
+                output += f"🛢️ *{name}*: ₹{final_price:,.0f}\n"
             else:
                 output += f"📈 *{name}*: {last_price:,.2f}\n"
             
@@ -77,7 +78,7 @@ def whatsapp_reply():
     elif body.startswith('lot'): resp.message(calculate_lot_cost(body))
     elif body.startswith('calc'):
         p = body.split()
-        resp.message(f"P&L: ₹{(float(p[2])-float(p[1]))*int(p[2]):.2f}")
+        resp.message(f"P&L: ₹{(float(p[2])-float(p[1]))*int(p[3]):.2f}")
     else: resp.message(get_market_analysis())
     return str(resp)
 
@@ -90,4 +91,3 @@ def telegram_reply(message):
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
-    
