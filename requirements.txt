@@ -9,3 +9,4 @@ requests
 plotly
 streamlit
 Pillow
+pandas_ta
