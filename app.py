@@ -1,30 +1,28 @@
 import streamlit as st
 import yfinance as yf
 from PIL import Image
+import os
 
-# 1. ലോഗോ സേവ് ചെയ്യുക:
-# ഈ കോഡ് സേവ് ചെയ്യുന്നതിന് മുൻപ് നിങ്ങളുടെ image_12.png ഫോട്ടോ GitHub-ൽ app.py ഉള്ള അതേ ഫോൾഡറിൽ അപ്‌ലോഡ് ചെയ്യണം.
-# അല്ലെങ്കിൽ താഴെയുള്ള line കമന്റ് ചെയ്യുക.
-
-# 2. പേജ് സെറ്റപ്പ് - ഐക്കൺ ചേർക്കുന്നു
+# 1. പേജ് സെറ്റപ്പ് - ടൈറ്റിലും ഐക്കണും
 st.set_page_config(
     page_title="Faisal's Pro Dashboard",
-    page_icon="📈", # ഇമോജി ഐക്കൺ (പടം സെറ്റാകുന്നതു വരെ)
+    page_icon="📈",
     layout="wide"
 )
 
-# 3. ലോഗോയും പേരും കാണിക്കുന്നു (ഡാഷ്‌ബോർഡിന്റെ മുകളിൽ)
-cols = st.columns([1, 4, 1]) # മൂന്ന് കോളങ്ങൾ (നടുവിൽ പേരും പടവും)
+# 2. ആപ്പ് ഐക്കൺ വരാനുള്ള Manifest ലിങ്ക് (ഇത് പ്രധാനമാണ്)
+st.markdown('<link rel="manifest" href="./manifest.json">', unsafe_allow_html=True)
+
+# 3. ലോഗോയും പേരും കാണിക്കുന്നു
+cols = st.columns([1, 4, 1])
 with cols[1]:
-    try:
-        # ലോഗോ ഫോട്ടോ GitHub-ൽ അപ്‌ലോഡ് ചെയ്തിട്ടുണ്ടെങ്കിൽ ഇത് പ്രവർത്തിക്കും
-        img = Image.open("image_12.png") 
-        st.image(img, caption="Faisal Arakkal", width=150) # പടം
-    except:
-        st.write("FAISAL ARAKKAL") # പടം കിട്ടിയില്ലെങ്കിൽ പേര്
-
+    if os.path.exists("image_12.png"):
+        img = Image.open("image_12.png")
+        st.image(img, width=150)
+    else:
+        st.write("FAISAL ARAKKAL")
+    
     st.markdown("<h1 style='text-align: center; color: #1E88E5;'>🚀 FAISAL'S PRO DASHBOARD</h1>", unsafe_allow_html=True)
-
 
 # 4. ഡാറ്റ ഓർത്തുവെക്കാൻ (Cache)
 @st.cache_data(ttl=300)
@@ -35,7 +33,7 @@ def get_stock_data(sym):
     except:
         return None
 
-# 5. ഡാഷ്‌ബോർഡ് കണ്ടന്റ്
+# 5. ഡാഷ്‌ബോർഡ് കണ്ടന്റ് (Nifty, Bank Nifty, Crude Oil)
 symbols = {"Nifty 50": "^NSEI", "Bank Nifty": "^NSEBANK", "Crude Oil": "CL=F"}
 main_cols = st.columns(3)
 
