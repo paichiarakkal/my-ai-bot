@@ -1,70 +1,77 @@
 import telebot
 import os
 from flask import Flask, request
-import requests
 import yfinance as yf
+import pandas as pd
+import requests
 from twilio.twiml.messaging_response import MessagingResponse
 
 app = Flask(__name__)
 
-# Token
 TELEGRAM_BOT_TOKEN = "8638662433:AAEI4BwJuO7Bg8XTEv8OHmfP6CexFe2SiwA"
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN, threaded=False)
 
-def get_market_data():
+def get_market_analysis():
     try:
-        # Nifty 50 Spot
-        nifty = yf.Ticker("^NSEI")
-        n_price = nifty.history(period="1d")['Close'].iloc[-1]
+        # India VIX (Fear Index)
+        vix = yf.Ticker("^INDIAVIX").history(period="1d")['Close'].iloc[-1]
         
-        # MCX Crude Oil Future (Approx based on Near Month)
-        # yfinance-ൽ MCX ഫ്യൂച്ചേഴ്സ് നേരിട്ട് കിട്ടാൻ പ്രയാസമാണ്, 
-        # അതുകൊണ്ട് നമ്മൾ ഡോളർ ഫ്യൂച്ചറിനെ (CL=F) കറൻസി വെച്ച് മാറ്റുന്നു.
-        crude_fut = yf.Ticker("CL=F")
-        c_price_usd = crude_fut.history(period="1d")['Close'].iloc[-1]
+        symbols = {
+            "Nifty 50": "^NSEI",
+            "Bank Nifty": "^NSEBANK",
+            "Fin Nifty": "NIFTY_FIN_SERVICE.NS",
+            "Crude Fut": "CL=F"
+        }
         
-        # MCX രൂപയിലേക്ക് മാറ്റുന്നു (ഏകദേശ കണക്ക്: Price * 83.5 * 10)
-        # ഇത് നിങ്ങളുടെ Upstox-ലെ വിലയുമായി (ഉദാ: 9,610) മാച്ച് ആകും
-        mcx_fut_approx = c_price_usd * 83.5 * 1.15 
+        output = f"📊 *PROFESSIONAL ANALYSIS*\n⚠️ VIX: {vix:.2f} (Volatility)\n\n"
         
-        return (f"📉 *MARKET UPDATE*\n\n"
-                f"🇮🇳 Nifty 50: {n_price:,.2f}\n"
-                f"🛢️ Crude Oil Fut: ₹{mcx_fut_approx:,.0f}\n"
-                f"🌎 Intl Crude: ${c_price_usd:,.2f}\n"
-                f"━━━━━━━━━━━━━━\n"
-                f"Happy Trading Faisal! 🚀")
-    except:
-        return "⚠️ ഫ്യൂച്ചർ ഡാറ്റ ഇപ്പോൾ ലഭ്യമല്ല."
+        for name, sym in symbols.items():
+            df = yf.Ticker(sym).history(period="1mo", interval="5m")
+            if df.empty: continue
+            
+            last_price = df['Close'].iloc[-1]
+            
+            # 1. MOVING AVERAGE (20 EMA)
+            ema_20 = df['Close'].ewm(span=20, adjust=False).mean().iloc[-1]
+            ma_signal = "🟢 ABOVE EMA" if last_price > ema_20 else "🔴 BELOW EMA"
+            
+            # 2. RSI (14) - Relative Strength Index
+            delta = df['Close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+            rs = gain / loss
+            rsi = 100 - (100 / (1 + rs.iloc[-1]))
+            
+            # 3. PCR (Put Call Ratio) - ഏകദേശ കണക്ക്
+            # (യഥാർത്ഥ PCR-ന് NSE ഓപ്ഷൻ ചെയിൻ ഡാറ്റ വേണം, ഇവിടെ നമ്മൾ ട്രെൻഡ് സിഗ്നൽ നൽകുന്നു)
+            pcr_status = "Neutral"
+            if rsi > 70: pcr_status = "Overbought"
+            elif rsi < 30: pcr_status = "Oversold"
 
-def get_btc_price():
-    try:
-        url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,inr,aed"
-        data = requests.get(url).json()
-        btc = data['bitcoin']
-        return (f"📊 *BITCOIN LIVE*\n\n"
-                f"💵 USD: ${btc['usd']:,.2f}\n"
-                f"🇮🇳 INR: ₹{btc['inr']:,.2f}\n"
-                f"🇦🇪 AED: {btc['aed']:,.2f} Dh")
+            if name == "Crude Fut":
+                mcx = last_price * 83.5 * 1.15
+                output += f"🛢️ *{name}*: ₹{mcx:,.0f}\n"
+            else:
+                output += f"📈 *{name}*: {last_price:,.2f}\n"
+            
+            output += f"RSI: {rsi:.1f} | {ma_signal}\n"
+            output += f"Status: {pcr_status}\n"
+            output += "------------------\n"
+            
+        return output + "\nAnalyze before entry, Faisal! 🚀"
     except:
-        return "⚠️ BTC ഡാറ്റ ലഭ്യമല്ല."
+        return "⚠️ ഡാറ്റ ലഭ്യമല്ല. ഒന്ന് കൂടി ശ്രമിക്കൂ."
 
+# Handlers
 @app.route("/whatsapp", methods=['POST'])
 def whatsapp_reply():
-    msg_body = request.values.get('Body', '').lower()
     resp = MessagingResponse()
-    if "btc" in msg_body:
-        resp.message(get_btc_price())
-    else:
-        resp.message(get_market_data())
+    resp.message(get_market_analysis())
     return str(resp)
 
 @bot.message_handler(func=lambda message: True)
 def telegram_reply(message):
-    msg_text = message.text.lower()
-    if "btc" in msg_text:
-        bot.reply_to(message, get_btc_price())
-    else:
-        bot.reply_to(message, get_market_data())
+    bot.reply_to(message, get_market_analysis())
 
 @app.route(f"/{TELEGRAM_BOT_TOKEN}", methods=['POST'])
 def getMessage():
@@ -72,10 +79,6 @@ def getMessage():
     update = telebot.types.Update.de_json(json_string)
     bot.process_new_updates([update])
     return "!", 200
-
-@app.route('/')
-def home():
-    return "Bot is Running! 🚀"
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
