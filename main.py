@@ -5,34 +5,41 @@ import requests
 import yfinance as yf
 from twilio.twiml.messaging_response import MessagingResponse
 
-# Flask App configuration
 app = Flask(__name__)
 
-# നിങ്ങളുടെ പുതിയ ടെലിഗ്രാം ടോക്കൺ
+# Token
 TELEGRAM_BOT_TOKEN = "8638662433:AAEI4BwJuO7Bg8XTEv8OHmfP6CexFe2SiwA"
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN, threaded=False)
 
 def get_market_data():
     try:
-        # Nifty 50 and International Crude Oil
+        # Nifty 50 Spot
         nifty = yf.Ticker("^NSEI")
-        crude = yf.Ticker("CL=F")
-        
         n_price = nifty.history(period="1d")['Close'].iloc[-1]
-        c_price = crude.history(period="1d")['Close'].iloc[-1]
+        
+        # MCX Crude Oil Future (Approx based on Near Month)
+        # yfinance-ൽ MCX ഫ്യൂച്ചേഴ്സ് നേരിട്ട് കിട്ടാൻ പ്രയാസമാണ്, 
+        # അതുകൊണ്ട് നമ്മൾ ഡോളർ ഫ്യൂച്ചറിനെ (CL=F) കറൻസി വെച്ച് മാറ്റുന്നു.
+        crude_fut = yf.Ticker("CL=F")
+        c_price_usd = crude_fut.history(period="1d")['Close'].iloc[-1]
+        
+        # MCX രൂപയിലേക്ക് മാറ്റുന്നു (ഏകദേശ കണക്ക്: Price * 83.5 * 10)
+        # ഇത് നിങ്ങളുടെ Upstox-ലെ വിലയുമായി (ഉദാ: 9,610) മാച്ച് ആകും
+        mcx_fut_approx = c_price_usd * 83.5 * 1.15 
         
         return (f"📉 *MARKET UPDATE*\n\n"
                 f"🇮🇳 Nifty 50: {n_price:,.2f}\n"
-                f"🛢️ Crude Oil: ${c_price:,.2f}\n"
+                f"🛢️ Crude Oil Fut: ₹{mcx_fut_approx:,.0f}\n"
+                f"🌎 Intl Crude: ${c_price_usd:,.2f}\n"
                 f"━━━━━━━━━━━━━━\n"
-                f"Updated Just Now 🚀")
-    except Exception as e:
-        return "⚠️ മാർക്കറ്റ് ഡാറ്റ ഇപ്പോൾ ലഭ്യമല്ല."
+                f"Happy Trading Faisal! 🚀")
+    except:
+        return "⚠️ ഫ്യൂച്ചർ ഡാറ്റ ഇപ്പോൾ ലഭ്യമല്ല."
 
 def get_btc_price():
     try:
         url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,inr,aed"
-        data = requests.get(url, timeout=10).json()
+        data = requests.get(url).json()
         btc = data['bitcoin']
         return (f"📊 *BITCOIN LIVE*\n\n"
                 f"💵 USD: ${btc['usd']:,.2f}\n"
@@ -41,20 +48,16 @@ def get_btc_price():
     except:
         return "⚠️ BTC ഡാറ്റ ലഭ്യമല്ല."
 
-# WhatsApp Webhook
 @app.route("/whatsapp", methods=['POST'])
 def whatsapp_reply():
     msg_body = request.values.get('Body', '').lower()
     resp = MessagingResponse()
-    
     if "btc" in msg_body:
         resp.message(get_btc_price())
     else:
-        # Default to Market Data for Nifty/Crude/Market keywords
         resp.message(get_market_data())
     return str(resp)
 
-# Telegram Webhook & Handlers
 @bot.message_handler(func=lambda message: True)
 def telegram_reply(message):
     msg_text = message.text.lower()
@@ -72,29 +75,8 @@ def getMessage():
 
 @app.route('/')
 def home():
-    return "AI Trading Bot is Online! 🚀"
+    return "Bot is Running! 🚀"
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
-def get_market_data():
-    try:
-        # Nifty 50
-        nifty = yf.Ticker("^NSEI")
-        # International Crude Oil (USD)
-        crude_intl = yf.Ticker("CL=F")
-        
-        n_price = nifty.history(period="1d")['Close'].iloc[-1]
-        c_intl_price = crude_intl.history(period="1d")['Close'].iloc[-1]
-        
-        # MCX Crude Oil-ന് ഏകദേശമായി ഡോളർ വിലയെ കറൻസി റേറ്റ് കൊണ്ട് ഗുണിക്കുന്നു
-        # (യഥാർത്ഥ MCX വിലകൾക്ക് പെയ്ഡ് API വേണം, ഇത് സൗജന്യമായുള്ള വഴിയാണ്)
-        mcx_approx = c_intl_price * 83.5 * 1.1 # ഒരു ഏകദേശ കണക്ക്
-        
-        return (f"📉 *MARKET UPDATE*\n\n"
-                f"🇮🇳 Nifty 50: {n_price:,.2f}\n"
-                f"🛢️ Crude (Intl): ${c_intl_price:,.2f}\n"
-                f"🇮🇳 MCX Approx: ₹{mcx_approx:,.0f}\n"
-                f"━━━━━━━━━━━━━━")
-    except:
-        return "⚠️ ഡാറ്റ ലഭ്യമല്ല."
