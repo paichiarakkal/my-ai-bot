@@ -77,3 +77,24 @@ def home():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
+def get_market_data():
+    try:
+        # Nifty 50
+        nifty = yf.Ticker("^NSEI")
+        # International Crude Oil (USD)
+        crude_intl = yf.Ticker("CL=F")
+        
+        n_price = nifty.history(period="1d")['Close'].iloc[-1]
+        c_intl_price = crude_intl.history(period="1d")['Close'].iloc[-1]
+        
+        # MCX Crude Oil-ന് ഏകദേശമായി ഡോളർ വിലയെ കറൻസി റേറ്റ് കൊണ്ട് ഗുണിക്കുന്നു
+        # (യഥാർത്ഥ MCX വിലകൾക്ക് പെയ്ഡ് API വേണം, ഇത് സൗജന്യമായുള്ള വഴിയാണ്)
+        mcx_approx = c_intl_price * 83.5 * 1.1 # ഒരു ഏകദേശ കണക്ക്
+        
+        return (f"📉 *MARKET UPDATE*\n\n"
+                f"🇮🇳 Nifty 50: {n_price:,.2f}\n"
+                f"🛢️ Crude (Intl): ${c_intl_price:,.2f}\n"
+                f"🇮🇳 MCX Approx: ₹{mcx_approx:,.0f}\n"
+                f"━━━━━━━━━━━━━━")
+    except:
+        return "⚠️ ഡാറ്റ ലഭ്യമല്ല."
