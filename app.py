@@ -6,12 +6,10 @@ from datetime import datetime
 import pytz
 
 # 1. പേജ് സെറ്റിംഗ്സ്
-st.set_page_config(page_title="FTB PRO EXCHANGE", page_icon="📊", layout="wide")
+st.set_page_config(page_title="FTB PRO EXCHANGE", page_icon="📈", layout="wide")
 
 # --- സൈഡ്‌ബാറിലെ വിവരങ്ങൾ ---
 st.sidebar.markdown("## 📊 FTB SETTINGS")
-
-# വാച്ച്‌ലിസ്റ്റ്
 watchlist = {"NIFTY 50": "^NSEI", "BANK NIFTY": "^NSEBANK", "CRUDE OIL": "CL=F"}
 for name, sym in watchlist.items():
     try:
@@ -20,27 +18,11 @@ for name, sym in watchlist.items():
     except: continue
 
 st.sidebar.divider()
-
-# കറൻസി കാൽക്കുലേറ്റർ
-st.sidebar.markdown("### 💰 AED to INR")
-try:
-    rate = yf.Ticker("AEDINR=X").history(period="1d")['Close'].iloc[-1]
-    aed = st.sidebar.number_input("Enter AED", value=1.0)
-    st.sidebar.success(f"₹ {aed * rate:,.2f}")
-except: pass
-
-st.sidebar.divider()
-
-# സ്മാർട്ട് സെർച്ച്
 user_input = st.sidebar.text_input("Search Stock/Index", value="Nifty")
 
 def get_ticker(name):
     name = name.lower().strip()
-    mapping = {
-        "nifty": "^NSEI", "bank nifty": "^NSEBANK",
-        "crude": "CL=F", "crude oil": "CL=F",
-        "gold": "GC=F", "reliance": "RELIANCE.NS"
-    }
+    mapping = {"nifty": "^NSEI", "bank nifty": "^NSEBANK", "crude": "CL=F", "gold": "GC=F"}
     if name in mapping: return mapping[name]
     if name.isalpha(): return f"{name.upper()}.NS"
     return name.upper()
@@ -55,29 +37,39 @@ tab1, tab2 = st.tabs(["📊 EXCHANGE VIEW", "💬 FTB AI CHAT"])
 
 with tab1:
     try:
-        data = yf.Ticker(search_ticker)
-        df = data.history(period="1d", interval=chart_int)
+        df = yf.Ticker(search_ticker).history(period="1d", interval=chart_int)
         if not df.empty:
             curr_p = df['Close'].iloc[-1]
             st.subheader(f"LIVE: {user_input.upper()} (₹ {curr_p:,.2f})")
             fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'])])
             fig.update_layout(height=500, template='plotly_dark', xaxis_rangeslider_visible=False, yaxis=dict(side='right'))
             st.plotly_chart(fig, use_container_width=True)
-            c1, c2 = st.columns(2)
-            c1.button("🟢 BUY", use_container_width=True)
-            c2.button("🔴 SELL", use_container_width=True)
-        else:
-            st.error("സ്റ്റോക്ക് കണ്ടെത്താനായില്ല.")
-    except: st.error("Data error.")
+        else: st.error("Stock not found.")
+    except: st.error("Connection Error.")
 
+# --- AI CHAT SECTION (ഇവിടെയാണ് മാറ്റം വരുത്തിയത്) ---
 with tab2:
-    st.subheader("🤖 FTB AI Assistant")
-    if "messages" not in st.session_state: st.session_state.messages = []
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]): st.markdown(msg["content"])
-    if prompt := st.chat_input("ഇവിടെ ചോദിക്കൂ..."):
+    st.subheader("🤖 FTB SMART AI")
+    
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    # പഴയ മെസേജുകൾ കാണിക്കുന്നു
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    # യൂസർ ടൈപ്പ് ചെയ്യുന്നത് എടുക്കുന്നു
+    if prompt := st.chat_input("ഇവിടെ ചോദിക്കൂ (eg: Crude Oil അടുത്ത മൂവ്മെന്റ് എങ്ങനെയുണ്ട്?)..."):
+        # യൂസർ മെസേജ് സേവ് ചെയ്യുന്നു
         st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"): st.markdown(prompt)
-        reply = f"ഫൈസൽ, {user_input} ചാർട്ട് ഇപ്പോൾ നോക്കാം."
-        st.session_state.messages.append({"role": "assistant", "content": reply})
-        with st.chat_message("assistant"): st.markdown(reply)
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        # AI മറുപടി ഉണ്ടാക്കുന്നു
+        with st.chat_message("assistant"):
+            # താൽക്കാലികമായി മാർക്കറ്റ് ഡാറ്റ വെച്ച് മറുപടി നൽകുന്നു
+            # പിന്നീട് നമുക്ക് ഇവിടെ Gemini API കണക്ട് ചെയ്യാം
+            response = f"ഫൈസൽ, നീ ചോദിച്ച '{prompt}' എന്നതിനെപ്പറ്റി ഞാൻ നോക്കി. നിലവിൽ {user_input} മാർക്കറ്റ് ട്രെൻഡ് നോക്കുമ്പോൾ സൂക്ഷിച്ചു ട്രേഡ് ചെയ്യുന്നതാണ് നല്ലത്."
+            st.markdown(response)
+            st.session_state.messages.append({"role": "assistant", "content": response})
