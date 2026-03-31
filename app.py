@@ -64,48 +64,50 @@ def get_ticker(name):
 # --- PAGE 1: TRADING TERMINAL ---
 if page == "📊 Trading Terminal":
     st.markdown("<h2 style='color: #2563EB;'>📉 Live Market View</h2>", unsafe_allow_html=True)
-    
     col1, col2 = st.columns([3, 1])
-    
     with col2:
-        search = st.text_input("Symbol (Nifty, Crude, etc.)", value="Nifty")
+        search = st.text_input("Symbol", value="Nifty")
         interval = st.selectbox("Timeframe", ["1m", "5m", "15m", "1h", "1d"], index=1)
-        ma_period = st.slider("Moving Average Period", 5, 50, 20)
-        
-        # WhatsApp Share
+        ma_period = st.slider("MA Period", 5, 50, 20)
         app_url = "https://upqvdh.streamlit.app"
-        share_text = f"Check my FTB Analysis for {search}: {app_url}"
+        share_text = f"FTB Analysis for {search}: {app_url}"
         whatsapp_url = f"https://wa.me/?text={urllib.parse.quote(share_text)}"
         st.markdown(f'<a href="{whatsapp_url}" target="_blank" class="whatsapp-btn">📲 Share on WhatsApp</a>', unsafe_allow_html=True)
-    
     ticker_sym = get_ticker(search)
-    
     with col1:
         try:
             df = yf.download(ticker_sym, period="5d", interval=interval, multi_level_index=False)
             if not df.empty:
                 df['MA'] = df['Close'].rolling(window=ma_period).mean()
                 curr_p = df['Close'].iloc[-1]
-                
-                # Signal Logic
                 if curr_p > df['MA'].iloc[-1]:
-                    st.sidebar.success("🚀 SIGNAL: BUY / BULLISH")
+                    st.sidebar.success("🚀 SIGNAL: BUY")
                 else:
-                    st.sidebar.error("🔻 SIGNAL: SELL / BEARISH")
-                
+                    st.sidebar.error("🔻 SIGNAL: SELL")
                 st.metric(label=f"{search.upper()} PRICE", value=f"₹ {curr_p:,.2f}")
-
                 fig = go.Figure()
                 fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Price"))
                 fig.add_trace(go.Scatter(x=df.index, y=df['MA'], line=dict(color='#2563EB', width=1.5), name=f"MA {ma_period}"))
-                fig.add_trace(go.Bar(x=df.index, y=df['Volume'], name="Volume", opacity=0.3, yaxis="y2"))
-
-                fig.update_layout(
-                    height=550, template='plotly_white',
-                    xaxis_rangeslider_visible=False,
-                    yaxis2=dict(overlaying="y", side="right", showgrid=False)
-                )
+                fig.update_layout(height=550, template='plotly_white', xaxis_rangeslider_visible=False)
                 st.plotly_chart(fig, use_container_width=True)
+        except: st.error("Data error")
+
+# --- PAGE 2: AI ASSISTANT ---
+elif page == "🤖 FTB AI Assistant":
+    st.markdown("<h2 style='color: #2563EB;'>🤖 AI Support</h2>", unsafe_allow_html=True)
+    prompt = st.chat_input("Ask Faisal's AI...")
+    if prompt:
+        with st.chat_message("assistant"):
+            response = model.generate_content(f"Answer in Malayalam: {prompt}")
+            st.write(response.text)
+
+# --- PAGE 3: EXPENSE MANAGER ---
+elif page == "💰 Expense Manager":
+    st.markdown("<h2 style='color: #2563EB;'>📥 Expense Tracker</h2>", unsafe_allow_html=True)
+    item = st.text_input("Item Name")
+    amt = st.number_input("Amount", min_value=0.0)
+    if st.button("Save"):
+        st.success(f"Saved: {item} - ₹{amt}")                st.plotly_chart(fig, use_container_width=True)
         except:
             st.error("Market data load error")
 
