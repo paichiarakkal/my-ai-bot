@@ -2,6 +2,5 @@ streamlit
 pandas
 plotly
 yfinance
-pandas_ta
+pandas-ta
 pyTelegramBotAPI
-numpy
