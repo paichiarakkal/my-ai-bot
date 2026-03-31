@@ -4,16 +4,15 @@ import yfinance as yf
 import plotly.graph_objects as go
 import google.generativeai as genai
 import urllib.parse
-import pandas_ta as ta
 
-# 1. Gemini AI Config (Updated with your key)
+# 1. Gemini AI Config
 genai.configure(api_key="AIzaSyAVpgLWVDYglDw59PPADTrNM0_AYLT66Rc")
 model = genai.GenerativeModel('gemini-pro')
 
 # 2. Page Config
 st.set_page_config(page_title="FTB PRO TRADER", page_icon="📈", layout="wide")
 
-# Custom CSS for Light Professional Theme
+# Custom CSS for Light Theme
 st.markdown("""
     <style>
     .main { background-color: #F0F2F6; color: #1F2937; } 
@@ -34,11 +33,22 @@ st.markdown("""
 def get_ticker(name):
     name = name.upper().strip()
     mapping = {"NIFTY": "^NSEI", "BANK NIFTY": "^NSEBANK", "CRUDE": "CL=F", "GOLD": "GC=F"}
-    if name in mapping:
-        return mapping[name]
-    return name if "." in name else f"{name}.NS"
+    return mapping.get(name, f"{name}.NS") if name in mapping else (name if "." in name else f"{name}.NS")
 
-# --- SIDEBAR NAVIGATION ---
+# --- INDICATOR CALCULATIONS (Pandas മാത്രം ഉപയോഗിച്ച്) ---
+def add_indicators(df):
+    # 1. Simple Moving Average (SMA)
+    df['SMA_20'] = df['Close'].rolling(window=20).mean()
+    
+    # 2. RSI (Relative Strength Index)
+    delta = df['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df['RSI'] = 100 - (100 / (1 + rs))
+    return df
+
+# --- SIDEBAR ---
 st.sidebar.markdown("<h1 style='text-align: center; color: #2563EB;'>🚀 FTB PRO</h1>", unsafe_allow_html=True)
 page = st.sidebar.radio("MENU", ["📊 Trading Terminal", "🤖 AI Trading Assistant", "💰 Expense Manager"])
 
@@ -51,15 +61,6 @@ if page == "📊 Trading Terminal":
         search = st.text_input("Symbol", value="Nifty")
         interval = st.selectbox("Timeframe", ["1m", "5m", "15m", "1h", "1d"], index=1)
         
-        st.subheader("🛠 Indicators Settings")
-        show_ma = st.checkbox("Moving Average (MA)", value=True)
-        ma_val = st.number_input("MA Period", value=20, min_value=1)
-        
-        show_st = st.checkbox("Supertrend", value=True)
-        st_period = st.number_input("ST Period", value=7)
-        st_mult = st.number_input("ST Multiplier", value=3.0)
-        
-        # WhatsApp Share
         whatsapp_url = f"https://wa.me/?text={urllib.parse.quote('Check FTB PRO Analysis: https://upqvdh.streamlit.app')}"
         st.markdown(f'<a href="{whatsapp_url}" target="_blank" class="whatsapp-btn">📲 Share on WhatsApp</a>', unsafe_allow_html=True)
 
@@ -68,56 +69,66 @@ if page == "📊 Trading Terminal":
         try:
             df = yf.download(ticker_sym, period="5d", interval=interval, multi_level_index=False)
             if not df.empty:
+                df = add_indicators(df)
+                
                 fig = go.Figure()
                 fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Price"))
-                
-                # Indicators
-                if show_ma:
-                    df['MA'] = ta.sma(df['Close'], length=ma_val)
-                    fig.add_trace(go.Scatter(x=df.index, y=df['MA'], line=dict(color='#2563EB', width=1.5), name=f"MA {ma_val}"))
-                
-                if show_st:
-                    sti = ta.supertrend(df['High'], df['Low'], df['Close'], length=st_period, multiplier=st_mult)
-                    df['ST'] = sti[f'SUPERT_{st_period}_{st_mult}']
-                    fig.add_trace(go.Scatter(x=df.index, y=df['ST'], line=dict(color='#FF9800', width=2), name="Supertrend"))
+                fig.add_trace(go.Scatter(x=df.index, y=df['SMA_20'], line=dict(color='#2563EB', width=1.5), name="SMA 20"))
 
-                fig.update_layout(height=600, template='plotly_white', xaxis_rangeslider_visible=False)
+                fig.update_layout(height=500, template='plotly_white', xaxis_rangeslider_visible=False)
                 st.plotly_chart(fig, use_container_width=True)
                 
-                curr_p = df['Close'].iloc[-1]
-                st.metric(f"{search.upper()} LIVE PRICE", f"₹ {curr_p:,.2f}")
-            else:
-                st.error("No data found.")
+                # RSI Chart
+                fig_rsi = go.Figure()
+                fig_rsi.add_trace(go.Scatter(x=df.index, y=df['RSI'], line=dict(color='#FF9800'), name="RSI"))
+                fig_rsi.update_layout(height=200, template='plotly_white')
+                st.plotly_chart(fig_rsi, use_container_width=True)
+                
+                st.metric(f"{search.upper()} PRICE", f"₹ {df['Close'].iloc[-1]:,.2f}")
         except Exception as e:
             st.error(f"Error: {e}")
 
-# --- PAGE 2: AI TRADING ASSISTANT (Smart Advisor) ---
+# --- PAGE 2: AI TRADING ASSISTANT ---
 elif page == "🤖 AI Trading Assistant":
-    st.markdown("<h2 style='color: #2563EB;'>🤖 FTB Smart Advisor</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: #2563EB;'>🤖 AI Smart Advisor</h2>", unsafe_allow_html=True)
     stock_to_analyze = st.text_input("ഏത് സ്റ്റോക്കിനെ കുറിച്ചാണ് ചോദിക്കേണ്ടത്?", value="Nifty")
-    user_q = st.chat_input("നിങ്ങളുടെ സംശയം ഇവിടെ ടൈപ്പ് ചെയ്യൂ (eg: Can I buy now?)")
+    user_q = st.chat_input("നിങ്ങളുടെ സംശയം ചോദിക്കൂ (eg: Can I buy now?)")
 
     if user_q:
-        with st.spinner("വിപണി വിശകലനം ചെയ്യുന്നു..."):
+        with st.spinner("ഡാറ്റ വിശകലനം ചെയ്യുന്നു..."):
             t_sym = get_ticker(stock_to_analyze)
             data = yf.download(t_sym, period="5d", interval="15m")
-            
             if not data.empty:
+                data = add_indicators(data)
                 cp = data['Close'].iloc[-1]
-                # Simple Technical Context for AI
-                prompt = f"User asks: '{user_q}' about {stock_to_analyze}. Current price is {cp}. Analyze the market and give a detailed professional answer in Malayalam with a Buy/Sell/Wait recommendation."
+                rsi_val = data['RSI'].iloc[-1]
+                sma_val = data['SMA_20'].iloc[-1]
+                
+                # AI-ക്ക് കൂടുതൽ ഡാറ്റ നൽകുന്നു
+                prompt = f"""
+                Analysis for {stock_to_analyze}:
+                Current Price: {cp}
+                RSI (14): {rsi_val:.2f}
+                SMA (20): {sma_val:.2f}
+                
+                User question: {user_q}
+                
+                Please provide a professional trading advice in Malayalam. 
+                If RSI is below 30, suggest 'Potential Buy/Oversold'. 
+                If RSI is above 70, suggest 'Potential Sell/Overbought'.
+                Keep the answer clear for an intraday trader.
+                """
                 
                 response = model.generate_content(prompt)
                 with st.chat_message("assistant"):
-                    st.write(f"**Current Status of {stock_to_analyze}: ₹{cp:,.2f}**")
+                    st.write(f"**Live Analysis for {stock_to_analyze}**")
+                    st.write(f"Price: ₹{cp:,.2f} | RSI: {rsi_val:.2f}")
                     st.write(response.text)
             else:
                 st.error("ഡാറ്റ ലഭ്യമല്ല.")
 
 # --- PAGE 3: EXPENSE MANAGER ---
 elif page == "💰 Expense Manager":
-    st.markdown("<h2 style='color: #2563EB;'>📥 Expense Tracker</h2>", unsafe_allow_html=True)
-    item = st.text_input("Item Name")
-    amt = st.number_input("Amount", min_value=0.0)
-    if st.button("Save"):
-        st.success(f"Saved: {item} - ₹{amt}")
+    item = st.text_input("Item")
+    amt = st.number_input("Amount")
+    if st.button("Save"): st.success(f"Saved: {item}")
