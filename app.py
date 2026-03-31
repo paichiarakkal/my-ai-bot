@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import plotly.graph_objects as go
-import pandas_ta as ta # ഇത് പുതുതായി ഇമ്പോർട്ട് ചെയ്യുന്നു
 import telebot
 import threading
 from datetime import datetime
@@ -14,10 +13,6 @@ bot = telebot.TeleBot(API_TOKEN)
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     bot.reply_to(message, "നമസ്കാരം ഫൈസൽ! നിങ്ങളുടെ ട്രേഡിംഗ് ബോട്ട് ഇപ്പോൾ ഓൺലൈൻ ആണ്. 🚀")
-
-@bot.message_handler(func=lambda message: True)
-def echo_all(message):
-    bot.reply_to(message, f"നിങ്ങൾ പറഞ്ഞത്: {message.text}. ചാർട്ടുകൾക്കായി ബോർഡ് ലിങ്ക് നോക്കുക.")
 
 def run_bot():
     try:
@@ -34,19 +29,14 @@ if "bot_started" not in st.session_state:
 st.set_page_config(page_title="Faisal Pro Smart Bot", layout="wide")
 st.markdown("<h1 style='text-align: center; color: #1E88E5;'>📊 ഫൈസൽ പ്രോ ട്രേഡിംഗ് & ബോട്ട്</h1>", unsafe_allow_html=True)
 
-# ചാർട്ട് ഫങ്ക്ഷൻ
-def draw_supertrend_chart(name, symbol):
+# ചാർട്ട് ഫങ്ക്ഷൻ (pandas-ta ഒഴിവാക്കിയത്)
+def draw_chart(name, symbol):
     try:
-        # ഡാറ്റ എടുക്കുന്നു
         df = yf.Ticker(symbol).history(period="5d", interval="5m")
         
         if not df.empty:
-            # സൂപ്പർ ട്രെൻഡ് കണക്കാക്കുന്നു (7, 3)
-            # pandas_ta ഉപയോഗിക്കുന്ന രീതി
-            sti = ta.supertrend(df['High'], df['Low'], df['Close'], length=7, multiplier=3)
-            
-            # SUPERT_7_3.0 എന്ന കോളം ഡാറ്റാഫ്രെയിമിലേക്ക് ചേർക്കുന്നു
-            df['ST'] = sti['SUPERT_7_3.0']
+            # ട്രെൻഡ് ലൈനിനായി Moving Average ഉപയോഗിക്കുന്നു
+            df['MA20'] = df['Close'].rolling(window=20).mean()
             
             fig = go.Figure()
             # Candlestick Chart
@@ -55,11 +45,11 @@ def draw_supertrend_chart(name, symbol):
                 low=df['Low'], close=df['Close'], name='Price'
             ))
             
-            # Supertrend Line (Yellow)
+            # Trend Line (Yellow)
             fig.add_trace(go.Scatter(
-                x=df.index, y=df['ST'], 
+                x=df.index, y=df['MA20'], 
                 line=dict(color='yellow', width=2), 
-                name='Supertrend'
+                name='Trend Line (MA20)'
             ))
             
             fig.update_layout(
@@ -73,10 +63,10 @@ def draw_supertrend_chart(name, symbol):
             st.error(f"{name} ഡാറ്റ ലഭ്യമല്ല.")
             
     except Exception as e:
-        st.error(f"Error loading {name}: {e}")
+        st.error(f"Error: {e}")
 
 # ചാർട്ടുകൾ കാണിക്കുന്നു
-draw_supertrend_chart("Nifty 50", "^NSEI")
-draw_supertrend_chart("Crude Oil", "CL=F")
+draw_chart("Nifty 50", "^NSEI")
+draw_chart("Crude Oil", "CL=F")
 
-st.info("💡 മഞ്ഞ ലൈനിന് മുകളിൽ കാൻഡിൽ വന്നാൽ 'Buy' എന്നും, താഴെ വന്നാൽ 'Sell' എന്നും മനസ്സിലാക്കാം.")
+st.info("💡 മഞ്ഞ ലൈനിന് മുകളിൽ കാൻഡിൽ വന്നാൽ 'Buy' എന്നും, താഴെ വന്നാൽ 'Sell' എന്നും ഏകദേശം മനസ്സിലാക്കാം.")
