@@ -1,6 +1,6 @@
-streamlit==1.25.0
+streamlitstreamlit
 pandas
 plotly
 yfinance
-pandas_ta
+pandas-ta
 pyTelegramBotAPI
