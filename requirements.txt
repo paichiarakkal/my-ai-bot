@@ -2,5 +2,5 @@ streamlit
 pandas
 plotly
 yfinance
-https://github.com/twopirllc/pandas-ta/archive/refs/heads/main.zip
+pandas-ta==0.3.14b0
 pyTelegramBotAPI
