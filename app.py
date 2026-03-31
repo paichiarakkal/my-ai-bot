@@ -5,78 +5,91 @@ import plotly.graph_objects as go
 import google.generativeai as genai
 from datetime import datetime
 
-# 1. Gemini AI സെറ്റപ്പ്
+# 1. Gemini AI Config
 genai.configure(api_key="AIzaSyCamT29LeVv_9031swUtfXQcS3FLPemi3A")
 model = genai.GenerativeModel('gemini-pro')
 
+# 2. Page Config
 st.set_page_config(page_title="FTB SUPER APP", page_icon="🚀", layout="wide")
 
-# --- സൈഡ്‌ബാറിലെ വിവരങ്ങൾ ---
-st.sidebar.title("🚀 FTB NAVIGATION")
-page = st.sidebar.radio("Go to", ["📈 Trading Terminal", "💰 Expense & Journal", "🤖 FTB AI Chat"])
+# --- SIDEBAR NAVIGATION ---
+st.sidebar.markdown("<h1 style='text-align: center; color: #00E676;'>🚀 FTB PRO</h1>", unsafe_allow_html=True)
+page = st.sidebar.radio("MAIN MENU", ["📊 Trading Terminal", "🤖 FTB AI Assistant", "💰 Expense Manager"])
 
-user_input = st.sidebar.text_input("Stock Symbol (eg: Nifty, Crude)", value="Nifty")
+st.sidebar.divider()
 
+# Currency Converter in Sidebar
+st.sidebar.subheader("💰 Currency")
+try:
+    rate = yf.Ticker("AEDINR=X").history(period="1d")['Close'].iloc[-1]
+    aed_input = st.sidebar.number_input("AED Amount", value=1.0)
+    st.sidebar.success(f"₹ {aed_input * rate:,.2f} INR")
+except: pass
+
+# --- SMART TICKER FUNCTION ---
 def get_ticker(name):
     name = name.lower().strip()
     mapping = {"nifty": "^NSEI", "bank nifty": "^NSEBANK", "crude": "CL=F", "gold": "GC=F"}
     if name in mapping: return mapping[name]
-    return f"{name.upper()}.NS"
-
-search_ticker = get_ticker(user_input)
+    if name.isalpha(): return f"{name.upper()}.NS"
+    return name.upper()
 
 # --- PAGE 1: TRADING TERMINAL ---
-if page == "📈 Trading Terminal":
-    st.markdown("<h1 style='color: #00E676;'>📊 LIVE TRADING VIEW</h1>", unsafe_allow_html=True)
-    interval = st.select_slider("Select Timeframe", options=["1m", "5m", "15m", "1h", "1d"])
+if page == "📊 Trading Terminal":
+    st.markdown("<h2 style='color: #00E676;'>📈 Live Market View</h2>", unsafe_allow_html=True)
     
-    try:
-        df = yf.Ticker(search_ticker).history(period="1d", interval=interval)
-        if not df.empty:
-            fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'])])
-            fig.update_layout(height=600, template='plotly_dark', xaxis_rangeslider_visible=False)
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # Simple AI Analysis Button
-            if st.button("AI-യോട് ഈ ചാർട്ട് വിശകലനം ചെയ്യാൻ ആവശ്യപ്പെടുക"):
-                last_price = df['Close'].iloc[-1]
-                st.info(f"AI വിശകലനം ചെയ്യുന്നു: {user_input} ഇപ്പോൾ ₹{last_price:.2f} നിലവാരത്തിലാണ്.")
-        else: st.error("ഡാറ്റ ലഭ്യമല്ല.")
-    except: st.error("കണക്ഷൻ എറർ.")
-
-# --- PAGE 2: EXPENSE & TRADING JOURNAL ---
-elif page == "💰 Expense & Journal":
-    st.header("📝 Expense Tracker & Trading Journal")
+    col1, col2 = st.columns([3, 1])
     
-    col1, col2 = st.columns(2)
+    with col2:
+        search = st.text_input("Search (eg: Nifty, Crude)", value="Nifty")
+        interval = st.selectbox("Interval", ["1m", "5m", "15m", "1h"], index=0)
+    
+    ticker = get_ticker(search)
     
     with col1:
-        st.subheader("💰 Daily Expenses (AED/INR)")
-        exp_item = st.text_input("Item Name")
-        exp_amt = st.number_input("Amount", min_value=0.0)
-        if st.button("Save Expense"):
-            st.success(f"സേവ് ചെയ്തു: {exp_item} - {exp_amt}")
-            
-    with col2:
-        st.subheader("📓 Trading Journal")
-        trade_note = st.text_area("ഇന്നത്തെ ട്രേഡ് വിശേഷങ്ങൾ ഇവിടെ എഴുതാം...")
-        if st.button("Save Journal"):
-            st.success("നിന്റെ ട്രേഡിംഗ് ഡയറി അപ്‌ഡേറ്റ് ചെയ്തു!")
+        try:
+            data = yf.Ticker(ticker)
+            df = data.history(period="1d", interval=interval)
+            if not df.empty:
+                curr_p = df['Close'].iloc[-1]
+                st.metric(label=f"{search.upper()} PRICE", value=f"₹ {curr_p:,.2f}")
+                
+                fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'])])
+                fig.update_layout(height=500, template='plotly_dark', xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=0,b=0))
+                st.plotly_chart(fig, use_container_width=True)
+            else: st.warning("Valid Symbol നൽകുക (eg: ^NSEI)")
+        except: st.error("Data connection slow. Please wait.")
 
-# --- PAGE 3: FTB AI CHAT ---
-elif page == "🤖 FTB AI Chat":
-    st.header("💬 FTB AI Assistant (Powered by Gemini)")
-    if "messages" not in st.session_state: st.session_state.messages = []
+# --- PAGE 2: AI ASSISTANT ---
+elif page == "🤖 FTB AI Assistant":
+    st.markdown("<h2 style='color: #00E676;'>💬 FTB Smart AI</h2>", unsafe_allow_html=True)
     
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]): st.markdown(msg["content"])
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
 
-    if prompt := st.chat_input("ചോദിക്കൂ..."):
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    if prompt := st.chat_input("Ask anything to Gemini AI..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.markdown(prompt)
-        
+
         with st.chat_message("assistant"):
-            full_prompt = f"Faisal is a trader in Dubai. Help him: {prompt}"
-            response = model.generate_content(full_prompt)
-            st.markdown(response.text)
-            st.session_state.messages.append({"role": "assistant", "content": response.text})
+            try:
+                response = model.generate_content(f"You are Faisal's personal trading assistant. Answer in simple Malayalam/English: {prompt}")
+                st.markdown(response.text)
+                st.session_state.messages.append({"role": "assistant", "content": response.text})
+            except: st.error("AI is busy. Try again.")
+
+# --- PAGE 3: EXPENSE MANAGER ---
+elif page == "💰 Expense Manager":
+    st.markdown("<h2 style='color: #00E676;'>📥 Personal Expense Tracker</h2>", unsafe_allow_html=True)
+    
+    with st.expander("➕ Add New Expense", expanded=True):
+        col_a, col_b = st.columns(2)
+        item = col_a.text_input("Item Name")
+        amt = col_b.number_input("Amount", min_value=0.0)
+        if st.button("Save Entry", use_container_width=True):
+            st.success(f"Saved: {item} - {amt}")
+            st.info("Note: This is a preview. To save long-term, we can connect a database later.")
