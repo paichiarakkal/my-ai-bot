@@ -5,35 +5,26 @@ import plotly.graph_objects as go
 import google.generativeai as genai
 import urllib.parse
 
-# 1. Gemini AI Config
-genai.configure(api_key="AIzaSyCanT29LeVv_9031swUtfXQcS3FLPemi3A")
+# 1. പുതിയ API Key ഇവിടെ സെറ്റ് ചെയ്തു
+genai.configure(api_key="AIzaSyAVpgLWVDYglDw59PPADTrNM0_AYLT66Rc")
 model = genai.GenerativeModel('gemini-pro')
 
 # 2. Page Config
 st.set_page_config(page_title="FTB PRO TRADER", page_icon="📈", layout="wide")
 
-# Custom CSS for Light Professional Theme
+# Custom CSS for Light Theme
 st.markdown("""
     <style>
     .main { background-color: #F0F2F6; color: #1F2937; } 
     div[data-testid="stMetric"] { 
-        background-color: #FFFFFF; 
-        border-radius: 12px; 
-        padding: 20px; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        border: 1px solid #E5E7EB;
+        background-color: #FFFFFF; border-radius: 12px; padding: 20px; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #E5E7EB;
     }
     .stSidebar { background-color: #FFFFFF; border-right: 1px solid #E5E7EB; }
     .whatsapp-btn {
-        background-color: #25D366;
-        color: white;
-        padding: 12px 24px;
-        border-radius: 8px;
-        display: block;
-        text-align: center;
-        font-weight: bold;
-        text-decoration: none;
-        margin-top: 10px;
+        background-color: #25D366; color: white; padding: 12px 24px;
+        border-radius: 8px; display: block; text-align: center;
+        font-weight: bold; text-decoration: none; margin-top: 20px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -42,55 +33,67 @@ st.markdown("""
 st.sidebar.markdown("<h1 style='text-align: center; color: #2563EB;'>🚀 FTB PRO</h1>", unsafe_allow_html=True)
 page = st.sidebar.radio("MENU", ["📊 Trading Terminal", "🤖 FTB AI Assistant", "💰 Expense Manager"])
 
-st.sidebar.divider()
-
-# Currency Converter
-st.sidebar.subheader("💰 Currency Converter")
-try:
-    rate_data = yf.Ticker("AEDINR=X").history(period="1d")
-    if not rate_data.empty:
-        rate = rate_data['Close'].iloc[-1]
-        aed_input = st.sidebar.number_input("Enter AED", value=1.0, step=1.0)
-        st.sidebar.success(f"₹ {aed_input * rate:,.2f} INR")
-except:
-    st.sidebar.error("Rates offline")
-
-# --- SMART TICKER FUNCTION ---
+# --- SMART TICKER FUNCTION (Stocks & Indices പരിഹരിക്കാൻ) ---
 def get_ticker(name):
-    mapping = {"nifty": "^NSEI", "bank nifty": "^NSEBANK", "crude": "CL=F", "gold": "GC=F"}
-    name = name.lower().strip()
-    return mapping.get(name, f"{name.upper()}.NS")
+    name = name.upper().strip()
+    mapping = {
+        "NIFTY": "^NSEI", 
+        "BANK NIFTY": "^NSEBANK", 
+        "CRUDE": "CL=F", 
+        "GOLD": "GC=F",
+        "RELIANCE": "RELIANCE.NS",
+        "TATA": "TATAMOTORS.NS"
+    }
+    if name in mapping:
+        return mapping[name]
+    elif "." in name: # ഉദാഹരണത്തിന് RELIANCE.NS എന്ന് നേരിട്ട് അടിച്ചാൽ
+        return name
+    else: # വെറും പേര് അടിച്ചാൽ .NS ചേർക്കും
+        return f"{name}.NS"
 
 # --- PAGE 1: TRADING TERMINAL ---
 if page == "📊 Trading Terminal":
     st.markdown("<h2 style='color: #2563EB;'>📉 Live Market View</h2>", unsafe_allow_html=True)
     col1, col2 = st.columns([3, 1])
+    
     with col2:
-        search = st.text_input("Symbol", value="Nifty")
+        search = st.text_input("Symbol (Nifty, Crude, Reliance...)", value="Nifty")
         interval = st.selectbox("Timeframe", ["1m", "5m", "15m", "1h", "1d"], index=1)
         ma_period = st.slider("MA Period", 5, 50, 20)
+        
+        # WhatsApp Share
         app_url = "https://upqvdh.streamlit.app"
-        share_text = f"FTB Analysis for {search}: {app_url}"
+        share_text = f"Check FTB Analysis for {search}: {app_url}"
         whatsapp_url = f"https://wa.me/?text={urllib.parse.quote(share_text)}"
         st.markdown(f'<a href="{whatsapp_url}" target="_blank" class="whatsapp-btn">📲 Share on WhatsApp</a>', unsafe_allow_html=True)
+    
     ticker_sym = get_ticker(search)
+    
     with col1:
         try:
+            # ഡാറ്റ ഡൗൺലോഡ് ചെയ്യുന്നു
             df = yf.download(ticker_sym, period="5d", interval=interval, multi_level_index=False)
             if not df.empty:
                 df['MA'] = df['Close'].rolling(window=ma_period).mean()
                 curr_p = df['Close'].iloc[-1]
+                
+                # Signal Logic
                 if curr_p > df['MA'].iloc[-1]:
-                    st.sidebar.success("🚀 SIGNAL: BUY")
+                    st.sidebar.success(f"🚀 {search} IS BULLISH")
                 else:
-                    st.sidebar.error("🔻 SIGNAL: SELL")
+                    st.sidebar.error(f"🔻 {search} IS BEARISH")
+                
                 st.metric(label=f"{search.upper()} PRICE", value=f"₹ {curr_p:,.2f}")
+
                 fig = go.Figure()
                 fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Price"))
                 fig.add_trace(go.Scatter(x=df.index, y=df['MA'], line=dict(color='#2563EB', width=1.5), name=f"MA {ma_period}"))
                 fig.update_layout(height=550, template='plotly_white', xaxis_rangeslider_visible=False)
                 st.plotly_chart(fig, use_container_width=True)
-        except: st.error("Data error")
+            else:
+                st.error(f"No data found for {search}. Try adding '.NS' (e.g., RELIANCE.NS)")
+        except:
+            st.error("Market data connection error")
 
 # --- PAGE 2: AI ASSISTANT ---
 elif page == "🤖 FTB AI Assistant":
@@ -98,8 +101,11 @@ elif page == "🤖 FTB AI Assistant":
     prompt = st.chat_input("Ask Faisal's AI...")
     if prompt:
         with st.chat_message("assistant"):
-            response = model.generate_content(f"Answer in Malayalam: {prompt}")
-            st.write(response.text)
+            try:
+                response = model.generate_content(f"Answer in Malayalam: {prompt}")
+                st.write(response.text)
+            except:
+                st.error("AI Error: Please check if API Key is valid.")
 
 # --- PAGE 3: EXPENSE MANAGER ---
 elif page == "💰 Expense Manager":
