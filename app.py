@@ -17,15 +17,17 @@ st.sidebar.markdown("<h1 style='text-align: center; color: #00E676;'>🚀 FTB PR
 page = st.sidebar.radio("MAIN MENU", ["📊 Trading Terminal", "🤖 FTB AI Assistant", "💰 Expense Manager"])
 
 st.sidebar.divider()
-
-# Currency Converter in Sidebar
 st.sidebar.subheader("💰 Currency Converter")
 try:
-    rate_data = yf.Ticker("AEDINR=X").history(period="1d")
+    rate_data = yf.download("AEDINR=X", period="1d", interval="1m")
     if not rate_data.empty:
         rate = rate_data['Close'].iloc[-1]
         aed_input = st.sidebar.number_input("Enter AED", value=1.0)
         st.sidebar.success(f"₹ {aed_input * rate:,.2f} INR")
+    else:
+        st.sidebar.info("Updating rates...")
+except:
+    st.sidebar.error("Connecting to Market...")
 except:
     st.sidebar.error("Currency rates unavailable")
 
