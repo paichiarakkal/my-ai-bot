@@ -6,7 +6,7 @@ import google.generativeai as genai
 import os
 
 # 1. Gemini AI Config
-genai.configure(api_key="AIzaSyCamT29LeVv_9031swUtfXQcS3FLPemi3A")
+genai.configure(api_key="AIzaSyCanT29LeVv_9031swUtfXQcS3FLPemi3A")
 model = genai.GenerativeModel('gemini-pro')
 
 # 2. Page Config
@@ -17,6 +17,8 @@ st.sidebar.markdown("<h1 style='text-align: center; color: #00E676;'>🚀 FTB PR
 page = st.sidebar.radio("MAIN MENU", ["📊 Trading Terminal", "🤖 FTB AI Assistant", "💰 Expense Manager"])
 
 st.sidebar.divider()
+
+# Currency Converter in Sidebar
 st.sidebar.subheader("💰 Currency Converter")
 try:
     rate_data = yf.download("AEDINR=X", period="1d", interval="1m")
@@ -26,18 +28,16 @@ try:
         st.sidebar.success(f"₹ {aed_input * rate:,.2f} INR")
     else:
         st.sidebar.info("Updating rates...")
-except:
-    st.sidebar.error("Connecting to Market...")
-except:
+except Exception as e:
     st.sidebar.error("Currency rates unavailable")
 
 # --- SMART TICKER FUNCTION ---
 def get_ticker(name):
     name = name.lower().strip()
     mapping = {
-        "nifty": "^NSEI", 
-        "bank nifty": "^NSEBANK", 
-        "crude": "CL=F", 
+        "nifty": "^NSEI",
+        "bank nifty": "^NSEBANK",
+        "crude": "CL=F",
         "crude oil": "CL=F",
         "gold": "GC=F"
     }
@@ -49,7 +49,7 @@ def get_ticker(name):
 
 # --- PAGE 1: TRADING TERMINAL ---
 if page == "📊 Trading Terminal":
-    st.markdown("<h2 style='color: #00E676;'>📈 Live Market View</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: #00E676;'>📉 Live Market View</h2>", unsafe_allow_html=True)
     
     col1, col2 = st.columns([3, 1])
     
@@ -75,7 +75,7 @@ if page == "📊 Trading Terminal":
                     low=df['Low'],
                     close=df['Close']
                 )])
-                fig.update_layout(height=550, template='plotly_dark', xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=0,b=0))
+                fig.update_layout(height=550, template='plotly_dark', xaxis_rangeslider_visible=False)
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.warning(f"'{search}' എന്നതിന് ഡാറ്റ ലഭ്യമല്ല. ശരിയായ സിംബൽ നൽകുക.")
@@ -84,28 +84,39 @@ if page == "📊 Trading Terminal":
 
 # --- PAGE 2: AI ASSISTANT ---
 elif page == "🤖 FTB AI Assistant":
-    st.markdown("<h2 style='color: #00E676;'>💬 FTB Smart AI</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: #00E676;'>🤖 FTB Smart AI</h2>", unsafe_allow_html=True)
     
     if "messages" not in st.session_state:
         st.session_state.messages = []
-
+        
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
-
-    if prompt := st.chat_input("Ask anything to Gemini..."):
+            
+    if prompt := st.chat_input("Ask anything to Gemini AI..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
-
+            
         with st.chat_message("assistant"):
             try:
-                response = model.generate_content(f"You are Faisal's expert trading assistant. Answer in simple Malayalam or English: {prompt}")
+                response = model.generate_content(f"You are Faisal's personal trading assistant. Answer in simple Malayalam: {prompt}")
                 st.markdown(response.text)
                 st.session_state.messages.append({"role": "assistant", "content": response.text})
             except:
-                st.error("AI ചിന്തിക്കുകയാണ്... ഒന്നുകൂടി ശ്രമിക്കൂ.")
+                st.error("AI is busy. Try again.")
 
+# --- PAGE 3: EXPENSE MANAGER ---
+elif page == "💰 Expense Manager":
+    st.markdown("<h2 style='color: #00E676;'>📥 Personal Expense Tracker</h2>", unsafe_allow_html=True)
+    
+    with st.expander("➕ Add New Expense", expanded=True):
+        col_a, col_b = st.columns(2)
+        item = col_a.text_input("Item Name")
+        amt = col_b.number_input("Amount", min_value=0.0)
+        if st.button("Save Entry", use_container_width=True):
+            st.success(f"Saved: {item} - ₹{amt}")
+            st.info("Note: This is a preview. To save long-term, we can connect a database later.")
 # --- PAGE 3: EXPENSE MANAGER ---
 elif page == "💰 Expense Manager":
     st.markdown("<h2 style='color: #00E676;'>📥 Daily Expense Tracker</h2>", unsafe_allow_html=True)
