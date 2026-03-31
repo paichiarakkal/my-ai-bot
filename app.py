@@ -3,7 +3,7 @@ import pandas as pd
 import yfinance as yf
 import plotly.graph_objects as go
 import google.generativeai as genai
-from datetime import datetime
+import os
 
 # 1. Gemini AI Config
 genai.configure(api_key="AIzaSyCamT29LeVv_9031swUtfXQcS3FLPemi3A")
@@ -19,19 +19,30 @@ page = st.sidebar.radio("MAIN MENU", ["📊 Trading Terminal", "🤖 FTB AI Assi
 st.sidebar.divider()
 
 # Currency Converter in Sidebar
-st.sidebar.subheader("💰 Currency")
+st.sidebar.subheader("💰 Currency Converter")
 try:
-    rate = yf.Ticker("AEDINR=X").history(period="1d")['Close'].iloc[-1]
-    aed_input = st.sidebar.number_input("AED Amount", value=1.0)
-    st.sidebar.success(f"₹ {aed_input * rate:,.2f} INR")
-except: pass
+    rate_data = yf.Ticker("AEDINR=X").history(period="1d")
+    if not rate_data.empty:
+        rate = rate_data['Close'].iloc[-1]
+        aed_input = st.sidebar.number_input("Enter AED", value=1.0)
+        st.sidebar.success(f"₹ {aed_input * rate:,.2f} INR")
+except:
+    st.sidebar.error("Currency rates unavailable")
 
 # --- SMART TICKER FUNCTION ---
 def get_ticker(name):
     name = name.lower().strip()
-    mapping = {"nifty": "^NSEI", "bank nifty": "^NSEBANK", "crude": "CL=F", "gold": "GC=F"}
-    if name in mapping: return mapping[name]
-    if name.isalpha(): return f"{name.upper()}.NS"
+    mapping = {
+        "nifty": "^NSEI", 
+        "bank nifty": "^NSEBANK", 
+        "crude": "CL=F", 
+        "crude oil": "CL=F",
+        "gold": "GC=F"
+    }
+    if name in mapping:
+        return mapping[name]
+    if name.isalpha():
+        return f"{name.upper()}.NS"
     return name.upper()
 
 # --- PAGE 1: TRADING TERMINAL ---
@@ -42,23 +53,32 @@ if page == "📊 Trading Terminal":
     
     with col2:
         search = st.text_input("Search (eg: Nifty, Crude)", value="Nifty")
-        interval = st.selectbox("Interval", ["1m", "5m", "15m", "1h"], index=0)
+        interval = st.selectbox("Timeframe", ["1m", "5m", "15m", "1h", "1d"], index=0)
     
-    ticker = get_ticker(search)
+    ticker_sym = get_ticker(search)
     
     with col1:
         try:
-            data = yf.Ticker(ticker)
-            df = data.history(period="1d", interval=interval)
+            stock = yf.Ticker(ticker_sym)
+            df = stock.history(period="1d", interval=interval)
+            
             if not df.empty:
                 curr_p = df['Close'].iloc[-1]
-                st.metric(label=f"{search.upper()} PRICE", value=f"₹ {curr_p:,.2f}")
+                st.metric(label=f"{search.upper()} LIVE PRICE", value=f"₹ {curr_p:,.2f}")
                 
-                fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'])])
-                fig.update_layout(height=500, template='plotly_dark', xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=0,b=0))
+                fig = go.Figure(data=[go.Candlestick(
+                    x=df.index,
+                    open=df['Open'],
+                    high=df['High'],
+                    low=df['Low'],
+                    close=df['Close']
+                )])
+                fig.update_layout(height=550, template='plotly_dark', xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=0,b=0))
                 st.plotly_chart(fig, use_container_width=True)
-            else: st.warning("Valid Symbol നൽകുക (eg: ^NSEI)")
-        except: st.error("Data connection slow. Please wait.")
+            else:
+                st.warning(f"'{search}' എന്നതിന് ഡാറ്റ ലഭ്യമല്ല. ശരിയായ സിംബൽ നൽകുക.")
+        except:
+            st.error("Market data load ചെയ്യാൻ കഴിയുന്നില്ല. ഇന്റർനെറ്റ് ചെക്ക് ചെയ്യൂ.")
 
 # --- PAGE 2: AI ASSISTANT ---
 elif page == "🤖 FTB AI Assistant":
@@ -71,25 +91,27 @@ elif page == "🤖 FTB AI Assistant":
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    if prompt := st.chat_input("Ask anything to Gemini AI..."):
+    if prompt := st.chat_input("Ask anything to Gemini..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"): st.markdown(prompt)
+        with st.chat_message("user"):
+            st.markdown(prompt)
 
         with st.chat_message("assistant"):
             try:
-                response = model.generate_content(f"You are Faisal's personal trading assistant. Answer in simple Malayalam/English: {prompt}")
+                response = model.generate_content(f"You are Faisal's expert trading assistant. Answer in simple Malayalam or English: {prompt}")
                 st.markdown(response.text)
                 st.session_state.messages.append({"role": "assistant", "content": response.text})
-            except: st.error("AI is busy. Try again.")
+            except:
+                st.error("AI ചിന്തിക്കുകയാണ്... ഒന്നുകൂടി ശ്രമിക്കൂ.")
 
 # --- PAGE 3: EXPENSE MANAGER ---
 elif page == "💰 Expense Manager":
-    st.markdown("<h2 style='color: #00E676;'>📥 Personal Expense Tracker</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: #00E676;'>📥 Daily Expense Tracker</h2>", unsafe_allow_html=True)
     
-    with st.expander("➕ Add New Expense", expanded=True):
+    with st.expander("➕ Add New Entry", expanded=True):
         col_a, col_b = st.columns(2)
-        item = col_a.text_input("Item Name")
-        amt = col_b.number_input("Amount", min_value=0.0)
+        item = col_a.text_input("Item/Reason")
+        amt = col_b.number_input("Amount (AED/INR)", min_value=0.0)
         if st.button("Save Entry", use_container_width=True):
-            st.success(f"Saved: {item} - {amt}")
-            st.info("Note: This is a preview. To save long-term, we can connect a database later.")
+            st.success(f"സേവ് ചെയ്തു: {item} - {amt}")
+            st.info("ഇത് താൽക്കാലികമാണ്. ഡാറ്റാബേസ് കണക്ട് ചെയ്താൽ കൂടുതൽ കാലം സൂക്ഷിക്കാം.")
