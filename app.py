@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import plotly.graph_objects as go
-import pandas_ta as ta  # ഇത് കൃത്യമായി ഇമ്പോർട്ട് ചെയ്യുന്നു
+import pandas_ta as ta # ഇത് പുതുതായി ഇമ്പോർട്ട് ചെയ്യുന്നു
 import telebot
 import threading
 from datetime import datetime
@@ -17,7 +17,7 @@ def send_welcome(message):
 
 @bot.message_handler(func=lambda message: True)
 def echo_all(message):
-    bot.reply_to(message, f"നിങ്ങൾ പറഞ്ഞത്: {message.text}. ചാർട്ടുകൾക്കായി വെബ് ലിങ്ക് നോക്കുക.")
+    bot.reply_to(message, f"നിങ്ങൾ പറഞ്ഞത്: {message.text}. ചാർട്ടുകൾക്കായി ബോർഡ് ലിങ്ക് നോക്കുക.")
 
 def run_bot():
     try:
@@ -30,7 +30,7 @@ if "bot_started" not in st.session_state:
     thread.start()
     st.session_state.bot_started = True
 
-# 2. സ്റ്റ്രീംലിറ്റ് ഡാഷ്‌ബോർഡ്
+# 2. ട്രേഡിംഗ് ഡാഷ്‌ബോർഡ്
 st.set_page_config(page_title="Faisal Pro Smart Bot", layout="wide")
 st.markdown("<h1 style='text-align: center; color: #1E88E5;'>📊 ഫൈസൽ പ്രോ ട്രേഡിംഗ് & ബോട്ട്</h1>", unsafe_allow_html=True)
 
@@ -65,12 +65,13 @@ def draw_supertrend_chart(name, symbol):
             fig.update_layout(
                 title=f"{name} ലൈവ് ചാർട്ട് (5m)", 
                 xaxis_rangeslider_visible=False, 
-                template='plotly_dark', 
+                template='plotly_dark',
                 height=500
             )
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.error(f"{name} ഡാറ്റ ലഭ്യമല്ല.")
+            
     except Exception as e:
         st.error(f"Error loading {name}: {e}")
 
@@ -78,4 +79,4 @@ def draw_supertrend_chart(name, symbol):
 draw_supertrend_chart("Nifty 50", "^NSEI")
 draw_supertrend_chart("Crude Oil", "CL=F")
 
-st.info("💡 മഞ്ഞ ലൈനിന് മുകളിൽ കാൻഡിൽ വന്നാൽ 'Buy' എന്നും താഴെ വന്നാൽ 'Sell' എന്നും മനസ്സിലാക്കാം.")
+st.info("💡 മഞ്ഞ ലൈനിന് മുകളിൽ കാൻഡിൽ വന്നാൽ 'Buy' എന്നും, താഴെ വന്നാൽ 'Sell' എന്നും മനസ്സിലാക്കാം.")
