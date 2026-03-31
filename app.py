@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import telebot
 import threading
 from datetime import datetime
@@ -21,90 +20,88 @@ if "bot_started" not in st.session_state:
     st.session_state.bot_started = True
 
 # 2. പേജ് സെറ്റിംഗ്സ്
-st.set_page_config(page_title="FTB Pro Trader", layout="wide")
+st.set_page_config(page_title="FTB AI Terminal", layout="wide")
 
-# --- ലോഗോയും പേരും ---
-col1, col2 = st.columns([0.1, 0.9])
-with col1:
-    st.image("https://img.icons8.com/clouds/200/financial-growth.png", width=80)
-with col2:
-    st.markdown("<h1 style='text-align: center; color: #00C853;'>📊 FAISAL PRO TRADER (FTB)</h1>", unsafe_allow_html=True)
+# --- സൈഡ്‌ബാറിലെ വിവരങ്ങൾ ---
+st.sidebar.image("https://img.icons8.com/clouds/200/financial-growth.png", width=100)
+st.sidebar.title("FTB PRO SETTINGS")
 
-# സൈഡ്‌ബാറിൽ സമയം കാണിക്കാൻ (Dubai Time)
+# യുഎഇ സമയം
 uae_tz = pytz.timezone('Asia/Dubai')
-now_uae = datetime.now(uae_tz).strftime("%H:%M:%S")
-st.sidebar.markdown(f"### 🕒 UAE Time: **{now_uae}**")
+st.sidebar.markdown(f"### 🕒 UAE Time: **{datetime.now(uae_tz).strftime('%H:%M:%S')}**")
 
-# --- കറൻസി കാൽക്കുലേറ്റർ ---
+# കറൻസി കാൽക്കുലേറ്റർ
 st.sidebar.divider()
-st.sidebar.header("💰 AED to INR")
-aed_in = st.sidebar.number_input("AED", min_value=1.0, value=1.0)
+aed_val = st.sidebar.number_input("AED to INR", min_value=1.0, value=1.0)
 try:
     c_rate = yf.Ticker("AEDINR=X").history(period="1d")['Close'].iloc[-1]
-    st.sidebar.success(f"{aed_in} AED = {aed_in*c_rate:.2f} INR")
+    st.sidebar.success(f"{aed_val} AED = {aed_val*c_rate:.2f} INR")
 except: pass
 
-# --- SuperTrend കണക്കാക്കുന്ന ഫങ്ക്ഷൻ ---
-def get_supertrend(df, period=10, multiplier=3):
+# ഇൻഡിക്കേറ്റർ കൺട്രോൾ
+st.sidebar.divider()
+show_st = st.sidebar.checkbox("Show SuperTrend", value=True)
+chart_int = st.sidebar.selectbox("Interval", ["1m", "5m", "15m", "1h"], index=1)
+
+# --- SuperTrend Function ---
+def get_st(df, period=10, mult=3):
     hl2 = (df['High'] + df['Low']) / 2
-    # ATR കണക്കാക്കുന്നു
-    tr = pd.concat([df['High'] - df['Low'], 
-                    abs(df['High'] - df['Close'].shift(1)), 
-                    abs(df['Low'] - df['Close'].shift(1))], axis=1).max(axis=1)
+    tr = pd.concat([df['High'] - df['Low'], abs(df['High'] - df['Close'].shift(1)), abs(df['Low'] - df['Close'].shift(1))], axis=1).max(axis=1)
     atr = tr.rolling(period).mean()
-    
-    upperband = hl2 + (multiplier * atr)
-    lowerband = hl2 - (multiplier * atr)
-    
-    supertrend = [True] * len(df)
+    up = hl2 + (mult * atr)
+    lo = hl2 - (mult * atr)
+    st_dir = [True] * len(df)
     for i in range(1, len(df)):
-        if df['Close'][i] > upperband[i-1]: supertrend[i] = True
-        elif df['Close'][i] < lowerband[i-1]: supertrend[i] = False
+        if df['Close'][i] > up[i-1]: st_dir[i] = True
+        elif df['Close'][i] < lo[i-1]: st_dir[i] = False
         else:
-            supertrend[i] = supertrend[i-1]
-            if supertrend[i] and lowerband[i] < lowerband[i-1]: lowerband[i] = lowerband[i-1]
-            if not supertrend[i] and upperband[i] > upperband[i-1]: upperband[i] = upperband[i-1]
+            st_dir[i] = st_dir[i-1]
+            if st_dir[i] and lo[i] < lo[i-1]: lo[i] = lo[i-1]
+            if not st_dir[i] and up[i] > up[i-1]: up[i] = up[i-1]
+    return [lo[i] if st_dir[i] else up[i] for i in range(len(df))]
+
+# --- മെയിൻ ഡാഷ്‌ബോർഡ് ---
+st.markdown("<h1 style='text-align: center; color: #00E676;'>📊 FTB SMART AI TERMINAL</h1>", unsafe_allow_html=True)
+
+tab1, tab2, tab3 = st.tabs(["📈 Trading Charts", "💬 FTB AI Chat", "⚙️ Options Analysis"])
+
+with tab1:
+    m_choice = st.selectbox("Select Asset", ["Nifty 50", "Bank Nifty", "Crude Oil", "Reliance", "Tata Motors"])
+    tickers = {"Nifty 50": "^NSEI", "Bank Nifty": "^NSEBANK", "Crude Oil": "CL=F", "Reliance": "RELIANCE.NS", "Tata Motors": "TATAMOTORS.NS"}
     
-    st_line = [lowerband[i] if supertrend[i] else upperband[i] for i in range(len(df))]
-    return st_line, supertrend
-
-# --- അഡ്വാൻസ്ഡ് ചാർട്ട് ഫങ്ക്ഷൻ ---
-def draw_ftb_chart(symbol, title):
     try:
-        # 1 മിനിറ്റ് ചാർട്ട് വേണമെങ്കിൽ interval="1m", period="7d" നൽകാം
-        df = yf.Ticker(symbol).history(period="7d", interval="1m")
-        if df.empty:
-            st.warning(f"{title} ഡാറ്റ ലഭ്യമല്ല.")
-            return
+        data = yf.Ticker(tickers[m_choice]).history(period="5d", interval=chart_int)
+        if not data.empty:
+            fig = go.Figure(data=[go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'], name='Price')])
+            if show_st:
+                fig.add_trace(go.Scatter(x=data.index, y=get_st(data), line=dict(color='#FFEB3B', width=2), name='SuperTrend'))
+            fig.update_layout(height=600, template='plotly_dark', xaxis_rangeslider_visible=False, dragmode='pan', yaxis=dict(side='right'))
+            st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True})
+            st.success(f"Current Price: {data['Close'].iloc[-1]:.2f}")
+    except: st.error("Data Load Error")
 
-        st_line, st_dir = get_supertrend(df)
-        
-        fig = go.Figure()
-        # Candlestick
-        fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], 
-                                   low=df['Low'], close=df['Close'], name='Price'))
-        # SuperTrend Line
-        fig.add_trace(go.Scatter(x=df.index, y=st_line, line=dict(color='#FFEB3B', width=2), name='SuperTrend'))
+with tab2:
+    st.subheader("🤖 FTB AI Assistant")
+    st.write("നിനക്ക് എന്ത് സംശയമുണ്ടെങ്കിലും താഴെ ചോദിക്കാം (ഉദാഹരണത്തിന്: 'What is Nifty?', 'How to trade Crude Oil?')")
+    
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
 
-        fig.update_layout(
-            height=750,
-            template='plotly_dark',
-            xaxis_rangeslider_visible=False,
-            dragmode='pan', # മൊബൈലിൽ നീക്കാൻ എളുപ്പത്തിന് 'pan'
-            hovermode='x unified',
-            xaxis=dict(type='date', tickformat='%H:%M\n%d %b', showgrid=True),
-            yaxis=dict(side='right', autorange=True, fixedrange=False),
-            uirevision='constant'
-        )
-        
-        st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displayModeBar': True})
-        st.info(f"💡 നിലവിലെ {title} വില: {df['Close'].iloc[-1]:.2f}")
-        
-    except Exception as e:
-        st.error(f"Error: {e}")
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-# --- ടാബുകൾ ---
-t1, t2, t3 = st.tabs(["📊 NIFTY 50", "⛽ CRUDE OIL", "💵 AED-INR"])
-with t1: draw_ftb_chart("^NSEI", "Nifty 50")
-with t2: draw_ftb_chart("CL=F", "Crude Oil")
-with t3: draw_ftb_chart("AEDINR=X", "AED to INR")
+    if prompt := st.chat_input("ഇവിടെ ചോദിക്കൂ..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+        
+        # സിംപിൾ മറുപടി (ഇവിടെ നിനക്ക് ഭാവിയിൽ OpenAI പോലുള്ളവ കണക്ട് ചെയ്യാം)
+        response = f"ഫൈസൽ, നീ ചോദിച്ച '{prompt}' എന്നതിനെക്കുറിച്ച് ഞാൻ പഠിച്ചു കൊണ്ടിരിക്കുകയാണ്. നിലവിൽ മാർക്കറ്റ് ചാർട്ടുകൾ ശ്രദ്ധിക്കൂ!"
+        
+        with st.chat_message("assistant"):
+            st.markdown(response)
+        st.session_state.messages.append({"role": "assistant", "content": response})
+
+with tab3:
+    st.write("Options Analysis Coming Soon...")
