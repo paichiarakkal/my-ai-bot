@@ -29,13 +29,13 @@ if "bot_started" not in st.session_state:
 st.set_page_config(page_title="Faisal Pro Smart Bot", layout="wide")
 st.markdown("<h1 style='text-align: center; color: #1E88E5;'>📊 ഫൈസൽ പ്രോ ട്രേഡിംഗ് & ബോട്ട്</h1>", unsafe_allow_html=True)
 
-# ചാർട്ട് ഫങ്ക്ഷൻ (pandas-ta ഒഴിവാക്കിയത്)
+# ചാർട്ട് ഫങ്ക്ഷൻ (Moving Average ഉപയോഗിക്കുന്നത്)
 def draw_chart(name, symbol):
     try:
         df = yf.Ticker(symbol).history(period="5d", interval="5m")
         
         if not df.empty:
-            # ട്രെൻഡ് ലൈനിനായി Moving Average ഉപയോഗിക്കുന്നു
+            # ട്രെൻഡ് കാണിക്കാൻ 20 പിരീഡ് മൂവിംഗ് ആവറേജ് ഉപയോഗിക്കുന്നു
             df['MA20'] = df['Close'].rolling(window=20).mean()
             
             fig = go.Figure()
@@ -63,10 +63,11 @@ def draw_chart(name, symbol):
             st.error(f"{name} ഡാറ്റ ലഭ്യമല്ല.")
             
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Error loading {name}: {e}")
 
 # ചാർട്ടുകൾ കാണിക്കുന്നു
 draw_chart("Nifty 50", "^NSEI")
 draw_chart("Crude Oil", "CL=F")
 
-st.info("💡 മഞ്ഞ ലൈനിന് മുകളിൽ കാൻഡിൽ വന്നാൽ 'Buy' എന്നും, താഴെ വന്നാൽ 'Sell' എന്നും ഏകദേശം മനസ്സിലാക്കാം.")
+st.info("💡 മഞ്ഞ ലൈനിന് മുകളിൽ കാൻഡിൽ വന്നാൽ 'Buy' എന്നും, താഴെ വന്നാൽ 'Sell' എന്നും മനസ്സിലാക്കാം.")
+
