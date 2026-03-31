@@ -107,28 +107,4 @@ elif page == "💰 Expense Manager":
     item = st.text_input("Item Name")
     amt = st.number_input("Amount", min_value=0.0)
     if st.button("Save"):
-        st.success(f"Saved: {item} - ₹{amt}")                st.plotly_chart(fig, use_container_width=True)
-        except:
-            st.error("Market data load error")
-
-# --- PAGE 2: AI ASSISTANT ---
-elif page == "🤖 FTB AI Assistant":
-    st.markdown("<h2 style='color: #2563EB;'>🤖 AI Support</h2>", unsafe_allow_html=True)
-    prompt = st.chat_input("Ask Faisal's AI...")
-    if prompt:
-        with st.chat_message("assistant"):
-            response = model.generate_content(f"Answer in Malayalam: {prompt}")
-            st.write(response.text)
-
-# --- PAGE 3: EXPENSE MANAGER ---
-elif page == "💰 Expense Manager":
-    st.markdown("<h2 style='color: #2563EB;'>📥 Expense Tracker</h2>", unsafe_allow_html=True)
-    item = st.text_input("Item Name")
-    amt = st.number_input("Amount", min_value=0.0)
-    if st.button("Save"): st.success(f"Saved: {item} - ₹{amt}")            st.write(response.text)
-
-elif page == "💰 Expense Manager":
-    st.markdown("<h2 style='color: #00E676;'>📥 Expenses</h2>", unsafe_allow_html=True)
-    item = st.text_input("Item")
-    amt = st.number_input("Amount", min_value=0.0)
-    if st.button("Save"): st.success(f"Saved: {item} - ₹{amt}")
+        st.success(f"Saved: {item} - ₹{amt}")
