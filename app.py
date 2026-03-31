@@ -4,82 +4,73 @@ import yfinance as yf
 import plotly.graph_objects as go
 import telebot
 import threading
-from datetime import datetime
 
 # 1. ടെലിഗ്രാം ബോട്ട് സെറ്റപ്പ്
 API_TOKEN = '8638662433:AAEI4BwJuO7Bg8XTEv8OHmfP6CexFe2SiwA'
 bot = telebot.TeleBot(API_TOKEN)
 
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    bot.reply_to(message, "നമസ്കാരം ഫൈസൽ! നിങ്ങളുടെ ട്രേഡിംഗ് ബോട്ട് ഇപ്പോൾ ഓൺലൈൻ ആണ്. 🚀")
-
 def run_bot():
     try:
         bot.infinity_polling(timeout=10, long_polling_timeout=5)
-    except Exception as e:
-        print(f"Bot Error: {e}")
+    except: pass
 
 if "bot_started" not in st.session_state:
-    thread = threading.Thread(target=run_bot, daemon=True)
-    thread.start()
+    threading.Thread(target=run_bot, daemon=True).start()
     st.session_state.bot_started = True
 
-# 2. ട്രേഡിംഗ് ഡാഷ്‌ബോർഡ് സെറ്റിംഗ്സ്
-st.set_page_config(page_title="Faisal Pro Trading Bot", layout="wide")
-st.markdown("<h1 style='text-align: center; color: #1E88E5;'>📊 ഫൈസൽ പ്രോ ട്രേഡിംഗ് & കറൻസി ഡാഷ്‌ബോർഡ്</h1>", unsafe_allow_html=True)
+# 2. പേജ് സെറ്റിംഗ്സ്
+st.set_page_config(page_title="Faisal Pro Smart Bot", layout="wide")
+st.markdown("<h1 style='text-align: center; color: #1E88E5;'>🚀 ഫൈസൽ പ്രോ സ്മാർട്ട് ഡാഷ്‌ബോർഡ്</h1>", unsafe_allow_html=True)
 
-# ചാർട്ട് കാണിക്കാനുള്ള ഫങ്ക്ഷൻ
-def draw_chart(name, symbol, is_currency=False):
+# --- കറൻസി കാൽക്കുലേറ്റർ (Currency Calculator) ---
+st.sidebar.header("💰 Currency Calculator")
+aed_input = st.sidebar.number_input("ദിർഹം നൽകുക (AED)", min_value=0.0, value=1.0)
+
+try:
+    # ലൈവ് റേറ്റ് എടുക്കുന്നു
+    rate_data = yf.Ticker("AEDINR=X").history(period="1d")
+    current_rate = rate_data['Close'].iloc[-1]
+    inr_result = aed_input * current_rate
+    st.sidebar.success(f"{aed_input} AED = {inr_result:.2f} INR")
+    st.sidebar.write(f"ഇന്നത്തെ റേറ്റ്: **{current_rate:.2f}**")
+except:
+    st.sidebar.error("റേറ്റ് ലഭ്യമായില്ല")
+
+# --- ചാർട്ട് സെലക്ഷൻ (Tabs) ---
+st.write("### 📈 ലൈവ് ചാർട്ടുകൾ")
+tab1, tab2, tab3 = st.tabs(["Nifty 50", "Crude Oil", "AED to INR"])
+
+def draw_chart(symbol, title):
     try:
-        # ഡാറ്റ ലോഡ് ചെയ്യുന്നു (1 മാസത്തെ ഡാറ്റ)
         df = yf.Ticker(symbol).history(period="1mo", interval="5m")
-        
         if not df.empty:
-            # ട്രെൻഡ് ലൈനിനായി 20 പിരീഡ് മൂവിംഗ് ആവറേജ്
             df['MA20'] = df['Close'].rolling(window=20).mean()
-            
             fig = go.Figure()
-            
-            # Candlestick Chart
-            fig.add_trace(go.Candlestick(
-                x=df.index, open=df['Open'], high=df['High'], 
-                low=df['Low'], close=df['Close'], name='Price'
-            ))
-            
-            # Trend Line (മഞ്ഞ ലൈൻ)
-            fig.add_trace(go.Scatter(
-                x=df.index, y=df['MA20'], 
-                line=dict(color='yellow', width=2), 
-                name='Trend Line (MA20)'
-            ))
+            fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name='Price'))
+            fig.add_trace(go.Scatter(x=df.index, y=df['MA20'], line=dict(color='yellow', width=2), name='Trend Line'))
             
             fig.update_layout(
-                title=f"{name} ലൈവ് ചാർട്ട്", 
-                xaxis_rangeslider_visible=False, 
+                title=title,
+                xaxis_rangeslider_visible=False,
                 template='plotly_dark',
-                height=500,
-                yaxis=dict(
-                    side='right', 
-                    tickformat='.2f', 
-                    title='വില (Price)'
-                )
+                height=650, # ചാർട്ട് വലുതാക്കി
+                yaxis=dict(side='right', tickformat='.2f')
             )
             st.plotly_chart(fig, use_container_width=True)
-            
-            # ഏറ്റവും പുതിയ വില കാണിക്കാൻ
-            current_price = df['Close'].iloc[-1]
-            st.write(f"**നിലവിലെ {name} വില: {current_price:.2f}**")
-            st.divider()
+            st.write(f"**നിലവിലെ വില: {df['Close'].iloc[-1]:.2f}**")
         else:
-            st.warning(f"{name} ഡാറ്റ ഇപ്പോൾ ലഭ്യമല്ല. മാർക്കറ്റ് അവധി ആയിരിക്കാം.")
-            
+            st.warning("ഡാറ്റ ലഭ്യമല്ല.")
     except Exception as e:
-        st.error(f"{name} ലോഡ് ചെയ്യുന്നതിൽ പ്രശ്നം: {e}")
+        st.error(f"Error: {e}")
 
-# ലൈവ് ചാർട്ടുകൾ താഴെ നൽകുന്നു
-draw_chart("Nifty 50", "^NSEI")
-draw_chart("Crude Oil", "CL=F")
-draw_chart("AED to INR (ദിർഹം - രൂപ)", "AEDINR=X")
+with tab1:
+    draw_chart("^NSEI", "Nifty 50 Live")
 
-st.info("💡 മഞ്ഞ ലൈനിന് മുകളിൽ കാൻഡിൽ വന്നാൽ 'Buy' എന്നും, താഴെ വന്നാൽ 'Sell' എന്നും മനസ്സിലാക്കാം.")
+with tab2:
+    draw_chart("CL=F", "Crude Oil Live")
+
+with tab3:
+    draw_chart("AEDINR=X", "AED to INR Live")
+
+st.divider()
+st.info("💡 ഓരോ ടാബിലും ക്ലിക്ക് ചെയ്ത് നിനക്ക് ആവശ്യമുള്ള ചാർട്ട് മാത്രം കാണാൻ സാധിക്കും.")
