@@ -1,7 +1,6 @@
 streamlit
+yfinance
 pandas
 plotly
-yfinance
-pyTelegramBotAPI
 google-generativeai
 pandas_ta
