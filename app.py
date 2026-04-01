@@ -5,10 +5,10 @@ import plotly.graph_objects as go
 import numpy as np
 import time
 
-# --- 1. പേജ് സെറ്റിംഗ്സ് (Safe Mode - No Image) ---
+# --- 1. പേജ് സെറ്റിംഗ്സ് (Safe Mode - No Image Error) ---
 st.set_page_config(page_title="Faisal AI Terminal", page_icon="📈", layout="wide")
 
-# --- 2. വാലറ്റ് ബാലൻസ് അപ്‌ഡേറ്റ് ---
+# --- 2. വാലറ്റ് ബാലൻസ് ---
 if 'balance' not in st.session_state:
     st.session_state.balance = 471435.50
 
@@ -30,14 +30,14 @@ def get_supertrend(df, period=7, multiplier=3):
     df['ST'], df['ST_DIR'] = st_vals, dirs
     return df
 
-# --- 4. സൈഡ്‌ബാർ (Image ഒഴിവാക്കിയ പുതിയ ഡിസൈൻ) ---
+# --- 4. സൈഡ്‌ബാർ (എറർ വരാത്ത ഡിസൈൻ) ---
 st.sidebar.markdown("<h2 style='color: #00FFA3; text-align: center;'>👤 Faisal Pro AI</h2>", unsafe_allow_html=True)
 
 # AI Chat Section
 st.sidebar.divider()
-query = st.sidebar.text_input("AI-യോട് ചോദിക്കാം:", placeholder="ക്രൂഡ് ഓയിൽ ട്രെൻഡ്?")
+query = st.sidebar.text_input("AI-യോട് ചോദിക്കാം:", placeholder="ട്രെൻഡ്?")
 if query:
-    st.sidebar.info("🤖: നിന്റെ ചോദ്യം ഞാൻ ശ്രദ്ധിച്ചു. ചാർട്ടിലെ മഞ്ഞ ലൈനിന് മുകളിൽ പ്രൈസ് നിൽക്കുമ്പോൾ ബൈ തുടരാം.")
+    st.sidebar.info("🤖: ചാർട്ടിലെ മഞ്ഞ ലൈനിന് മുകളിൽ പ്രൈസ് നിൽക്കുമ്പോൾ ബൈ തുടരാം.")
 
 # Currency Calc
 st.sidebar.divider()
@@ -73,13 +73,13 @@ while True:
             st.metric("Live Wallet Balance", f"₹{st.session_state.balance:,.2f}")
 
             # AI Advisor Signal
-            msg, col, bg = ("🚀 AI BUY: ട്രെൻഡ് പോസിറ്റീവ് ആണ്!", "#00FFA3", "#003322") if trend == 1 else ("📉 AI SELL: ട്രെൻഡ് നെഗറ്റീവ് ആണ്!", "#FF3131", "#330000")
+            msg, col, bg = ("🚀 AI BUY സിഗ്നൽ!", "#00FFA3", "#003322") if trend == 1 else ("📉 AI SELL സിഗ്നൽ!", "#FF3131", "#330000")
             st.markdown(f'<div style="background:{bg};padding:20px;border-radius:15px;border:2px solid {col};"><h3 style="color:{col};margin:0;">🚀 Faisal AI Advisor</h3><p style="color:white;margin-top:10px;">{msg}</p></div>', unsafe_allow_html=True)
 
-            # Chart
+            # Interactive Chart
             fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Market")])
             fig.add_trace(go.Scatter(x=df.index, y=df['ST'], line=dict(color='yellow', width=2), name="Supertrend"))
-            fig.update_layout(template="plotly_dark", height=480, title=f"{asset} | Price: {price:,.2f}")
+            fig.update_layout(template="plotly_dark", height=500, title=f"{asset} Live | Price: {price:,.2f}")
             st.plotly_chart(fig, use_container_width=True)
 
     time.sleep(30)
