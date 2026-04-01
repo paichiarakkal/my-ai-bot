@@ -1,62 +1,82 @@
 import streamlit as st
-import streamlit.components.v1 as components
+import yfinance as yf
+import plotly.graph_objects as go
+import pandas as pd
 
-# 1. Page Settings
+# 1. Page Settings (Mobile Friendly)
 st.set_page_config(page_title="FTB PRO TERMINAL", layout="wide")
 
-# 2. Custom CSS to hide Streamlit header/footer for Clean Look
+# Dark Theme CSS
 st.markdown("""
     <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    .main { background-color: #131722; }
+    .main { background-color: #131722; color: white; }
+    .stSidebar { background-color: #171b26; border-right: 1px solid #2a2e39; }
+    div[data-testid="stMetricValue"] { color: #2962ff; font-size: 24px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- SIDEBAR: SYMBOL SELECTION ---
-st.sidebar.title("🚀 FTB PRO")
-symbol = st.sidebar.selectbox("Select Asset", ["NIFTY", "BANKNIFTY", "CRUDEOIL", "RELIANCE", "SBIN"])
+# --- SIDEBAR: ALL STOCKS & INDICES ---
+st.sidebar.title("📑 Watchlist")
 
-# Mapping symbols to TradingView format
-tv_symbols = {
-    "NIFTY": "NSE:NIFTY",
-    "BANKNIFTY": "NSE:BANKNIFTY",
-    "CRUDEOIL": "MCX:CRUDEOIL1!",
-    "RELIANCE": "NSE:RELIANCE",
-    "SBIN": "NSE:SBIN"
+# Nifty 50 പ്രധാന സ്റ്റോക്കുകളുടെ ലിസ്റ്റ്
+nifty50_stocks = {
+    "NIFTY 50": "^NSEI",
+    "BANK NIFTY": "^NSEBANK",
+    "RELIANCE": "RELIANCE.NS",
+    "TCS": "TCS.NS",
+    "HDFC BANK": "HDFCBANK.NS",
+    "ICICI BANK": "ICICIBANK.NS",
+    "INFY": "INFY.NS",
+    "SBIN": "SBIN.NS",
+    "ADANI PORTS": "ADANIPORTS.NS",
+    "CRUDE OIL": "CL=F"
 }
 
-# --- TRADINGVIEW WIDGET (The Magic Part) ---
-st.markdown(f"### 📈 {symbol} Live Chart")
+selected_name = st.sidebar.selectbox("Select Asset", list(nifty50_stocks.keys()))
+ticker = nifty50_stocks[selected_name]
 
-# ഈ വിഡ്ജറ്റ് ആണ് ട്രേഡിംഗ് വ്യൂവിന്റെ അതേ ലുക്ക് നിനക്ക് തരുന്നത്
-tv_widget = f"""
-<div class="tradingview-widget-container" style="height:100%;width:100%">
-  <div id="tradingview_chart"></div>
-  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-  <script type="text/javascript">
-  new TradingView.widget({{
-    "autosize": true,
-    "symbol": "{tv_symbols[symbol]}",
-    "interval": "5",
-    "timezone": "Asia/Kolkata",
-    "theme": "dark",
-    "style": "1",
-    "locale": "en",
-    "toolbar_bg": "#f1f3f6",
-    "enable_publishing": false,
-    "hide_top_toolbar": false,
-    "hide_legend": false,
-    "save_image": false,
-    "container_id": "tradingview_chart"
-  }});
-  </script>
-</div>
-"""
+# Timeframe Selection
+interval = st.sidebar.select_slider("Timeframe", options=["1m", "5m", "15m", "1h", "1d"], value="5m")
 
-# Displaying the widget
-components.html(tv_widget, height=600)
+# --- MAIN CHART LOGIC ---
+st.header(f"📈 {selected_name} Live Chart")
+
+try:
+    # Fetching Data
+    df = yf.download(ticker, period="2d", interval=interval, multi_level_index=False)
+    
+    if not df.empty:
+        # Professional Candlestick Chart
+        fig = go.Figure(data=[go.Candlestick(
+            x=df.index,
+            open=df['Open'],
+            high=df['High'],
+            low=df['Low'],
+            close=df['Close'],
+            name="Price"
+        )])
+
+        # Update Chart Layout to match TradingView Style
+        fig.update_layout(
+            template='plotly_dark',
+            xaxis_rangeslider_visible=False,
+            height=600,
+            margin=dict(l=10, r=10, t=10, b=10),
+            paper_bgcolor='#131722',
+            plot_bgcolor='#131722'
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Current Stats
+        c1, c2 = st.columns(2)
+        curr_price = df['Close'].iloc[-1]
+        change = curr_price - df['Open'].iloc[0]
+        c1.metric("Live Price", f"₹ {curr_price:,.2f}", f"{change:.2f}")
+        c2.info(f"Market: {'OPEN' if not df.empty else 'CLOSED'}")
+
+except Exception as e:
+    st.error(f"Error loading {selected_name}. Please try a different timeframe.")
 
 st.sidebar.divider()
-st.sidebar.info("Use the tools inside the chart to add Indicators and Trendlines.")
+st.sidebar.caption("FTB PRO - Advanced Trading Terminal")
