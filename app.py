@@ -2,93 +2,82 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import numpy as np
 
-# 1. Page Config
-st.set_page_config(page_title="FTB PRO - TradingView Clone", layout="wide")
+# Page Config
+st.set_page_config(page_title="FTB ULTIMATE TERMINAL", layout="wide")
 
-# Custom CSS for TradingView Dark Mobile UI
+# Custom CSS for Dark Pro UI
 st.markdown("""
     <style>
-    .main { background-color: #131722; color: white; }
-    .stSidebar { background-color: #171b26; }
-    div[data-testid="stMetricValue"] { color: #00ff00; font-size: 18px; }
-    .nav-item { padding: 10px; border-radius: 5px; margin-bottom: 5px; cursor: pointer; }
-    .nav-item:hover { background-color: #2a2e39; }
+    .main { background-color: #0c0d10; color: white; }
+    .stSidebar { background-color: #131722; border-right: 1px solid #2a2e39; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- SIDEBAR NAVIGATION (Bottom Nav Simulation) ---
-st.sidebar.title("FTB PRO 🚀")
-menu = st.sidebar.radio("Go to", ["📑 Watchlist", "📈 Chart", "🔍 Explore", "👥 Community", "👤 Profile"])
-
-# --- DATA HELPERS ---
-def get_chart(ticker):
-    df = yf.download(ticker, period="2d", interval="5m", multi_level_index=False)
-    # Simple Supertrend Logic
+# --- INDICATOR CALCULATIONS ---
+def add_indicators(df):
+    # RSI
+    delta = df['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df['RSI'] = 100 - (100 / (1 + rs))
+    
+    # Moving Average (SMA 20)
+    df['SMA20'] = df['Close'].rolling(window=20).mean()
+    
+    # Supertrend
     high, low, close = df['High'], df['Low'], df['Close']
     atr = (high - low).rolling(10).mean()
     hl2 = (high + low) / 2
-    df['ST'] = hl2 + (3 * atr) # Upper band simulation
-    df['Signal'] = np.where(close > df['ST'].shift(), 'BUY', 'SELL')
+    df['ST_Upper'] = hl2 + (3 * atr)
+    df['ST_Lower'] = hl2 - (3 * atr)
     return df
 
-# --- 1. WATCHLIST PAGE (43632.jpg) ---
-if menu == "📑 Watchlist":
-    st.header("Watchlist")
-    stocks = {"NIFTY 50": "^NSEI", "BANK NIFTY": "^NSEBANK", "CRUDE OIL": "CL=F", "ADANI PORTS": "ADANIPORTS.NS"}
-    for name, sym in stocks.items():
-        col1, col2 = st.columns([3, 1])
-        data = yf.Ticker(sym).history(period="1d")
-        price = data['Close'].iloc[-1]
-        col1.markdown(f"### {name}")
-        col2.metric("", f"{price:,.2f}", f"{price - data['Open'].iloc[-1]:.2f}")
-        st.divider()
+# --- SIDEBAR: SEARCH & WATCHLIST ---
+st.sidebar.title("🔍 Search & Watchlist")
+search_symbol = st.sidebar.text_input("Enter Symbol (eg: SBIN, TATAMOTORS)", "^NSEI")
 
-# --- 2. CHART PAGE (43633.jpg) ---
-elif menu == "📈 Chart":
-    st.header("Advanced Chart")
-    target = st.selectbox("Select Asset", ["^NSEI", "CL=F", "^NSEBANK"])
-    df = get_chart(target)
-    fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'])])
-    
-    # Add Buy/Sell Markers
-    signals = df[df['Signal'] != df['Signal'].shift(1)]
-    for idx, row in signals.iterrows():
-        fig.add_annotation(x=idx, y=row['Close'], text=row['Signal'], bgcolor="green" if row['Signal']=="BUY" else "red")
+st.sidebar.subheader("Quick Links")
+quick_list = {"NIFTY 50": "^NSEI", "BANK NIFTY": "^NSEBANK", "CRUDE OIL": "CL=F", "GOLD": "GC=F"}
+selected_quick = st.sidebar.selectbox("Indices/Global", list(quick_list.keys()))
+
+# --- MAIN DASHBOARD ---
+ticker = search_symbol if search_symbol != "^NSEI" else quick_list[selected_quick]
+if not ticker.endswith(".NS") and ticker not in ["CL=F", "GC=F", "^NSEI", "^NSEBANK"]:
+    ticker = ticker.upper() + ".NS"
+
+try:
+    df = yf.download(ticker, period="5d", interval="15m", multi_level_index=False)
+    if not df.empty:
+        df = add_indicators(df)
         
-    fig.update_layout(template='plotly_dark', paper_bgcolor='#131722', plot_bgcolor='#131722', height=600)
-    st.plotly_chart(fig, use_container_width=True)
+        # Subplots: Price Chart & RSI
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.7, 0.3])
+        
+        # Candlestick
+        fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Price"), row=1, col=1)
+        
+        # Add SMA & Supertrend
+        fig.add_trace(go.Scatter(x=df.index, y=df['SMA20'], name="SMA 20", line=dict(color='yellow', width=1)), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df.index, y=df['ST_Upper'], name="ST Upper", line=dict(color='red', width=1, dash='dash')), row=1, col=1)
+        
+        # Add RSI
+        fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], name="RSI", line=dict(color='purple')), row=2, col=1)
+        fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
+        fig.add_hline(y=30, line_dash="dash", line_color="green", row=2, col=1)
 
-# --- 3. EXPLORE PAGE (43636.jpg) ---
-elif menu == "🔍 Explore":
-    st.header("Global Markets")
-    indices = {"S&P 500": "^GSPC", "Dow 30": "^DJI", "Nasdaq": "^IXIC"}
-    cols = st.columns(3)
-    for i, (name, sym) in enumerate(indices.items()):
-        val = yf.Ticker(sym).history(period="1d")['Close'].iloc[-1]
-        cols[i].metric(name, f"{val:,.2f}", "Live")
-    st.subheader("Top Stories")
-    st.info("EUR/USD: Euro Chases $1.16 as Dollar Drops")
-    st.warning("NIKE Stock Crashes 9% as Outlook Dims")
+        fig.update_layout(template='plotly_dark', height=800, xaxis_rangeslider_visible=False)
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Live Stats
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Current Price", f"₹ {df['Close'].iloc[-1]:,.2f}")
+        c2.metric("RSI (14)", f"{df['RSI'].iloc[-1]:.2f}")
+        status = "BUY" if df['Close'].iloc[-1] > df['SMA20'].iloc[-1] else "SELL"
+        c3.info(f"Trend Status: {status}")
 
-# --- 4. COMMUNITY PAGE (43635.jpg) ---
-elif menu == "👥 Community":
-    st.header("Community Ideas")
-    st.markdown("""
-    **@TradingShot** - *BITCOIN The 8-year Megaphone reveals Bear Cycle*
-    🚀 91 | 💬 11
-    """)
-    st.divider()
-    st.markdown("**@Path_Of_Hanzo** - *USD/JPY Analysis*")
-
-# --- 5. PROFILE PAGE (43634.jpg) ---
-elif menu == "👤 Profile":
-    st.header("My Profile")
-    st.subheader("Faisal FTB")
-    st.text("Account: BASIC")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Ideas", "0")
-    col2.metric("Followers", "1")
-    col3.metric("Following", "0")
-    st.button("Sign Out")
+except Exception as e:
+    st.error(f"Symbol not found. Please try again.")
