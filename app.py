@@ -38,7 +38,7 @@ st.sidebar.divider()
 st.sidebar.subheader("💬 AI-യോട് ചോദിക്കുക")
 user_query = st.sidebar.text_input("ചോദിക്കൂ:", placeholder="ഉദാ: ക്രൂഡ് ഓയിൽ ട്രെൻഡ്?")
 if user_query:
-    st.sidebar.info("🤖: നിന്റെ ചോദ്യം ഞാൻ ശ്രദ്ധിച്ചു. ചാർട്ടിലെ മഞ്ഞ ലൈനിന് മുകളിൽ വില വരുമ്പോൾ ബൈ ചെയ്യാം.")
+    st.sidebar.info("🤖: ചാർട്ടിലെ മഞ്ഞ ലൈനിന് മുകളിൽ പ്രൈസ് നിൽക്കുന്നത് വരെ ബൈ ഹോൾഡ് ചെയ്യാം.")
 
 # Exchange Calc
 st.sidebar.divider()
@@ -62,7 +62,7 @@ while True:
         df = yf.download(ticker_map[asset_choice], period="1d", interval="1m", progress=False)
         
         if not df.empty:
-            # ക്രൂഡ് ഓയിൽ പ്രൈസ് ശരിയാക്കുന്നു
+            # ക്രൂഡ് ഓയിൽ പ്രൈസ് അപ്‌സ്റ്റോക്സിലെ പോലെ ശരിയാക്കുന്നു
             if asset_choice == "Crude Oil (MCX)":
                 df = df * 91.5 
             
@@ -74,7 +74,7 @@ while True:
             st.metric("Live Wallet Balance", f"₹{st.session_state.balance:,.2f}")
 
             # AI Signal Box
-            msg, col, bg = ("🚀 AI BUY: മാർക്കറ്റ് അനുകൂലമാണ്!", "#00FFA3", "#003322") if st_dir == 1 else ("📉 AI SELL: മാർക്കറ്റ് നെഗറ്റീവ് ആണ്!", "#FF3131", "#330000")
+            msg, col, bg = ("🚀 AI BUY: ട്രെൻഡ് പോസിറ്റീവ് ആണ്!", "#00FFA3", "#003322") if st_dir == 1 else ("📉 AI SELL: ട്രെൻഡ് നെഗറ്റീവ് ആണ്!", "#FF3131", "#330000")
             st.markdown(f'<div style="background:{bg};padding:20px;border-radius:15px;border:2px solid {col};"><h3 style="color:{col};margin:0;">🚀 Faisal AI Advisor</h3><p style="color:white;margin-top:10px;">{msg}</p></div>', unsafe_allow_html=True)
 
             # Chart
