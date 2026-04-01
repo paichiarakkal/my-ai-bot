@@ -8,23 +8,25 @@ import os
 # --- Page Config ---
 st.set_page_config(page_title="Faisal's AI Terminal", layout="wide")
 
-# --- 1. വാലറ്റ് ബാലൻസ് അപ്‌ഡേറ്റ് ---
+# --- 1. വാലറ്റ് ബാലൻസ് ---
 if 'balance' not in st.session_state:
-    st.session_state.balance = 471435.50 # നിന്റെ പ്രോഫിറ്റ് ഉൾപ്പെടെയുള്ള ബാലൻസ്
+    st.session_state.balance = 471435.50 # നിന്റെ വാലറ്റിലെ പുതിയ ബാലൻസ്
 
-# --- 2. ലൈവ് ഡാറ്റാ ഫംഗ്‌ഷൻ (Fixed Error) ---
+# --- 2. ലൈവ് ഡാറ്റാ ഫംഗ്‌ഷൻ ---
 def get_exchange_rates():
     try:
         inr_rate = float(yf.download("INR=X", period="1d", progress=False)['Close'].iloc[-1])
         aed_rate = float(yf.download("AED=X", period="1d", progress=False)['Close'].iloc[-1])
-        # അന്താരാഷ്ട്ര ഗോൾഡ് സ്പോട്ട് വില
-        gold_usd = float(yf.download("GC=F", period="1d", progress=False)['Close'].iloc[-1])
-        return inr_rate, aed_rate, gold_usd
+        gold_spot = float(yf.download("GC=F", period="1d", progress=False)['Close'].iloc[-1])
+        return inr_rate, aed_rate, gold_spot
     except:
         return 83.30, 3.67, 2300.0
 
-# --- 3. AI അസിസ്റ്റന്റ് ലോജിക് (New Colors) ---
-def get_ai_advice(rsi, price, ema):
+# --- 3. AI അസിസ്റ്റന്റ് ലോജിക് (Error Fixed) ---
+def get_ai_advice(rsi_series, price, ema):
+    # സീരീസിൽ നിന്ന് അവസാനത്തെ വാല്യൂ മാത്രം എടുക്കുന്നു
+    rsi = float(rsi_series.iloc[-1]) if isinstance(rsi_series, pd.Series) else float(rsi_series)
+    
     if rsi < 35:
         return "🔥 AI BUY SIGNAL: മാർക്കറ്റ് താഴെയാണ്, ഇപ്പോൾ വാങ്ങുന്നത് ലാഭകരമാകും!", "#00FFA3", "#003322"
     elif rsi > 65:
@@ -38,16 +40,6 @@ st.sidebar.title("🤖 Faisal AI Control")
 asset_choice = st.sidebar.selectbox("Select Asset", ["Gold (Live)", "Nifty 50", "Crude Oil"])
 
 inr, aed, gold_spot = get_exchange_rates()
-
-# കറൻസി കാൽക്കുലേറ്റർ
-st.sidebar.divider()
-st.sidebar.subheader("💱 Currency Converter")
-conv_type = st.sidebar.selectbox("Pair", ["INR to AED", "AED to INR"])
-conv_amt = st.sidebar.number_input("Amount", value=1.0)
-if conv_type == "INR to AED":
-    st.sidebar.write(f"Total: **{(conv_amt/inr)*aed:.2f} AED**")
-else:
-    st.sidebar.write(f"Total: **{(conv_amt/aed)*inr:.2f} INR**")
 
 # --- 5. മെയിൻ ഡിസ്‌പ്ലേ ലൂപ്പ് ---
 placeholder = st.empty()
@@ -63,14 +55,14 @@ while True:
             delta = df['Close'].diff()
             gain = (delta.where(delta > 0, 0)).rolling(14).mean()
             loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
-            rsi = 100 - (100 / (1 + (gain / loss))).iloc[-1]
+            rsi_series = 100 - (100 / (1 + (gain / loss)))
             ema = df['Close'].ewm(span=20).mean().iloc[-1]
 
-            advice, text_col, bg_col = get_ai_advice(rsi, last_p, ema)
+            advice, text_col, bg_col = get_ai_advice(rsi_series, last_p, ema)
 
             st.metric("Live Wallet Balance", f"₹{st.session_state.balance:,.2f}")
 
-            # AI Advisor Box (Premium Look)
+            # AI Advisor Box
             st.markdown(f"""
                 <div style="background-color:{bg_col}; padding:20px; border-radius:15px; border: 2px solid {text_col}; margin-bottom: 20px;">
                     <h3 style="color:{text_col}; margin:0;">🚀 Faisal AI Advisor</h3>
@@ -92,7 +84,7 @@ while True:
 
             # Live Chart
             fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'])])
-            fig.update_layout(template="plotly_dark", height=450, title=f"{asset_choice} Live Tracker")
+            fig.update_layout(template="plotly_dark", height=450)
             st.plotly_chart(fig, use_container_width=True)
 
     time.sleep(30)
