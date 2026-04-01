@@ -5,14 +5,14 @@ import plotly.graph_objects as go
 import numpy as np
 import time
 
-# --- 1. പേജ് സെറ്റിംഗ്സ് (Safe Mode - No Image Error) ---
+# --- 1. പേജ് സെറ്റിംഗ്സ് (Error ഒഴിവാക്കാൻ Safe Mode) ---
 st.set_page_config(page_title="Faisal AI Terminal", page_icon="📈", layout="wide")
 
-# --- 2. വാലറ്റ് ബാലൻസ് അപ്‌ഡേറ്റ് ---
+# --- 2. വാലറ്റ് ബാലൻസ് ---
 if 'balance' not in st.session_state:
     st.session_state.balance = 471435.50
 
-# --- 3. സൂപ്പർട്രെൻഡ് ലോജിക് ---
+# --- 3. സൂപ്പർട്രെൻഡ് കാൽക്കുലേഷൻ ---
 def custom_supertrend(df, period=7, multiplier=3):
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
@@ -30,19 +30,19 @@ def custom_supertrend(df, period=7, multiplier=3):
     df['ST'], df['ST_DIR'] = st_list, dir_list
     return df
 
-# --- 4. സൈഡ്‌ബാർ (AI Chat & Calc) ---
-st.sidebar.markdown(f"<h1 style='text-align: center; color: #00FFA3;'>Faisal AI Bot</h1>", unsafe_allow_html=True)
+# --- 4. സൈഡ്‌ബാർ (Safe Sidebar - No Image) ---
+st.sidebar.markdown(f"<h1 style='text-align: center; color: #00FFA3;'>Faisal Pro AI</h1>", unsafe_allow_html=True)
 
 # AI Chat Section
 st.sidebar.divider()
-st.sidebar.subheader("💬 AI-യോട് ചോദിക്കാം")
-user_query = st.sidebar.text_input("ടൈപ്പ് ചെയ്യൂ:", placeholder="ഉദാ: ക്രൂഡ് ഓയിൽ ട്രെൻഡ്?")
+st.sidebar.subheader("💬 AI Chat")
+user_query = st.sidebar.text_input("ചോദിക്കൂ:", placeholder="ട്രെൻഡ് എന്താണ്?")
 if user_query:
-    st.sidebar.info("🤖: ഞാൻ ചാർട്ട് അനലൈസ് ചെയ്യുകയാണ്. സൂപ്പർട്രെൻഡ് സിഗ്നൽ ശ്രദ്ധിക്കുക.")
+    st.sidebar.info("🤖: ചാർട്ടിലെ മഞ്ഞ ലൈൻ ശ്രദ്ധിക്കുക. അതിന് മുകളിൽ പ്രൈസ് നിൽക്കുമ്പോൾ ബൈ തുടരാം.")
 
-# Currency Calculator
+# Currency Calc
 st.sidebar.divider()
-st.sidebar.subheader("💱 INR - AED Calc")
+st.sidebar.subheader("💱 Currency Calc")
 mode = st.sidebar.radio("Conversion", ["INR to AED", "AED to INR"])
 amt = st.sidebar.number_input("Amount", value=1.0)
 try:
@@ -62,7 +62,7 @@ while True:
         df = yf.download(ticker_map[asset_choice], period="1d", interval="1m", progress=False)
         
         if not df.empty:
-            # ക്രൂഡ് ഓയിൽ പ്രൈസ് അപ്‌സ്റ്റോക്സിലെ പോലെ ശരിയാക്കുന്നു
+            # ക്രൂഡ് ഓയിൽ പ്രൈസ് ശരിയാക്കുന്നു
             if asset_choice == "Crude Oil (MCX)":
                 df = df * 91.5 
             
@@ -70,15 +70,15 @@ while True:
             last_p = float(df['Close'].iloc[-1])
             st_dir = df['ST_DIR'].iloc[-1]
 
-            # ബാലൻസ് ഡിസ്‌പ്ലേ
+            # വാലറ്റ് ബാലൻസ്
             st.metric("Live Wallet Balance", f"₹{st.session_state.balance:,.2f}")
 
             # AI Advisor Box
-            msg, col, bg = ("🚀 AI BUY: മാർക്കറ്റ് അനുകൂലമാണ്!", "#00FFA3", "#003322") if st_dir == 1 else ("📉 AI SELL: മാർക്കറ്റ് നെഗറ്റീവ് ആണ്!", "#FF3131", "#330000")
+            msg, col, bg = ("🚀 AI BUY: ട്രെൻഡ് പോസിറ്റീവ് ആണ്!", "#00FFA3", "#003322") if st_dir == 1 else ("📉 AI SELL: ട്രെൻഡ് നെഗറ്റീവ് ആണ്!", "#FF3131", "#330000")
             st.markdown(f'<div style="background:{bg};padding:20px;border-radius:15px;border:2px solid {col};"><h3 style="color:{col};margin:0;">🚀 Faisal AI Advisor</h3><p style="color:white;margin-top:10px;">{msg}</p></div>', unsafe_allow_html=True)
 
             # Chart
-            fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Price")])
+            fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Market")])
             fig.add_trace(go.Scatter(x=df.index, y=df['ST'], line=dict(color='yellow', width=2), name="Supertrend"))
             fig.update_layout(template="plotly_dark", height=450, title=f"{asset_choice} | Price: {last_p:,.2f}")
             st.plotly_chart(fig, use_container_width=True)
