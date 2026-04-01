@@ -10,7 +10,7 @@ st.set_page_config(page_title="Faisal's AI Terminal", layout="wide")
 
 # --- 1. വാലറ്റ് ബാലൻസ് ---
 if 'balance' not in st.session_state:
-    st.session_state.balance = 471435.50 # നിന്റെ വാലറ്റിലെ പുതിയ ബാലൻസ്
+    st.session_state.balance = 471435.50 # നിന്റെ വാലറ്റിലെ ബാലൻസ്
 
 # --- 2. ലൈവ് ഡാറ്റാ ഫംഗ്‌ഷൻ ---
 def get_exchange_rates():
@@ -22,10 +22,17 @@ def get_exchange_rates():
     except:
         return 83.30, 3.67, 2300.0
 
-# --- 3. AI അസിസ്റ്റന്റ് ലോജിക് (Error Fixed) ---
+# --- 3. AI അസിസ്റ്റന്റ് ലോജിക് (TypeError Fixed) ---
 def get_ai_advice(rsi_series, price, ema):
-    # സീരീസിൽ നിന്ന് അവസാനത്തെ വാല്യൂ മാത്രം എടുക്കുന്നു
-    rsi = float(rsi_series.iloc[-1]) if isinstance(rsi_series, pd.Series) else float(rsi_series)
+    # RSI ഡാറ്റ ഉണ്ടോ എന്ന് ഉറപ്പുവരുത്തുന്നു
+    if rsi_series is None or len(rsi_series) == 0:
+        return "⚖️ SYNCING: ഡാറ്റ ശേഖരിക്കുന്നു. അല്പസമയത്തിനകം സിഗ്നൽ ലഭിക്കും...", "#FFD700", "#332B00"
+    
+    # സീരീസിൽ നിന്ന് അവസാനത്തെ കൃത്യമായ വാല്യൂ എടുക്കുന്നു
+    try:
+        rsi = float(rsi_series.dropna().iloc[-1])
+    except:
+        return "⚖️ WAITING: മാർക്കറ്റ് വിശകലനം ചെയ്യുന്നു...", "#FFD700", "#332B00"
     
     if rsi < 35:
         return "🔥 AI BUY SIGNAL: മാർക്കറ്റ് താഴെയാണ്, ഇപ്പോൾ വാങ്ങുന്നത് ലാഭകരമാകും!", "#00FFA3", "#003322"
@@ -33,15 +40,13 @@ def get_ai_advice(rsi_series, price, ema):
         return "⚡ AI SELL SIGNAL: വില ഉയർന്നിട്ടുണ്ട്, ഇപ്പോൾ വിൽക്കാൻ റെഡി ആയിക്കോളൂ!", "#FF3131", "#330000"
     elif price > ema:
         return "📈 TREND: മാർക്കറ്റ് മുകളിലോട്ടാണ്. ഹോൾഡ് ചെയ്യുന്നത് നല്ലതായിരിക്കും.", "#00D1FF", "#002B36"
-    return "⚖️ MARKET WATCH: പുതിയ അവസരത്തിനായി ബോട്ട് നിരീക്ഷിച്ചു കൊണ്ടിരിക്കുന്നു...", "#FFD700", "#332B00"
+    return "⚖️ MARKET WATCH: പുതിയ അവസരത്തിനായി ബോട്ട് നിരീക്ഷിക്കുന്നു...", "#FFD700", "#332B00"
 
-# --- 4. സൈഡ്‌ബാർ ---
+# --- 4. മെയിൻ ഡിസ്‌പ്ലേ ലൂപ്പ് ---
 st.sidebar.title("🤖 Faisal AI Control")
 asset_choice = st.sidebar.selectbox("Select Asset", ["Gold (Live)", "Nifty 50", "Crude Oil"])
 
 inr, aed, gold_spot = get_exchange_rates()
-
-# --- 5. മെയിൻ ഡിസ്‌പ്ലേ ലൂപ്പ് ---
 placeholder = st.empty()
 
 while True:
@@ -77,10 +82,8 @@ while True:
                 pavan_inr = (gram_usd * inr) * 8
                 
                 c1, c2 = st.columns(2)
-                with c1:
-                    st.metric("🇦🇪 Dubai 8g (AED)", f"{pavan_aed:,.2f}")
-                with c2:
-                    st.metric("🇮🇳 India 8g (INR)", f"₹{pavan_inr:,.2f}")
+                with c1: st.metric("🇦🇪 Dubai 8g (AED)", f"{pavan_aed:,.2f}")
+                with c2: st.metric("🇮🇳 India 8g (INR)", f"₹{pavan_inr:,.2f}")
 
             # Live Chart
             fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'])])
