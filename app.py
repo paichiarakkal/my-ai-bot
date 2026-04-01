@@ -2,88 +2,105 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
+import numpy as np
 import time
 
 # --- Page Config ---
-st.set_page_config(page_title="Faisal's MCX Terminal", layout="wide")
+st.set_page_config(page_title="Faisal's AI Terminal", layout="wide")
 
 # --- 1. വാലറ്റ് ബാലൻസ് ---
 if 'balance' not in st.session_state:
     st.session_state.balance = 471435.50 #
 
-# --- 2. ലൈവ് ഡാറ്റാ ഫംഗ്‌ഷൻ ---
-def get_market_data(ticker):
-    try:
-        data = yf.download(ticker, period="1d", interval="1m", progress=False)
-        if not data.empty:
-            if isinstance(data.columns, pd.MultiIndex):
-                data.columns = data.columns.get_level_values(0)
-            return data
-    except: return pd.DataFrame()
-    return pd.DataFrame()
+# --- 2. ലൈബ്രറി ഇല്ലാതെ സൂപ്പർട്രെൻഡ് കണക്കാക്കുന്ന ലോജിക് ---
+def custom_supertrend(df, period=7, multiplier=3):
+    # MultiIndex പ്രശ്നം ഒഴിവാക്കുന്നു
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+        
+    hl2 = (df['High'] + df['Low']) / 2
+    # ATR കണക്കാക്കുന്നു
+    df['tr'] = np.maximum(df['High'] - df['Low'], 
+                          np.maximum(abs(df['High'] - df['Close'].shift(1)), 
+                                     abs(df['Low'] - df['Close'].shift(1))))
+    atr = df['tr'].rolling(period).mean()
+    
+    # Upper & Lower Bands
+    upperband = hl2 + (multiplier * atr)
+    lowerband = hl2 - (multiplier * atr)
+    
+    # സൂപ്പർട്രെൻഡ് ലോജിക്
+    final_bands = pd.DataFrame(index=df.index)
+    final_bands['upper'] = upperband
+    final_bands['lower'] = lowerband
+    
+    supertrend = [0.0] * len(df)
+    direction = [1] * len(df)
+    
+    for i in range(1, len(df)):
+        if df['Close'].iloc[i] > final_bands['upper'].iloc[i-1]:
+            direction[i] = 1
+        elif df['Close'].iloc[i] < final_bands['lower'].iloc[i-1]:
+            direction[i] = -1
+        else:
+            direction[i] = direction[i-1]
+            
+        if direction[i] == 1:
+            supertrend[i] = final_bands['lower'].iloc[i]
+        else:
+            supertrend[i] = final_bands['upper'].iloc[i]
+            
+    df['ST'] = supertrend
+    df['ST_DIR'] = direction
+    return df
 
-# --- 3. AI അസിസ്റ്റന്റ് ലോജിക് ---
-def get_ai_advice(rsi_val, price, ema_val):
-    try:
-        rsi = float(rsi_val)
-        if rsi < 35: return "🔥 AI BUY: മാർക്കറ്റ് താഴെയാണ്, വാങ്ങാൻ നല്ല സമയം!", "#00FFA3", "#003322"
-        elif rsi > 65: return "⚡ AI SELL: വില ഉയർന്നിട്ടുണ്ട്, ഇപ്പോൾ വിൽക്കാം!", "#FF3131", "#330000"
-        return "📈 TREND: മാർക്കറ്റ് അനുകൂലമാണ്. ശ്രദ്ധയോടെ ട്രേഡ് ചെയ്യുക.", "#00D1FF", "#002B36"
-    except: return "⚖️ SYNCING...", "#FFD700", "#332B00"
+# --- 3. സൈഡ്‌ബാർ & എക്സ്ചേഞ്ച് റേറ്റ് ---
+st.sidebar.title("🤖 Faisal AI Terminal")
+asset_choice = st.sidebar.selectbox("Select Asset", ["Crude Oil (MCX)", "Nifty 50", "Gold (Live)"])
 
-# --- 4. സൈഡ്‌ബാർ (Exchange Calculator) ---
-st.sidebar.title("🤖 Faisal AI Control")
-
-# എക്സ്ചേഞ്ച് റേറ്റ് കാൽക്കുലേറ്റർ
-st.sidebar.header("💱 Exchange Calculator")
-calc_pair = st.sidebar.selectbox("Select Pair", ["AED to INR", "INR to AED", "USD to INR"])
-calc_amt = st.sidebar.number_input("Enter Amount", value=1.0)
-
+# Exchange Calculator
 try:
-    pair_map = {"AED to INR": "AEDINR=X", "INR to AED": "INRAED=X", "USD to INR": "INR=X"}
-    rate_df = yf.download(pair_map[calc_pair], period="1d", progress=False)
-    if not rate_df.empty:
-        if isinstance(rate_df.columns, pd.MultiIndex): rate_df.columns = rate_df.columns.get_level_values(0)
-        current_rate = float(rate_df['Close'].iloc[-1])
-        st.sidebar.success(f"1 Unit = {current_rate:.2f}")
-        st.sidebar.write(f"Total: **{calc_amt * current_rate:,.2f}**")
-except: st.sidebar.error("Rate Fetch Error")
+    inr_rate = float(yf.download("INR=X", period="1d", progress=False)['Close'].iloc[-1])
+    st.sidebar.write(f"Current USD-INR: **₹{inr_rate:.2f}**")
+except: pass
 
-st.sidebar.divider()
-asset_choice = st.sidebar.selectbox("Select Asset", ["Crude Oil (MCX)", "Gold (Live)", "Nifty 50"])
-
-# --- 5. മെയിൻ ഡിസ്‌പ്ലേ ---
+# --- 4. മെയിൻ ഡിസ്‌പ്ലേ ---
 placeholder = st.empty()
 
 while True:
     with placeholder.container():
-        # MCX ക്രൂഡ് ഓയിലിനായി 'MCX' ടിക്കർ ഉപയോഗിക്കുന്നു
-        ticker_map = {"Crude Oil (MCX)": "CL=F", "Gold (Live)": "GC=F", "Nifty 50": "^NSEI"}
-        df = get_market_data(ticker_map[asset_choice])
+        ticker_map = {"Crude Oil (MCX)": "CL=F", "Nifty 50": "^NSEI", "Gold (Live)": "GC=F"}
+        df = yf.download(ticker_map[asset_choice], period="1d", interval="1m", progress=False)
         
         if not df.empty:
-            last_p = float(df['Close'].iloc[-1])
+            # MCX പ്രൈസ് കൺവേർഷൻ (103 -> 9400)
+            if asset_choice == "Crude Oil (MCX)":
+                df = df * 91.5 
             
-            # Indicators
-            delta = df['Close'].diff()
-            gain = (delta.where(delta > 0, 0)).rolling(14).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
-            rsi = (100 - (100 / (1 + (gain / loss)))).iloc[-1]
-            ema = df['Close'].ewm(span=20).mean().iloc[-1]
+            # സൂപ്പർട്രെൻഡ് ലൈൻ ചേർക്കുന്നു
+            df = custom_supertrend(df)
+            
+            last_p = float(df['Close'].iloc[-1])
+            st_dir = df['ST_DIR'].iloc[-1]
 
-            advice, text_col, bg_col = get_ai_advice(rsi, last_p, ema)
+            st.metric("Live Balance", f"₹{st.session_state.balance:,.2f}")
 
-            st.metric("Live Wallet Balance", f"₹{st.session_state.balance:,.2f}") #
+            # AI Advisor Signal
+            if st_dir == 1:
+                msg, col, bg = "🚀 AI BUY: ട്രെൻഡ് പോസിറ്റീവ് ആണ്!", "#00FFA3", "#003322"
+            else:
+                msg, col, bg = "📉 AI SELL: ട്രെൻഡ് താഴോട്ടാണ്!", "#FF3131", "#330000"
 
-            # AI Advisor
-            st.markdown(f'<div style="background:{bg_col};padding:20px;border-radius:15px;border:2px solid {text_col};">'
-                        f'<h3 style="color:{text_col};margin:0;">🚀 Faisal AI Advisor</h3>'
-                        f'<p style="color:white;margin-top:10px;">{advice}</p></div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="background:{bg};padding:20px;border-radius:15px;border:2px solid {col};">'
+                        f'<h3 style="color:{col};margin:0;">🚀 Faisal AI Advisor</h3>'
+                        f'<p style="color:white;margin-top:10px;">{msg}</p></div>', unsafe_allow_html=True)
 
-            # Chart
-            st.write(f"### {asset_choice} Live Tracker")
-            fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'])])
-            fig.update_layout(template="plotly_dark", height=400, margin=dict(l=0,r=0,t=0,b=0))
+            # ലൈവ് ചാർട്ട്
+            fig = go.Figure()
+            fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Price"))
+            fig.add_trace(go.Scatter(x=df.index, y=df['ST'], line=dict(color='yellow', width=2), name="Supertrend"))
+            
+            fig.update_layout(template="plotly_dark", height=450, title=f"{asset_choice} | Price: {last_p:,.2f}")
             st.plotly_chart(fig, use_container_width=True)
 
     time.sleep(30)
