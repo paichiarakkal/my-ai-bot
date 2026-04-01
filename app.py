@@ -12,7 +12,7 @@ st.set_page_config(page_title="Faisal AI Terminal", page_icon="💹", layout="wi
 if 'balance' not in st.session_state:
     st.session_state.balance = 471435.50
 
-# --- 3. സൂപ്പർട്രെൻഡ് ലോജിക് (ലൈബ്രറി ഇല്ലാതെ) ---
+# --- 3. സൂപ്പർട്രെൻഡ് ലോജിക് ---
 def custom_supertrend(df, period=7, multiplier=3):
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
@@ -33,12 +33,16 @@ def custom_supertrend(df, period=7, multiplier=3):
 # --- 4. സൈഡ്‌ബാർ (AI Chat & Calculator) ---
 st.sidebar.title("Faisal AI Bot 🤖")
 
+# ഫോട്ടോ കാണിക്കാൻ ഒരു ബട്ടൺ (Error ഒഴിവാക്കാൻ)
+if st.sidebar.button("Show My Photo 📷"):
+    st.sidebar.info("നിന്റെ ഫോട്ടോ അപ്‌ലോഡ് ചെയ്യാൻ GitHub-ൽ 'my_photo.jpg' എന്ന പേരിൽ തന്നെ ഇടുക.")
+
 # AI Chat Box
 st.sidebar.divider()
 st.sidebar.subheader("💬 AI-യോട് ചോദിക്കുക")
-user_query = st.sidebar.text_input("ചോദിക്കൂ:", placeholder="ഉദാ: ക്രൂഡ് ഓയിൽ ട്രെൻഡ്?")
+user_query = st.sidebar.text_input("ചോദിക്കൂ:", placeholder="ഉദാ: ഇന്നത്തെ ട്രെൻഡ് എന്താണ്?")
 if user_query:
-    st.sidebar.info("🤖: ഞാൻ നിന്റെ ചാർട്ട് വിശകലനം ചെയ്യുകയാണ്. സൂപ്പർട്രെൻഡ് നോക്കി ട്രേഡ് എടുക്കുക.")
+    st.sidebar.info(f"🤖: {user_query} എന്നതിനെക്കുറിച്ച് ഞാൻ പഠിക്കുകയാണ്. ചാർട്ടിലെ മഞ്ഞ ലൈൻ ശ്രദ്ധിക്കുക.")
 
 # Currency Calculator
 st.sidebar.divider()
@@ -49,7 +53,7 @@ try:
     rate_data = yf.download("AEDINR=X", period="1d", progress=False)
     live_rate = float(rate_data['Close'].iloc[-1])
     res = amt / live_rate if mode == "INR to AED" else amt * live_rate
-    st.sidebar.success(f"Result: {res:.2f}")
+    st.sidebar.success(f"Result: {res:.2f} (1 AED = ₹{live_rate:.2f})")
 except: pass
 
 asset_choice = st.sidebar.selectbox("Asset", ["Crude Oil (MCX)", "Nifty 50", "Gold (Live)"])
@@ -63,7 +67,7 @@ while True:
         df = yf.download(ticker_map[asset_choice], period="1d", interval="1m", progress=False)
         
         if not df.empty:
-            # ക്രൂഡ് ഓയിൽ പ്രൈസ് കൺവേർഷൻ
+            # ക്രൂഡ് ഓയിൽ പ്രൈസ് കൺവേർഷൻ (9400 റേഞ്ചിലേക്ക്)
             if asset_choice == "Crude Oil (MCX)":
                 df = df * 91.5 
             
@@ -81,7 +85,7 @@ while True:
             # Chart
             fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Market")])
             fig.add_trace(go.Scatter(x=df.index, y=df['ST'], line=dict(color='yellow', width=2), name="Supertrend"))
-            fig.update_layout(template="plotly_dark", height=450, title=f"{asset_choice} | Price: {last_p:,.2f}")
+            fig.update_layout(template="plotly_dark", height=450, title=f"{asset_choice} | Live Price: {last_p:,.2f}")
             st.plotly_chart(fig, use_container_width=True)
 
     time.sleep(30)
