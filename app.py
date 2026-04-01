@@ -7,99 +7,104 @@ import numpy as np
 # ആപ്പ് കോൺഫിഗറേഷൻ
 st.set_page_config(page_title="Upstox Pro", layout="wide")
 
-# --- സെഷൻ സ്റ്റേറ്റ് (ഡാറ്റ സൂക്ഷിക്കാൻ) ---
+# --- സെഷൻ സ്റ്റേറ്റ് ---
 if 'balance' not in st.session_state: st.session_state.balance = 100000.0
 if 'positions' not in st.session_state: st.session_state.positions = []
 if 'page' not in st.session_state: st.session_state.page = "Home"
 
-# --- സൂപ്പർട്രെൻഡ് കാൽക്കുലേഷൻ (Error-Free Version) ---
-def calculate_supertrend(df, period=7, multiplier=3):
+# --- സൂപ്പർട്രെൻഡ് കണക്കാക്കൽ (Error Fixed Version) ---
+def get_supertrend(df, period=7, multiplier=3):
     df = df.copy()
-    # ഇൻഡക്സ് റീസെറ്റ് ചെയ്ത് എറർ ഒഴിവാക്കുന്നു
-    df = df.reset_index()
+    # ഇൻഡക്സ് ടൈംസീരീസ് ആണെന്ന് ഉറപ്പുവരുത്തുന്നു
+    df.index = pd.to_datetime(df.index)
     
     # ATR കണക്കാക്കുന്നു
-    high_low = df['High'] - df['Low']
-    high_close = np.abs(df['High'] - df['Close'].shift())
-    low_close = np.abs(df['Low'] - df['Close'].shift())
-    ranges = pd.concat([high_low, high_close, low_close], axis=1)
-    true_range = ranges.max(axis=1)
-    atr = true_range.rolling(period).mean()
+    hl = df['High'] - df['Low']
+    hc = np.abs(df['High'] - df['Close'].shift())
+    lc = np.abs(df['Low'] - df['Close'].shift())
+    tr = pd.concat([hl, hc, lc], axis=1).max(axis=1)
+    atr = tr.rolling(period).mean()
 
     hl2 = (df['High'] + df['Low']) / 2
-    upperband = hl2 + (multiplier * atr)
-    lowerband = hl2 - (multiplier * atr)
+    upper = hl2 + (multiplier * atr)
+    lower = hl2 - (multiplier * atr)
     
-    # സൂപ്പർട്രെൻഡ് ലോജിക്
-    supertrend = [True] * len(df)
-    final_bands = [0.0] * len(df)
+    st_line = np.zeros(len(df))
+    trend = np.ones(len(df)) # 1 for Buy, 0 for Sell
     
     for i in range(1, len(df)):
-        if df['Close'].iloc[i] > upperband.iloc[i-1]:
-            supertrend[i] = True
-        elif df['Close'].iloc[i] < lowerband.iloc[i-1]:
-            supertrend[i] = False
+        if df['Close'].iloc[i] > upper.iloc[i-1]:
+            trend[i] = 1
+        elif df['Close'].iloc[i] < lower.iloc[i-1]:
+            trend[i] = 0
         else:
-            supertrend[i] = supertrend[i-1]
+            trend[i] = trend[i-1]
             
-        final_bands[i] = lowerband.iloc[i] if supertrend[i] else upperband.iloc[i]
+        st_line[i] = lower.iloc[i] if trend[i] == 1 else upper.iloc[i]
             
-    df['st_line'] = final_bands
-    return df.set_index('Date')
+    df['st_line'] = st_line
+    return df
+
+# --- UI ഡിസൈൻ ---
+st.markdown("""
+    <style>
+    .main { background-color: #ffffff; }
+    .nav-button { border-radius: 10px; padding: 10px; border: 1px solid #ddd; text-align: center; cursor: pointer; }
+    </style>
+    """, unsafe_allow_html=True)
 
 # --- പേജ് നാവിഗേഷൻ ---
 if st.session_state.page == "Home":
     st.markdown("### 📈 Live Terminal")
-    symbol = st.text_input("Enter Symbol (eg: RELIANCE.NS, CL=F)", "RELIANCE.NS")
+    sym = st.text_input("Enter Symbol", "RELIANCE.NS")
     
     try:
-        # ഡാറ്റ ഫെച്ചിംഗ്
-        df = yf.download(symbol, period="5d", interval="5m")
-        if not df.empty:
-            df = calculate_supertrend(df)
-            last_price = df['Close'].iloc[-1]
+        data = yf.download(sym, period="2d", interval="5m")
+        if not data.empty:
+            data = get_supertrend(data)
+            curr_price = data['Close'].iloc[-1]
             
-            st.subheader(f"Current Price: ₹{last_price:,.2f}")
+            # പ്രൈസ് ഡിസ്‌പ്ലേ
+            st.subheader(f"{sym} : ₹{curr_price:,.2f}")
             
-            # ചാർട്ട് നിർമ്മാണം
+            # ചാർട്ട്
             fig = go.Figure()
-            fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Price"))
-            fig.add_trace(go.Scatter(x=df.index, y=df['st_line'], line=dict(color='orange', width=2), name="Supertrend"))
-            
-            fig.update_layout(template="plotly_white", height=500, xaxis_rangeslider_visible=False)
+            fig.add_trace(go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'], name="Price"))
+            fig.add_trace(go.Scatter(x=data.index, y=data['st_line'], line=dict(color='orange', width=2), name="Supertrend"))
+            fig.update_layout(height=500, template="plotly_white", xaxis_rangeslider_visible=False)
             st.plotly_chart(fig, use_container_width=True)
 
             # ഡെമോ ട്രേഡിംഗ് പാനൽ
             st.divider()
-            c1, c2, c3 = st.columns([1,1,1])
-            qty = c1.number_input("Quantity", min_value=1, value=1)
+            col1, col2, col3 = st.columns([1,1,1])
+            q = col1.number_input("Qty", min_value=1, value=1)
             
-            if c2.button("🟢 BUY", use_container_width=True):
-                if st.session_state.balance >= (last_price * qty):
-                    st.session_state.balance -= (last_price * qty)
-                    st.session_state.positions.append({'Sym': symbol, 'Qty': qty, 'Price': last_price, 'Type': 'BUY'})
-                    st.success(f"Bought {qty} shares of {symbol}")
-                else: st.error("Insufficient Funds!")
+            if col2.button("🟢 BUY", use_container_width=True):
+                if st.session_state.balance >= (curr_price * q):
+                    st.session_state.balance -= (curr_price * q)
+                    st.session_state.positions.append({'Sym': sym, 'Qty': q, 'Price': curr_price, 'Type': 'BUY'})
+                    st.success("Buy Order Success!")
+                else: st.error("No Money!")
 
-            if c3.button("🔴 SELL", use_container_width=True):
-                st.session_state.balance += (last_price * qty)
-                st.session_state.positions.append({'Sym': symbol, 'Qty': qty, 'Price': last_price, 'Type': 'SELL'})
-                st.warning(f"Sold {qty} shares of {symbol}")
+            if col3.button("🔴 SELL", use_container_width=True):
+                st.session_state.balance += (curr_price * q)
+                st.session_state.positions.append({'Sym': sym, 'Qty': q, 'Price': curr_price, 'Type': 'SELL'})
+                st.warning("Sell Order Success!")
 
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Data Error: {e}")
 
 elif st.session_state.page == "Portfolio":
-    st.title("💰 Portfolio & Trades")
-    st.metric("Virtual Balance", f"₹{st.session_state.balance:,.2f}")
+    st.title("📑 My Trades")
+    st.metric("Demo Balance", f"₹{st.session_state.balance:,.2f}")
     if st.session_state.positions:
         st.table(pd.DataFrame(st.session_state.positions))
     else:
-        st.info("No active trades.")
+        st.info("No active trades found.")
 
-# --- BOTTOM NAV BAR ---
+# --- Bottom Bar ---
 st.markdown("<br><br>", unsafe_allow_html=True)
-n1, n2, n3 = st.columns(3)
-if n1.button("🏠 Home"): st.session_state.page = "Home"; st.rerun()
-if n2.button("📑 Portfolio"): st.session_state.page = "Portfolio"; st.rerun()
-if n3.button("👤 Profile"): st.write("User: Faisal")
+b1, b2, b3 = st.columns(3)
+if b1.button("🏠 Home"): st.session_state.page = "Home"; st.rerun()
+if b2.button("💰 Portfolio"): st.session_state.page = "Portfolio"; st.rerun()
+if b3.button("👤 Profile"): st.write("Faisal | Al Barsha")
