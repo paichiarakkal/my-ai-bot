@@ -3,95 +3,81 @@ import yfinance as yf
 import plotly.graph_objects as go
 import pandas as pd
 
-# 1. ആപ്പ് സെറ്റിംഗ്സ്
+# 1. Page Settings (Dark Theme)
 st.set_page_config(page_title="FTB PRO 🚀", layout="wide")
 
-# CSS: ലുക്ക് നന്നാക്കാൻ
+# CSS: സൈഡ്‌ബാറും ബട്ടണുകളും മനോഹരമാക്കാൻ
 st.markdown("""
     <style>
     .main { background-color: #131722; color: white; }
     header { visibility: hidden; }
-    .stButton>button { width: 100%; border-radius: 10px; background-color: #1e222d; color: white; border: 1px solid #363c4e; height: 50px; font-size: 18px;}
-    .stButton>button:hover { background-color: #2962ff; }
-    [data-testid="stMetricValue"] { color: #2962ff; }
+    /* സൈഡ്‌ബാർ ഡാർക്ക് ലുക്ക് */
+    [data-testid="stSidebar"] { background-color: #171b26; border-right: 1px solid #2a2e39; }
+    /* ബട്ടൺ ഡിസൈൻ */
+    .stButton>button { width: 100%; border-radius: 8px; background-color: #1e222d; color: white; border: 1px solid #363c4e; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- NAVIGATION LOGIC ---
-if 'page' not in st.session_state:
-    st.session_state.page = 'Home'
-if 'selected_stock' not in st.session_state:
-    st.session_state.selected_stock = '^NSEI'
+# --- SIDEBAR NAVIGATION (43639.jpg ലുക്ക്) ---
+st.sidebar.title("FTB PRO 🚀")
+st.sidebar.write("Go to")
 
-# --- DATA HELPERS ---
-def get_chart_data(symbol):
+# സൈഡ്‌ബാറിൽ പേജുകൾ തിരഞ്ഞെടുക്കാൻ (നീ ചോദിച്ച അതേ മെനു)
+page = st.sidebar.radio("", ["🏠 Home", "📊 Watchlist", "📈 Chart", "👤 Profile"])
+
+# --- DATA FUNCTION ---
+def get_stock_data(symbol):
     df = yf.download(symbol, period="2d", interval="5m", multi_level_index=False)
-    # Supertrend / Moving Average (Buy/Sell സിഗ്നലിനായി)
+    # സിഗ്നൽ കാൽക്കുലേഷൻ (MA 20)
     df['MA20'] = df['Close'].rolling(window=20).mean()
-    df['Signal'] = "HOLD"
-    df.loc[df['Close'] > df['MA20'], 'Signal'] = "BUY"
-    df.loc[df['Close'] < df['MA20'], 'Signal'] = "SELL"
     return df
 
-# --- 1. HOME PAGE (Watchlist) ---
-if st.session_state.page == 'Home':
-    st.title("🏠 Home - Market Overview")
+# --- PAGE 1: HOME ---
+if page == "🏠 Home":
+    st.title("🏠 Market Overview")
+    st.markdown("ഇവിടെ നിനക്ക് പ്രധാന മാർക്കറ്റ് അപ്‌ഡേറ്റുകൾ കാണാം.")
+    col1, col2 = st.columns(2)
+    # പ്രധാന ഇൻഡക്സുകൾ
+    indices = {"NIFTY 50": "^NSEI", "BANK NIFTY": "^NSEBANK"}
+    for name, sym in indices.items():
+        val = yf.Ticker(sym).history(period="1d")['Close'].iloc[-1]
+        st.metric(name, f"₹ {val:,.2f}")
+
+# --- PAGE 2: WATCHLIST (43649.jpg ലുക്ക്) ---
+elif page == "📊 Watchlist":
+    st.title("📑 My Watchlist")
     stocks = {"NIFTY 50": "^NSEI", "BANK NIFTY": "^NSEBANK", "CRUDE OIL": "CL=F", "RELIANCE": "RELIANCE.NS"}
     
     for name, sym in stocks.items():
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            if st.button(f"📊 {name}"):
-                st.session_state.selected_stock = sym
-                st.session_state.page = 'Explore'
-                st.rerun()
-        with col2:
-            data = yf.Ticker(sym).history(period="1d")
-            price = data['Close'].iloc[-1]
-            st.metric("", f"₹{price:,.1f}")
+        price = yf.Ticker(sym).history(period="1d")['Close'].iloc[-1]
+        st.info(f"**{name}**: ₹ {price:,.2f}")
 
-# --- 2. EXPLORE PAGE (The Real Chart) ---
-elif st.session_state.page == 'Explore':
-    st.title(f"📈 Chart: {st.session_state.selected_stock}")
+# --- PAGE 3: CHART (വിശദമായ ചാർട്ടും ഇൻഡിക്കേറ്ററും) ---
+elif page == "📈 Chart":
+    st.title("📈 Advanced Charting")
+    selected = st.selectbox("Select Asset", ["^NSEI", "^NSEBANK", "CL=F", "RELIANCE.NS"])
     
-    df = get_chart_data(st.session_state.selected_stock)
-    
+    df = get_stock_data(selected)
     if not df.empty:
-        fig = go.Figure()
-        # Candlestick
-        fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Market"))
+        fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Price")])
+        # Indicator ചേർക്കുന്നു
+        fig.add_trace(go.Scatter(x=df.index, y=df['MA20'], name="MA 20", line=dict(color='yellow', width=1)))
         
-        # Indicator (MA 20)
-        fig.add_trace(go.Scatter(x=df.index, y=df['MA20'], name="Trend Line", line=dict(color='yellow', width=1.5)))
-        
-        # Buy/Sell Labels
-        last_signal = df['Signal'].iloc[-1]
+        # Buy/Sell സിഗ്നൽ കാണിക്കാൻ
         last_price = df['Close'].iloc[-1]
+        last_ma = df['MA20'].iloc[-1]
+        signal = "BUY" if last_price > last_ma else "SELL"
         
-        fig.add_annotation(x=df.index[-1], y=last_price, text=f"SIGNAL: {last_signal}", 
-                           showarrow=True, arrowhead=1, bgcolor="green" if last_signal=="BUY" else "red")
-
-        fig.update_layout(template='plotly_dark', xaxis_rangeslider_visible=False, height=500, paper_bgcolor='#131722', plot_bgcolor='#131722')
+        fig.update_layout(template='plotly_dark', xaxis_rangeslider_visible=False, height=500, plot_bgcolor='#131722', paper_bgcolor='#131722')
         st.plotly_chart(fig, use_container_width=True)
         
-        st.success(f"Current Recommendation: {last_signal}")
-    
-    if st.button("⬅️ Back to Home"):
-        st.session_state.page = 'Home'
-        st.rerun()
+        st.success(f"Current Signal for {selected}: **{signal}**")
 
-# --- 3. PROFILE PAGE ---
-elif st.session_state.page == 'Profile':
-    st.title("👤 Profile")
-    st.write("Name: Faisal")
-    st.write("Status: Active")
-    if st.button("⬅️ Back to Home"):
-        st.session_state.page = 'Home'
-        st.rerun()
-
-# --- BOTTOM MENU ---
-st.markdown("---")
-b_col1, b_col2, b_col3 = st.columns(3)
-if b_col1.button("🏠"): st.session_state.page = 'Home'; st.rerun()
-if b_col2.button("📈"): st.session_state.page = 'Explore'; st.rerun()
-if b_col3.button("👤"): st.session_state.page = 'Profile'; st.rerun()
+# --- PAGE 4: PROFILE ---
+elif page == "👤 Profile":
+    st.title("👤 Trader Profile")
+    st.write("**Name:** Faisal")
+    st.write("**Status:** Pro Trader 🦾")
+    st.write("**Location:** Al Barsha, Dubai")
+    st.divider()
+    st.button("Edit Profile")
