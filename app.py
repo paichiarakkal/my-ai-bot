@@ -1,62 +1,66 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-# 1. Page Settings
+# 1. Page Settings (43641.jpg പോലെ പ്രൊഫഷണൽ ആക്കാൻ)
 st.set_page_config(page_title="FTB PRO TERMINAL", layout="wide")
 
-# 2. Custom CSS to hide Streamlit header/footer for Clean Look
+# 2. Dark Mode UI - ബാക്ക്ഗ്രൗണ്ട് കറുപ്പാക്കാൻ (43641.jpg ലുക്ക്)
 st.markdown("""
     <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
     .main { background-color: #131722; }
+    header { visibility: hidden; }
+    footer { visibility: hidden; }
+    .stSidebar { background-color: #171b26; border-right: 1px solid #2a2e39; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- SIDEBAR: SYMBOL SELECTION ---
+# --- SIDEBAR: WATCHLIST (43632.jpg പോലെയുള്ള സെലക്ഷൻ) ---
 st.sidebar.title("🚀 FTB PRO")
-symbol = st.sidebar.selectbox("Select Asset", ["NIFTY", "BANKNIFTY", "CRUDEOIL", "RELIANCE", "SBIN"])
+selected_asset = st.sidebar.selectbox("Select Market", 
+    ["NIFTY", "BANKNIFTY", "CRUDEOIL", "RELIANCE", "TATA MOTORS", "SBI"])
 
-# Mapping symbols to TradingView format
-tv_symbols = {
+# TradingView-ലേക്ക് നൽകേണ്ട സിംബലുകൾ
+symbol_dict = {
     "NIFTY": "NSE:NIFTY",
     "BANKNIFTY": "NSE:BANKNIFTY",
     "CRUDEOIL": "MCX:CRUDEOIL1!",
     "RELIANCE": "NSE:RELIANCE",
-    "SBIN": "NSE:SBIN"
+    "TATA MOTORS": "NSE:TATAMOTORS",
+    "SBI": "NSE:SBIN"
 }
 
-# --- TRADINGVIEW WIDGET (The Magic Part) ---
-st.markdown(f"### 📈 {symbol} Live Chart")
+# --- ADVANCED CHART WIDGET (The Real Pro Look) ---
+st.markdown(f"<h3 style='color:white; text-align:center;'>📈 {selected_asset} Advanced Terminal</h3>", unsafe_allow_html=True)
 
-# ഈ വിഡ്ജറ്റ് ആണ് ട്രേഡിംഗ് വ്യൂവിന്റെ അതേ ലുക്ക് നിനക്ക് തരുന്നത്
-tv_widget = f"""
-<div class="tradingview-widget-container" style="height:100%;width:100%">
-  <div id="tradingview_chart"></div>
+# 43633.jpg-ലെ പോലെ എല്ലാ ഇൻഡിക്കേറ്ററുകളും ടൂൾസും കിട്ടാനുള്ള വിഡ്ജറ്റ്
+tv_chart = f"""
+<div class="tradingview-widget-container" style="height:600px;width:100%">
+  <div id="tradingview_pro"></div>
   <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
   <script type="text/javascript">
   new TradingView.widget({{
     "autosize": true,
-    "symbol": "{tv_symbols[symbol]}",
+    "symbol": "{symbol_dict[selected_asset]}",
     "interval": "5",
     "timezone": "Asia/Kolkata",
     "theme": "dark",
     "style": "1",
     "locale": "en",
-    "toolbar_bg": "#f1f3f6",
+    "toolbar_bg": "#131722",
     "enable_publishing": false,
-    "hide_top_toolbar": false,
-    "hide_legend": false,
-    "save_image": false,
-    "container_id": "tradingview_chart"
+    "withdateranges": true,
+    "hide_side_toolbar": false,
+    "allow_symbol_change": true,
+    "details": true,
+    "hotlist": true,
+    "calendar": true,
+    "container_id": "tradingview_pro"
   }});
   </script>
 </div>
 """
 
-# Displaying the widget
-components.html(tv_widget, height=600)
+# വിഡ്ജറ്റ് ആപ്പിൽ ഡിസ്‌പ്ലേ ചെയ്യുന്നു
+components.html(tv_chart, height=620)
 
-st.sidebar.divider()
-st.sidebar.info("Use the tools inside the chart to add Indicators and Trendlines.")
+st.sidebar.info("ഈ ചാർട്ടിന് മുകളിലുള്ള 'fx' ബട്ടണിൽ ക്ലിക്ക് ചെയ്താൽ നിനക്ക് സൂപ്പർട്രെൻഡ് (Supertrend) ഉൾപ്പെടെയുള്ള എല്ലാ ഇൻഡിക്കേറ്ററുകളും ചേർക്കാം.")
