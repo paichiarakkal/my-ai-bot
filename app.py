@@ -1,37 +1,41 @@
 import streamlit as st
 import yfinance as yf
 import plotly.graph_objects as go
-from datetime import datetime, timedelta
 
-# 1. ലുക്ക് ശരിയാക്കാൻ (Dark Mode)
+# 1. Page Settings
 st.set_page_config(page_title="FTB PRO TERMINAL", layout="wide")
+
+# Dark Theme CSS (43641.jpg ലുക്ക്)
 st.markdown("""
     <style>
     .main { background-color: #131722; color: white; }
     header { visibility: hidden; }
-    .stMetric { background-color: #1e222d; padding: 10px; border-radius: 10px; }
+    .stSelectbox { margin-bottom: 20px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- SIDEBAR ---
-st.sidebar.title("🚀 FTB PRO")
-assets = {
+# --- HEADER & NAVIGATION ---
+st.title("🚀 FTB PRO TERMINAL")
+
+# വാച്ച്‌ലിസ്റ്റ് ചാർട്ടിന് മുകളിലായി നൽകുന്നു (മൊബൈലിൽ എളുപ്പത്തിൽ കാണാൻ)
+watchlist = {
     "NIFTY 50": "^NSEI",
     "BANK NIFTY": "^NSEBANK",
     "CRUDE OIL": "CL=F",
-    "RELIANCE": "RELIANCE.NS"
+    "RELIANCE": "RELIANCE.NS",
+    "SBIN": "SBIN.NS"
 }
-selected = st.sidebar.selectbox("Select Asset", list(assets.keys()))
-# 43641.jpg പോലെ ടൈംഫ്രെയിം മാറ്റാൻ
-timeframe = st.sidebar.selectbox("Timeframe", ["1m", "5m", "15m", "1h", "1d"], index=1)
 
-# --- DATA FETCHING ---
+# 43632.jpg പോലെ സ്റ്റോക്ക് തിരഞ്ഞെടുക്കാൻ
+selected_name = st.selectbox("Select Asset from Watchlist", list(watchlist.keys()))
+ticker = watchlist[selected_name]
+
+# --- CHART SECTION ---
 try:
-    # കൃത്യമായ ചാർട്ട് കിട്ടാൻ ഡാറ്റാ ലിമിറ്റ് സെറ്റ് ചെയ്യുന്നു
-    df = yf.download(assets[selected], period="5d", interval=timeframe, multi_level_index=False)
+    df = yf.download(ticker, period="2d", interval="5m", multi_level_index=False)
     
     if not df.empty:
-        # പ്രൊഫഷണൽ കാൻഡിൽസ്റ്റിക് ഡിസൈൻ (43633.jpg ലുക്ക്)
+        # പ്രൊഫഷണൽ കാൻഡിൽസ്റ്റിക് (43633.jpg ലുക്ക്)
         fig = go.Figure(data=[go.Candlestick(
             x=df.index,
             open=df['Open'], high=df['High'],
@@ -39,25 +43,27 @@ try:
             increasing_line_color='#089981', decreasing_line_color='#f23645'
         )])
 
-        # സൂപ്പർട്രെൻഡ് (ലളിതമായ രീതിയിൽ)
-        df['SMA'] = df['Close'].rolling(window=20).mean()
-        fig.add_trace(go.Scatter(x=df.index, y=df['SMA'], line=dict(color='#2962ff', width=1.5), name="Trend Line"))
-
         fig.update_layout(
             template='plotly_dark',
             xaxis_rangeslider_visible=False,
-            height=550,
-            margin=dict(l=5, r=5, t=5, b=5),
+            height=500,
+            paper_bgcolor='#131722',
             plot_bgcolor='#131722',
-            paper_bgcolor='#131722'
+            margin=dict(l=0, r=0, t=0, b=0)
         )
         
-        # ചാർട്ട് പ്രദർശിപ്പിക്കുന്നു
         st.plotly_chart(fig, use_container_width=True)
         
-        # നിലവിലെ വില വലിയ അക്ഷരത്തിൽ
-        curr_p = df['Close'].iloc[-1]
-        st.metric(label=f"LIVE {selected}", value=f"₹ {curr_p:,.2f}")
+        # ലൈവ് പ്രൈസ് (43632.jpg പോലെ കൃത്യമായി കാണാൻ)
+        curr_price = df['Close'].iloc[-1]
+        st.markdown(f"<h2 style='text-align: center; color: #2962ff;'>₹ {curr_price:,.2f}</h2>", unsafe_allow_html=True)
 
-except Exception as e:
-    st.error("Market close ആണ് അല്ലെങ്കിൽ ഡാറ്റ ലോഡ് ആവുന്നില്ല.")
+except:
+    st.error("Market Data ലോഡ് ആവുന്നില്ല. ഇന്റർനെറ്റ് ചെക്ക് ചെയ്യൂ.")
+
+# ചുവടെ മറ്റ് മെനുകൾ നൽകാം
+st.divider()
+cols = st.columns(3)
+cols[0].button("🏠 Home")
+cols[1].button("📈 Explore")
+cols[2].button("👤 Profile")
