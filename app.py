@@ -1,83 +1,62 @@
 import streamlit as st
-import pandas as pd
-import yfinance as yf
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import numpy as np
+import streamlit.components.v1 as components
 
-# Page Config
-st.set_page_config(page_title="FTB ULTIMATE TERMINAL", layout="wide")
+# 1. Page Settings
+st.set_page_config(page_title="FTB PRO TERMINAL", layout="wide")
 
-# Custom CSS for Dark Pro UI
+# 2. Custom CSS to hide Streamlit header/footer for Clean Look
 st.markdown("""
     <style>
-    .main { background-color: #0c0d10; color: white; }
-    .stSidebar { background-color: #131722; border-right: 1px solid #2a2e39; }
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .main { background-color: #131722; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- INDICATOR CALCULATIONS ---
-def add_indicators(df):
-    # RSI
-    delta = df['Close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rs = gain / loss
-    df['RSI'] = 100 - (100 / (1 + rs))
-    
-    # Moving Average (SMA 20)
-    df['SMA20'] = df['Close'].rolling(window=20).mean()
-    
-    # Supertrend
-    high, low, close = df['High'], df['Low'], df['Close']
-    atr = (high - low).rolling(10).mean()
-    hl2 = (high + low) / 2
-    df['ST_Upper'] = hl2 + (3 * atr)
-    df['ST_Lower'] = hl2 - (3 * atr)
-    return df
+# --- SIDEBAR: SYMBOL SELECTION ---
+st.sidebar.title("🚀 FTB PRO")
+symbol = st.sidebar.selectbox("Select Asset", ["NIFTY", "BANKNIFTY", "CRUDEOIL", "RELIANCE", "SBIN"])
 
-# --- SIDEBAR: SEARCH & WATCHLIST ---
-st.sidebar.title("🔍 Search & Watchlist")
-search_symbol = st.sidebar.text_input("Enter Symbol (eg: SBIN, TATAMOTORS)", "^NSEI")
+# Mapping symbols to TradingView format
+tv_symbols = {
+    "NIFTY": "NSE:NIFTY",
+    "BANKNIFTY": "NSE:BANKNIFTY",
+    "CRUDEOIL": "MCX:CRUDEOIL1!",
+    "RELIANCE": "NSE:RELIANCE",
+    "SBIN": "NSE:SBIN"
+}
 
-st.sidebar.subheader("Quick Links")
-quick_list = {"NIFTY 50": "^NSEI", "BANK NIFTY": "^NSEBANK", "CRUDE OIL": "CL=F", "GOLD": "GC=F"}
-selected_quick = st.sidebar.selectbox("Indices/Global", list(quick_list.keys()))
+# --- TRADINGVIEW WIDGET (The Magic Part) ---
+st.markdown(f"### 📈 {symbol} Live Chart")
 
-# --- MAIN DASHBOARD ---
-ticker = search_symbol if search_symbol != "^NSEI" else quick_list[selected_quick]
-if not ticker.endswith(".NS") and ticker not in ["CL=F", "GC=F", "^NSEI", "^NSEBANK"]:
-    ticker = ticker.upper() + ".NS"
+# ഈ വിഡ്ജറ്റ് ആണ് ട്രേഡിംഗ് വ്യൂവിന്റെ അതേ ലുക്ക് നിനക്ക് തരുന്നത്
+tv_widget = f"""
+<div class="tradingview-widget-container" style="height:100%;width:100%">
+  <div id="tradingview_chart"></div>
+  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+  <script type="text/javascript">
+  new TradingView.widget({{
+    "autosize": true,
+    "symbol": "{tv_symbols[symbol]}",
+    "interval": "5",
+    "timezone": "Asia/Kolkata",
+    "theme": "dark",
+    "style": "1",
+    "locale": "en",
+    "toolbar_bg": "#f1f3f6",
+    "enable_publishing": false,
+    "hide_top_toolbar": false,
+    "hide_legend": false,
+    "save_image": false,
+    "container_id": "tradingview_chart"
+  }});
+  </script>
+</div>
+"""
 
-try:
-    df = yf.download(ticker, period="5d", interval="15m", multi_level_index=False)
-    if not df.empty:
-        df = add_indicators(df)
-        
-        # Subplots: Price Chart & RSI
-        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.7, 0.3])
-        
-        # Candlestick
-        fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Price"), row=1, col=1)
-        
-        # Add SMA & Supertrend
-        fig.add_trace(go.Scatter(x=df.index, y=df['SMA20'], name="SMA 20", line=dict(color='yellow', width=1)), row=1, col=1)
-        fig.add_trace(go.Scatter(x=df.index, y=df['ST_Upper'], name="ST Upper", line=dict(color='red', width=1, dash='dash')), row=1, col=1)
-        
-        # Add RSI
-        fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], name="RSI", line=dict(color='purple')), row=2, col=1)
-        fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
-        fig.add_hline(y=30, line_dash="dash", line_color="green", row=2, col=1)
+# Displaying the widget
+components.html(tv_widget, height=600)
 
-        fig.update_layout(template='plotly_dark', height=800, xaxis_rangeslider_visible=False)
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Live Stats
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Current Price", f"₹ {df['Close'].iloc[-1]:,.2f}")
-        c2.metric("RSI (14)", f"{df['RSI'].iloc[-1]:.2f}")
-        status = "BUY" if df['Close'].iloc[-1] > df['SMA20'].iloc[-1] else "SELL"
-        c3.info(f"Trend Status: {status}")
-
-except Exception as e:
-    st.error(f"Symbol not found. Please try again.")
+st.sidebar.divider()
+st.sidebar.info("Use the tools inside the chart to add Indicators and Trendlines.")
