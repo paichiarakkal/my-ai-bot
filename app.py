@@ -1,66 +1,83 @@
 import streamlit as st
-import streamlit.components.v1 as components
+import yfinance as yf
+import plotly.graph_objects as go
+import pandas as pd
 
-# 1. Page Settings (43641.jpg പോലെ പ്രൊഫഷണൽ ആക്കാൻ)
+# 1. Page Config (Dark Theme & Mobile Look)
 st.set_page_config(page_title="FTB PRO TERMINAL", layout="wide")
 
-# 2. Dark Mode UI - ബാക്ക്ഗ്രൗണ്ട് കറുപ്പാക്കാൻ (43641.jpg ലുക്ക്)
 st.markdown("""
     <style>
-    .main { background-color: #131722; }
-    header { visibility: hidden; }
-    footer { visibility: hidden; }
+    .main { background-color: #131722; color: white; }
     .stSidebar { background-color: #171b26; border-right: 1px solid #2a2e39; }
+    header { visibility: hidden; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- SIDEBAR: WATCHLIST (43632.jpg പോലെയുള്ള സെലക്ഷൻ) ---
-st.sidebar.title("🚀 FTB PRO")
-selected_asset = st.sidebar.selectbox("Select Market", 
-    ["NIFTY", "BANKNIFTY", "CRUDEOIL", "RELIANCE", "TATA MOTORS", "SBI"])
+# --- SIDEBAR: WATCHLIST & TOOLS ---
+st.sidebar.title("📑 Watchlist")
 
-# TradingView-ലേക്ക് നൽകേണ്ട സിംബലുകൾ
-symbol_dict = {
-    "NIFTY": "NSE:NIFTY",
-    "BANKNIFTY": "NSE:BANKNIFTY",
-    "CRUDEOIL": "MCX:CRUDEOIL1!",
-    "RELIANCE": "NSE:RELIANCE",
-    "TATA MOTORS": "NSE:TATAMOTORS",
-    "SBI": "NSE:SBIN"
+# നിഫ്റ്റിയിലെ പ്രധാന സ്റ്റോക്കുകൾ (ഇത് എല്ലാം വർക്ക് ആകും)
+watchlist = {
+    "NIFTY 50": "^NSEI",
+    "BANK NIFTY": "^NSEBANK",
+    "CRUDE OIL": "CL=F",
+    "RELIANCE": "RELIANCE.NS",
+    "SBIN": "SBIN.NS",
+    "TATA MOTORS": "TATAMOTORS.NS",
+    "ADANI PORTS": "ADANIPORTS.NS"
 }
 
-# --- ADVANCED CHART WIDGET (The Real Pro Look) ---
-st.markdown(f"<h3 style='color:white; text-align:center;'>📈 {selected_asset} Advanced Terminal</h3>", unsafe_allow_html=True)
+selected_name = st.sidebar.selectbox("Select Asset", list(watchlist.keys()))
+ticker = watchlist[selected_name]
 
-# 43633.jpg-ലെ പോലെ എല്ലാ ഇൻഡിക്കേറ്ററുകളും ടൂൾസും കിട്ടാനുള്ള വിഡ്ജറ്റ്
-tv_chart = f"""
-<div class="tradingview-widget-container" style="height:600px;width:100%">
-  <div id="tradingview_pro"></div>
-  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-  <script type="text/javascript">
-  new TradingView.widget({{
-    "autosize": true,
-    "symbol": "{symbol_dict[selected_asset]}",
-    "interval": "5",
-    "timezone": "Asia/Kolkata",
-    "theme": "dark",
-    "style": "1",
-    "locale": "en",
-    "toolbar_bg": "#131722",
-    "enable_publishing": false,
-    "withdateranges": true,
-    "hide_side_toolbar": false,
-    "allow_symbol_change": true,
-    "details": true,
-    "hotlist": true,
-    "calendar": true,
-    "container_id": "tradingview_pro"
-  }});
-  </script>
-</div>
-"""
+# ഇന്റർവൽ സെലക്ഷൻ
+interval = st.sidebar.radio("Timeframe", ["1m", "5m", "15m", "1h", "1d"], index=1)
 
-# വിഡ്ജറ്റ് ആപ്പിൽ ഡിസ്‌പ്ലേ ചെയ്യുന്നു
-components.html(tv_chart, height=620)
+# ഇൻഡിക്കേറ്ററുകൾ വേണോ എന്ന് തീരുമാനിക്കാം
+show_st = st.sidebar.checkbox("Show Supertrend", value=True)
 
-st.sidebar.info("ഈ ചാർട്ടിന് മുകളിലുള്ള 'fx' ബട്ടണിൽ ക്ലിക്ക് ചെയ്താൽ നിനക്ക് സൂപ്പർട്രെൻഡ് (Supertrend) ഉൾപ്പെടെയുള്ള എല്ലാ ഇൻഡിക്കേറ്ററുകളും ചേർക്കാം.")
+# --- CHART LOGIC ---
+def get_data(symbol, inter):
+    df = yf.download(symbol, period="5d", interval=inter, multi_level_index=False)
+    return df
+
+try:
+    df = get_data(ticker, interval)
+    
+    if not df.empty:
+        # Supertrend Calculation (Simple Logic for the App)
+        if show_st:
+            atr = (df['High'] - df['Low']).rolling(10).mean()
+            df['ST_Upper'] = ((df['High'] + df['Low']) / 2) + (3 * atr)
+            df['ST_Lower'] = ((df['High'] + df['Low']) / 2) - (3 * atr)
+
+        # മനോഹരമായ ചാർട്ട് നിർമ്മാണം (43641.jpg ലുക്ക്)
+        fig = go.Figure(data=[go.Candlestick(
+            x=df.index,
+            open=df['Open'], high=df['High'],
+            low=df['Low'], close=df['Close'],
+            name="Price"
+        )])
+
+        if show_st:
+            fig.add_trace(go.Scatter(x=df.index, y=df['ST_Upper'], name="Upper Band", line=dict(color='red', width=1)))
+            fig.add_trace(go.Scatter(x=df.index, y=df['ST_Lower'], name="Lower Band", line=dict(color='green', width=1)))
+
+        fig.update_layout(
+            template='plotly_dark',
+            xaxis_rangeslider_visible=False,
+            height=500,
+            paper_bgcolor='#131722',
+            plot_bgcolor='#131722',
+            margin=dict(l=10, r=10, t=10, b=10)
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # ലൈവ് പ്രൈസ് കാണിക്കാൻ (43632.jpg പ്രൈസ് സെക്ഷൻ പോലെ)
+        curr_price = df['Close'].iloc[-1]
+        st.metric(label=f"{selected_name} Live", value=f"₹ {curr_price:,.2f}")
+
+except Exception as e:
+    st.error("Market close ആണ് അല്ലെങ്കിൽ ഡാറ്റ കിട്ടുന്നില്ല. പിന്നീട് ശ്രമിക്കൂ.")
