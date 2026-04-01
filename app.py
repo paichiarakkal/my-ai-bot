@@ -5,18 +5,18 @@ import plotly.graph_objects as go
 import numpy as np
 import time
 
-# --- 1. പേജ് സെറ്റിംഗ്സ് ---
+# --- 1. പേജ് സെറ്റിംഗ്സ് (Safe Mode - No Image) ---
 st.set_page_config(page_title="Faisal AI Paper Trader", page_icon="💹", layout="wide")
 
 # --- 2. വാലറ്റ് & ട്രേഡ് സെഷൻ സെറ്റപ്പ് ---
 if 'balance' not in st.session_state:
-    st.session_state.balance = 471435.50  # വിർച്വൽ ബാലൻസ്
+    st.session_state.balance = 471435.50
 if 'position' not in st.session_state:
-    st.session_state.position = None  # നിലവിൽ കയ്യിലുള്ള സ്റ്റോക്ക്
+    st.session_state.position = None
 if 'entry_price' not in st.session_state:
     st.session_state.entry_price = 0.0
 
-# --- 3. സൂപ്പർട്രെൻഡ് ലോജിക് ---
+# --- 3. സൂപ്പർട്രെൻഡ് ഫംഗ്‌ഷൻ ---
 def get_supertrend(df, period=7, multiplier=3):
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
@@ -34,16 +34,14 @@ def get_supertrend(df, period=7, multiplier=3):
     df['ST'], df['ST_DIR'] = st_vals, dirs
     return df
 
-# --- 4. സൈഡ്‌ബാർ (Controls) ---
-st.sidebar.title("🤖 Faisal AI Paper Trader")
+# --- 4. സൈഡ്‌ബാർ (എറർ വരാത്ത ഡിസൈൻ) ---
+st.sidebar.markdown("<h2 style='color: #00FFA3; text-align: center;'>👤 Faisal Pro AI</h2>", unsafe_allow_html=True)
 
-# റീസെറ്റ് ബട്ടൺ
 if st.sidebar.button("Reset Wallet"):
     st.session_state.balance = 471435.50
     st.session_state.position = None
     st.rerun()
 
-st.sidebar.divider()
 asset = st.sidebar.selectbox("Asset", ["Crude Oil (MCX)", "Nifty 50"])
 qty = st.sidebar.number_input("Quantity", min_value=1, value=10)
 
@@ -63,38 +61,37 @@ while True:
         with placeholder.container():
             # സ്റ്റാറ്റസ് കാർഡുകൾ
             c1, c2, c3 = st.columns(3)
-            c1.metric("Wallet Balance", f"₹{st.session_state.balance:,.2f}")
-            c2.metric("Current Price", f"₹{curr_p:,.2f}")
+            c1.metric("Virtual Balance", f"₹{st.session_state.balance:,.2f}")
+            c2.metric("Market Price", f"₹{curr_p:,.2f}")
             
             if st.session_state.position:
                 pnl = (curr_p - st.session_state.entry_price) * qty
                 c3.metric("Live P&L", f"₹{pnl:,.2f}", delta=f"{pnl:,.2f}")
             else:
-                c3.metric("Live P&L", "No Active Trade")
+                c3.metric("Live P&L", "No Trade")
 
-            # ട്രേഡിംഗ് ബട്ടണുകൾ
-            col_buy, col_sell = st.columns(2)
-            
+            # പേപ്പർ ട്രേഡിംഗ് ബട്ടണുകൾ
+            col_buy, col_exit = st.columns(2)
             if not st.session_state.position:
                 if col_buy.button("🚀 PAPER BUY", use_container_width=True):
                     st.session_state.position = "LONG"
                     st.session_state.entry_price = curr_p
                     st.rerun()
             else:
-                if col_sell.button("📉 EXIT TRADE", use_container_width=True):
+                if col_exit.button("📉 EXIT TRADE", use_container_width=True):
                     profit = (curr_p - st.session_state.entry_price) * qty
                     st.session_state.balance += profit
                     st.session_state.position = None
                     st.rerun()
 
-            # AI സിഗ്നൽ ബോക്സ്
+            # AI സിഗ്നൽ
             msg, color = ("BUY", "#00FFA3") if trend == 1 else ("SELL", "#FF3131")
             st.markdown(f'<div style="border:2px solid {color}; padding:10px; border-radius:10px; text-align:center;">AI Signal: <b style="color:{color};">{msg}</b></div>', unsafe_allow_html=True)
 
             # ചാർട്ട്
             fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Market")])
             fig.add_trace(go.Scatter(x=df.index, y=df['ST'], line=dict(color='yellow', width=2), name="Supertrend"))
-            fig.update_layout(template="plotly_dark", height=400, margin=dict(l=20, r=20, t=30, b=20))
+            fig.update_layout(template="plotly_dark", height=450)
             st.plotly_chart(fig, use_container_width=True)
 
     time.sleep(30)
