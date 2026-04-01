@@ -1,114 +1,100 @@
 import streamlit as st
 import yfinance as yf
 import plotly.graph_objects as go
+import pandas as pd
+import pandas_ta as ta
 
-# 1. ആപ്പ് സെറ്റിംഗ്സ്
-st.set_page_config(page_title="Upstox Pro", layout="wide")
+# 1. ആപ്പ് കോൺഫിഗറേഷൻ
+st.set_page_config(page_title="Upstox Pro Terminal", layout="wide")
 
-# CSS: ഒറിജിനൽ അപ്സ്റ്റോക്സ് യൂസർ ഇന്റർഫേസ് (UI)
+# --- സെഷൻ സ്റ്റേറ്റ് (Demo Trading & Navigation) ---
+if 'balance' not in st.session_state: st.session_state.balance = 100000.0  # 1 ലക്ഷം ഡെമോ മണി
+if 'positions' not in st.session_state: st.session_state.positions = []
+if 'page' not in st.session_state: st.session_state.page = "Home"
+if 'symbol' not in st.session_state: st.session_state.symbol = "CRUDEOIL24APR1000.BE" # Crude Oil Default
+
+# --- സൂപ്പർട്രെൻഡ് കാൽക്കുലേഷൻ ---
+def add_indicators(df):
+    # Supertrend (7, 3) - അപ്സ്റ്റോക്സിലെ സ്റ്റാൻഡേർഡ് സെറ്റിംഗ്സ്
+    sti = ta.supertrend(df['High'], df['Low'], df['Close'], length=7, multiplier=3)
+    df = pd.concat([df, sti], axis=1)
+    return df
+
+# --- ഡാറ്റ ഫെച്ചിംഗ് ---
+def get_data(ticker):
+    try:
+        data = yf.download(ticker, period="2d", interval="5m")
+        return data if not data.empty else None
+    except: return None
+
+# --- UI STYLING ---
 st.markdown("""
     <style>
     .main { background-color: #ffffff; }
-    /* Indices Styling */
-    .idx-container { display: flex; gap: 10px; margin-bottom: 20px; }
-    .idx-card { background: #f9f9f9; padding: 10px; border-radius: 8px; flex: 1; border: 1px solid #eee; }
-    /* Stock Row */
-    .stock-item { display: flex; justify-content: space-between; padding: 15px; border-bottom: 1px solid #f2f2f2; }
-    .price-up { color: #089981; font-weight: bold; }
-    .price-down { color: #f23645; font-weight: bold; }
-    /* Bottom Navigation */
-    .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: white; border-top: 1px solid #ddd; display: flex; justify-content: space-around; padding: 10px; z-index: 100; }
+    .price-card { background: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #5a2d82; }
+    .buy-btn { background-color: #089981 !important; color: white !important; }
+    .sell-btn { background-color: #f23645 !important; color: white !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- സെഷൻ മാനേജ്‌മെന്റ് ---
-if 'page' not in st.session_state: st.session_state.page = "Home"
-if 'tab' not in st.session_state: st.session_state.tab = "Stocks"
-if 'symbol' not in st.session_state: st.session_state.symbol = "^NSEI"
-
-# തത്സമയ വിവരങ്ങൾ എടുക്കാനുള്ള ഫങ്ക്ഷൻ
-def get_data(ticker):
-    try:
-        val = yf.Ticker(ticker).history(period="1d", interval="1m")
-        return val.iloc[-1] if not val.empty else None
-    except: return None
-
-# --- TOP INDICES ---
-st.markdown("### Indices")
-nifty = get_data("^NSEI")
-bank = get_data("^NSEBANK")
-
-c1, c2 = st.columns(2)
-if nifty is not None:
-    c1.markdown(f'<div class="idx-card"><small>NIFTY 50</small><br><b>{nifty["Close"]:,.2f}</b> <span style="color:green;">+1.56%</span></div>', unsafe_allow_html=True)
-if bank is not None:
-    c2.markdown(f'<div class="idx-card"><small>NIFTY BANK</small><br><b>{bank["Close"]:,.2f}</b> <span style="color:green;">+2.33%</span></div>', unsafe_allow_html=True)
-
-st.divider()
-
 # --- പേജ് ലോജിക് ---
 
+# 1. HOME & CHART PAGE
 if st.session_state.page == "Home":
-    st.text_input("🔍 Search for stocks, F&O and more", placeholder="Eg: Nifty, Crude Oil", key="search")
+    st.title("📈 Upstox Live Terminal")
+    st.write(f"💰 **Demo Balance: ₹{st.session_state.balance:,.2f}**")
     
-    # ടാബുകൾ
-    t_list = ["Watchlist", "Stocks", "F&O", "Currency", "Commodity"]
-    t_cols = st.columns(len(t_list))
-    for i, t in enumerate(t_list):
-        if t_cols[i].button(t, key=f"t_{t}"): st.session_state.tab = t
+    symbol = st.text_input("Enter Symbol (eg: RELIANCE.NS, CL=F)", st.session_state.symbol)
+    df = get_data(symbol)
 
-    # ടാബ് കണ്ടന്റുകൾ
-    if st.session_state.tab == "Stocks":
-        stock_list = ["RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "SBIN.NS"]
-        for s in stock_list:
-            d = get_data(s)
-            p = f"₹{d['Close']:,.2f}" if d is not None else "Loading..."
-            st.markdown(f'<div class="stock-item"><div><b>{s.split(".")[0]}</b><br><small>NSE</small></div><div class="price-up">{p}</div></div>', unsafe_allow_html=True)
-            if st.button(f"Chart", key=f"btn_{s}"): 
-                st.session_state.symbol = s
-                st.session_state.page = "Chart"
-                st.rerun()
-
-    elif st.session_state.tab == "F&O":
-        fo_list = ["NIFTY 23000 CE", "BANKNIFTY 48000 PE"]
-        for fo in fo_list:
-            st.markdown(f'<div class="stock-item"><div><b>{fo}</b><br><small>NFO</small></div><div class="price-down">₹145.20</div></div>', unsafe_allow_html=True)
-
-    elif st.session_state.tab == "Commodity":
-        coms = {"CRUDE OIL": "CL=F", "GOLD": "GC=F"}
-        for n, sym in coms.items():
-            d = get_data(sym)
-            p = f"${d['Close']:,.2f}" if d is not None else "---"
-            st.markdown(f'<div class="stock-item"><div><b>{n}</b><br><small>MCX</small></div><div class="price-up">{p}</div></div>', unsafe_allow_html=True)
-            if st.button(f"View Chart", key=sym):
-                st.session_state.symbol = sym
-                st.session_state.page = "Chart"
-                st.rerun()
-
-# ചാർട്ട് പേജ്
-elif st.session_state.page == "Chart":
-    if st.button("⬅️ Back"): st.session_state.page = "Home"; st.rerun()
-    st.subheader(f"📈 {st.session_state.symbol} Live Chart")
-    df = yf.download(st.session_state.symbol, period="1d", interval="1m")
-    if not df.empty:
-        fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'])])
+    if df is not None:
+        df = add_indicators(df)
+        last_price = df['Close'].iloc[-1]
+        
+        # ചാർട്ട് നിർമ്മാണം
+        fig = go.Figure()
+        fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Price"))
+        
+        # Supertrend ലൈൻ ചേർക്കുന്നു
+        fig.add_trace(go.Scatter(x=df.index, y=df['SUPERT_7_3.0'], line=dict(color='orange', width=2), name="Supertrend"))
+        
         fig.update_layout(template="plotly_white", height=500, xaxis_rangeslider_visible=False)
         st.plotly_chart(fig, use_container_width=True)
 
-# മറ്റ് പേജുകൾ
-elif st.session_state.page == "Orders":
-    st.title("📑 Orders")
-    st.info("No active orders.")
+        # --- DEMO TRADING BUTTONS ---
+        col1, col2, col3 = st.columns([1,1,2])
+        qty = col1.number_input("Quantity", min_value=1, value=1)
+        
+        if col2.button("🟢 BUY", use_container_width=True):
+            cost = last_price * qty
+            if st.session_state.balance >= cost:
+                st.session_state.balance -= cost
+                st.session_state.positions.append({'sym': symbol, 'qty': qty, 'price': last_price, 'type': 'BUY'})
+                st.success(f"Bought {qty} shares of {symbol}")
+            else: st.error("Insufficient Funds!")
 
-elif st.session_state.page == "Account":
-    st.title("👤 My Account")
-    st.write("**Name:** Faisal")
-    st.write("**ID:** UP12345")
+        if col3.button("🔴 SELL", use_container_width=True):
+            # സിമ്പിൾ സെൽ ലോജിക് (Shorting or exiting)
+            st.session_state.balance += (last_price * qty)
+            st.session_state.positions.append({'sym': symbol, 'qty': qty, 'price': last_price, 'type': 'SELL'})
+            st.warning(f"Sold {qty} shares of {symbol}")
 
-# --- BOTTOM NAV BAR ---
+# 2. PORTFOLIO & ORDERS
+elif st.session_state.page == "Portfolio":
+    st.title("💰 Portfolio & Positions")
+    if not st.session_state.positions:
+        st.info("No active positions.")
+    else:
+        st.table(pd.DataFrame(st.session_state.positions))
+    
+    if st.button("Reset Demo Account"):
+        st.session_state.balance = 100000.0
+        st.session_state.positions = []
+        st.rerun()
+
+# --- BOTTOM NAVIGATION ---
 st.markdown("<br><br><br>", unsafe_allow_html=True)
-b_col1, b_col2, b_col3, b_col4 = st.columns(4)
-if b_col1.button("🏠 Home"): st.session_state.page = "Home"; st.rerun()
-if b_col2.button("📑 Orders"): st.session_state.page = "Orders"; st.rerun()
-if b_col3.button("💰 Portfolio"): st.toast("Portfolio empty")
-if b_col4.button("👤 Account"): st.session_state.page = "Account"; st.rerun()
+n1, n2, n3 = st.columns(3)
+if n1.button("🏠 Home"): st.session_state.page = "Home"; st.rerun()
+if n2.button("💰 Portfolio"): st.session_state.page = "Portfolio"; st.rerun()
+if n3.button("👤 Account"): st.write(f"User: Faisal | Al Barsha, Dubai")
