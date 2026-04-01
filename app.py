@@ -3,81 +3,51 @@ import yfinance as yf
 import plotly.graph_objects as go
 import pandas as pd
 
-# 1. Page Config (Dark Theme & Mobile Look)
-st.set_page_config(page_title="FTB PRO TERMINAL", layout="wide")
+# 1. ലുക്ക് ശരിയാക്കാൻ (Dark Mode)
+st.set_page_config(page_title="FTB PRO", layout="wide")
+st.markdown("<style>.main {background-color: #131722;} header {visibility: hidden;}</style>", unsafe_allow_html=True)
 
-st.markdown("""
-    <style>
-    .main { background-color: #131722; color: white; }
-    .stSidebar { background-color: #171b26; border-right: 1px solid #2a2e39; }
-    header { visibility: hidden; }
-    </style>
-    """, unsafe_allow_html=True)
-
-# --- SIDEBAR: WATCHLIST & TOOLS ---
+# --- SIDEBAR ---
 st.sidebar.title("📑 Watchlist")
+assets = {"NIFTY 50": "^NSEI", "BANK NIFTY": "^NSEBANK", "CRUDE OIL": "CL=F", "RELIANCE": "RELIANCE.NS"}
+selected = st.sidebar.selectbox("Select Asset", list(assets.keys()))
+interval = st.sidebar.select_slider("Timeframe", options=["1m", "5m", "15m", "1h", "1d"], value="5m")
 
-# നിഫ്റ്റിയിലെ പ്രധാന സ്റ്റോക്കുകൾ (ഇത് എല്ലാം വർക്ക് ആകും)
-watchlist = {
-    "NIFTY 50": "^NSEI",
-    "BANK NIFTY": "^NSEBANK",
-    "CRUDE OIL": "CL=F",
-    "RELIANCE": "RELIANCE.NS",
-    "SBIN": "SBIN.NS",
-    "TATA MOTORS": "TATAMOTORS.NS",
-    "ADANI PORTS": "ADANIPORTS.NS"
-}
-
-selected_name = st.sidebar.selectbox("Select Asset", list(watchlist.keys()))
-ticker = watchlist[selected_name]
-
-# ഇന്റർവൽ സെലക്ഷൻ
-interval = st.sidebar.radio("Timeframe", ["1m", "5m", "15m", "1h", "1d"], index=1)
-
-# ഇൻഡിക്കേറ്ററുകൾ വേണോ എന്ന് തീരുമാനിക്കാം
-show_st = st.sidebar.checkbox("Show Supertrend", value=True)
-
-# --- CHART LOGIC ---
-def get_data(symbol, inter):
-    df = yf.download(symbol, period="5d", interval=inter, multi_level_index=False)
-    return df
-
+# --- DATA & CHART ---
 try:
-    df = get_data(ticker, interval)
+    # 2 ദിവസത്തെ ഡാറ്റ എടുക്കുന്നു (ചാർട്ട് വലുതായി കാണാൻ)
+    df = yf.download(assets[selected], period="2d", interval=interval, multi_level_index=False)
     
     if not df.empty:
-        # Supertrend Calculation (Simple Logic for the App)
-        if show_st:
-            atr = (df['High'] - df['Low']).rolling(10).mean()
-            df['ST_Upper'] = ((df['High'] + df['Low']) / 2) + (3 * atr)
-            df['ST_Lower'] = ((df['High'] + df['Low']) / 2) - (3 * atr)
+        # സൂപ്പർട്രെൻഡ് കാൽക്കുലേഷൻ
+        atr = (df['High'] - df['Low']).rolling(10).mean()
+        df['Upper'] = ((df['High'] + df['Low']) / 2) + (2 * atr)
+        df['Lower'] = ((df['High'] + df['Low']) / 2) - (2 * atr)
 
-        # മനോഹരമായ ചാർട്ട് നിർമ്മാണം (43641.jpg ലുക്ക്)
+        # പ്രൊഫഷണൽ കാൻഡിൽസ്റ്റിക് ചാർട്ട്
         fig = go.Figure(data=[go.Candlestick(
-            x=df.index,
-            open=df['Open'], high=df['High'],
-            low=df['Low'], close=df['Close'],
-            name="Price"
+            x=df.index, open=df['Open'], high=df['High'],
+            low=df['Low'], close=df['Close'], name="Price"
         )])
 
-        if show_st:
-            fig.add_trace(go.Scatter(x=df.index, y=df['ST_Upper'], name="Upper Band", line=dict(color='red', width=1)))
-            fig.add_trace(go.Scatter(x=df.index, y=df['ST_Lower'], name="Lower Band", line=dict(color='green', width=1)))
+        # സൂപ്പർട്രെൻഡ് ലൈനുകൾ ചേർക്കുന്നു
+        fig.add_trace(go.Scatter(x=df.index, y=df['Upper'], line=dict(color='red', width=1), name="Sell Line"))
+        fig.add_trace(go.Scatter(x=df.index, y=df['Lower'], line=dict(color='green', width=1), name="Buy Line"))
 
+        # ചാർട്ട് ലുക്ക് സെറ്റിംഗ്സ്
         fig.update_layout(
             template='plotly_dark',
             xaxis_rangeslider_visible=False,
-            height=500,
-            paper_bgcolor='#131722',
+            height=600, # ചാർട്ടിന്റെ ഉയരം കൂട്ടി
+            margin=dict(l=10, r=10, t=10, b=10),
             plot_bgcolor='#131722',
-            margin=dict(l=10, r=10, t=10, b=10)
+            paper_bgcolor='#131722'
         )
         
         st.plotly_chart(fig, use_container_width=True)
         
-        # ലൈവ് പ്രൈസ് കാണിക്കാൻ (43632.jpg പ്രൈസ് സെക്ഷൻ പോലെ)
-        curr_price = df['Close'].iloc[-1]
-        st.metric(label=f"{selected_name} Live", value=f"₹ {curr_price:,.2f}")
+        # ലൈവ് പ്രൈസ് വലിയ അക്ഷരത്തിൽ
+        st.markdown(f"<h1 style='color: white; text-align: center;'>₹ {df['Close'].iloc[-1]:,.2f}</h1>", unsafe_allow_html=True)
 
 except Exception as e:
-    st.error("Market close ആണ് അല്ലെങ്കിൽ ഡാറ്റ കിട്ടുന്നില്ല. പിന്നീട് ശ്രമിക്കൂ.")
+    st.error("Market Data കിട്ടുന്നില്ല, പിന്നീട് ശ്രമിക്കൂ.")
