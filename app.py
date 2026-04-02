@@ -5,12 +5,11 @@ from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(page_title="Paichi Trader Pro", layout="wide")
 
-# ഓരോ 1 സെക്കൻഡിലും ഓട്ടോമാറ്റിക് റിഫ്രഷ്
-st_autorefresh(interval=1000, limit=1000, key="faisal_live_gold")
+# 1 second-il auto refresh akan
+st_autorefresh(interval=1000, limit=1000, key="faisal_final_live")
 
-# സൈഡ് ബാർ
 st.sidebar.title("💎 Paichi Menu")
-choice = st.sidebar.radio("സേവനം തിരഞ്ഞെടുക്കുക:", ["Indian Indices", "Commodities & Forex", "Quick Links"])
+choice = st.sidebar.radio("Sēvanam thiraññeṭukkuka:", ["Indian Indices", "Commodities & Forex", "Quick Links"])
 
 def get_live_data(symbol):
     try:
@@ -35,54 +34,60 @@ def get_live_data(symbol):
     except:
         return None
 
-# --- മെയിൻ ഡിസ്‌പ്ലേ ---
+def display_signal(data, title, mult=1):
+    if data:
+        p = data['price'] * mult
+        rsi = data['rsi']
+        st.metric(title, f"₹{p:.2f}")
+        st.write(f"RSI: {rsi:.2f}")
+        
+        # BUY/SELL Signal Logic
+        if rsi < 35:
+            st.success("🟢 ACTION: BUY")
+        elif rsi > 65:
+            st.error("🔴 ACTION: SELL")
+        else:
+            st.warning("⏳ ACTION: WAIT")
+    else:
+        st.error(f"{title} data labhyamalla")
+
+# --- Main Sections ---
 
 if choice == "Indian Indices":
-    st.title("📊 Live Market Signals")
+    st.title("📊 Indian Indices - Live Signals")
     col1, col2 = st.columns(2)
     with col1:
-        d = get_live_data("^NSEI")
-        if d:
-            st.metric("Nifty 50", f"{d['price']:.2f}")
-            st.write(f"RSI: {d['rsi']:.2f}")
-            if d['rsi'] < 35: st.success("ACTION: BUY 🟢")
-            elif d['rsi'] > 65: st.error("ACTION: SELL 🔴")
-            else: st.warning("ACTION: WAIT ⏳")
+        display_signal(get_live_data("^NSEI"), "NIFTY 50")
+        st.divider()
+        display_signal(get_live_data("NIFTY_FIN_SERVICE.NS"), "FIN NIFTY")
     with col2:
-        db = get_live_data("^NSEBANK")
-        if db:
-            st.metric("Bank Nifty", f"{db['price']:.2f}")
-            st.write(f"RSI: {db['rsi']:.2f}")
+        display_signal(get_live_data("^NSEBANK"), "BANK NIFTY")
+        st.divider()
+        display_signal(get_live_data("^BSESN"), "SENSEX")
 
 elif choice == "Commodities & Forex":
-    st.title("🛢️ Commodities (Live)")
+    st.title("🛢️ Commodities & Gold")
     
-    # Crude Oil Section
+    # Crude Oil
     c_data = get_live_data("CL=F")
-    if c_data:
-        mcx_future = c_data['price'] * 85.5
-        st.metric("Crude Oil Future (MCX)", f"₹{mcx_future:.2f}")
-        st.write(f"RSI: {c_data['rsi']:.2f}")
+    display_signal(c_data, "CRUDE OIL FUTURE (MCX)", mult=85.5)
     
     st.divider()
     
-    # Gold Section (8 Gram INR)
-    st.subheader("💰 Gold Price (India)")
+    # Gold 8 Gram
     g_data = get_live_data("GC=F")
     if g_data:
-        # ഗ്ലോബൽ ഗോൾഡ് പ്രൈസിനെ (USD/Ounce) 8 ഗ്രാം ഇന്ത്യൻ വിലയിലേക്ക് മാറ്റുന്നു
-        # Formula: (Price/31.1) * 83.5 (USDINR) * 1.15 (Tax) * 8 Grams
-        gold_8g = ((g_data['price'] / 31.1) * 83.5 * 1.15) * 8
-        st.metric("Gold 8 Gram (Approx)", f"₹{gold_8g:.0f}")
-
+        g_price = ((g_data['price'] / 31.1) * 83.5 * 1.15) * 8
+        st.metric("GOLD 8 GRAM (Approx)", f"₹{g_price:.0f}")
+    
     st.divider()
     
-    # AED to INR
+    # Currency
     a_data = get_live_data("AEDINR=X")
-    if a_data: 
-        st.metric("1 Dirham (AED)", f"₹{a_data['price']:.2f}")
+    if a_data:
+        st.metric("1 DIRHAM (AED)", f"₹{a_data['price']:.2f}")
 
 else:
     st.title("🔗 Quick Access")
     st.markdown("### [🌐 Open Upstox Login](https://upstox.com/)")
-    st.markdown("### [📊 Open TradingView Chart](https://www.tradingview.com/chart/)")
+    st.markdown("### [📊 TradingView Charts](https://www.tradingview.com/chart/)")
