@@ -5,24 +5,12 @@ from streamlit_mic_recorder import speech_to_text
 
 st.set_page_config(page_title="Paichi Pro AI", page_icon="💎")
 
-# പുതിയ API Key
+# നീ തന്ന പുതിയ API Key
 API_KEY = "AIzaSyA6GffWmhFd3YVOWuh_dOYu1gHJ1UnekH8"
 genai.configure(api_key=API_KEY)
 
-# മോഡൽ സെറ്റ് ചെയ്യാൻ ഒരു ഫംഗ്ഷൻ (404 ഒഴിവാക്കാൻ)
-def get_model():
-    # ആദ്യം പുതിയ മോഡൽ നോക്കും, അത് കിട്ടിയില്ലെങ്കിൽ പഴയതിലേക്ക് മാറും
-    for m_name in ['gemini-1.5-flash', 'gemini-pro', 'models/gemini-pro']:
-        try:
-            m = genai.GenerativeModel(m_name)
-            # ഒന്ന് ചെക്ക് ചെയ്യുന്നു
-            m.generate_content("test", generation_config={"max_output_tokens": 1})
-            return m
-        except:
-            continue
-    return None
-
-model = get_model()
+# 404 Error വരാതിരിക്കാൻ ഈ മോഡൽ പേര് ഉപയോഗിക്കാം
+model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -51,15 +39,13 @@ if menu == "🤖 AI Assistant":
         with st.chat_message("user"): st.markdown(prompt)
         
         with st.chat_message("assistant"):
-            if model:
-                try:
-                    res = model.generate_content(prompt)
-                    st.markdown(res.text)
-                    st.session_state.messages.append({"role": "assistant", "content": res.text})
-                except Exception as e:
-                    st.error(f"AI Error: {e}")
-            else:
-                st.error("AI മോഡലുകൾ ഒന്നും ഇപ്പോൾ ലഭ്യമല്ല. API Key ശ്രദ്ധിക്കുക.")
+            try:
+                res = model.generate_content(prompt)
+                st.markdown(res.text)
+                st.session_state.messages.append({"role": "assistant", "content": res.text})
+            except Exception as e:
+                # എറർ ഉണ്ടെങ്കിൽ അത് കൃത്യമായി അറിയാൻ
+                st.error(f"AI Error: {e}")
 
 elif menu == "📈 Market Rates":
     st.header("Live Updates")
