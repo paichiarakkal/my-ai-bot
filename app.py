@@ -10,18 +10,15 @@ st.set_page_config(page_title="Paichi Trader Pro", layout="wide")
 st_autorefresh(interval=1000, limit=1000, key="faisal_final_telegram")
 
 # --- TELEGRAM SETTINGS ---
-# നിന്റെ ബോട്ട് ടോക്കൺ ഇവിടെ സെറ്റ് ചെയ്തു
 BOT_TOKEN = "8638662433:AAEI4BwJuO7Bg8XTEv8OHmfP6CexFe2SiwA"
-# നിന്റെ Chat ID കണ്ടുപിടിക്കാൻ @userinfobot ഉപയോഗിക്കുക. തൽക്കാലം ഇത് താഴെ നൽകുക.
-CHAT_ID = "YOUR_CHAT_ID_HERE" 
+CHAT_ID = "6091133068" # നിന്റെ ID ഇവിടെ അപ്ഡേറ്റ് ചെയ്തു
 
 def send_telegram(message):
-    if CHAT_ID != "YOUR_CHAT_ID_HERE":
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage?chat_id={CHAT_ID}&text={message}&parse_mode=Markdown"
-        try:
-            requests.get(url)
-        except:
-            pass
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage?chat_id={CHAT_ID}&text={message}&parse_mode=Markdown"
+    try:
+        requests.get(url)
+    except:
+        pass
 
 # --- TRADING LOGIC ---
 def get_analysis(symbol):
@@ -37,31 +34,26 @@ def get_analysis(symbol):
         df = pd.DataFrame({'close': ohlc['close'], 'high': ohlc['high'], 'low': ohlc['low']}).dropna()
 
         if len(df) > 20:
-            # RSI (14)
             delta = df['close'].diff()
             gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
             loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
             rsi = 100 - (100 / (1 + (gain / loss)))
             last_rsi = float(rsi.iloc[-1])
 
-            # Supertrend (10, 3)
             df['tr'] = df['high'] - df['low']
             atr = df['tr'].rolling(window=10).mean().iloc[-1]
             mid = (df['high'].iloc[-1] + df['low'].iloc[-1]) / 2
             lower_band = mid - (3 * atr)
             
             trend = "BUY 🟢" if price > lower_band else "SELL 🔴"
-            color = "green" if price > lower_band else "red"
-
-            return {"price": price, "rsi": last_rsi, "trend": trend, "color": color}
+            return {"price": price, "rsi": last_rsi, "trend": trend}
     except:
         return None
 
 # --- UI & LOGIC ---
 st.sidebar.title("💎 Paichi Menu")
-choice = st.sidebar.radio("സേവനം:", ["Indian Indices", "Commodities & Forex"])
+choice = st.sidebar.radio("സേവനം:", ["Commodities & Forex", "Indian Indices"])
 
-# Session State for Alert
 if 'last_signal' not in st.session_state:
     st.session_state.last_signal = ""
 
@@ -74,7 +66,6 @@ def display_data(data, title, mult=1):
         c2.metric("RSI", f"{data['rsi']:.2f}")
         c3.metric("Supertrend", data['trend'])
         
-        # Alert Logic for Crude Oil
         if title == "CRUDE OIL MCX":
             if data['trend'] != st.session_state.last_signal:
                 msg = f"🚀 *CRUDE OIL ALERT!* \nTrend: {data['trend']}\nPrice: ₹{p:.2f}"
@@ -87,7 +78,6 @@ if choice == "Indian Indices":
     display_data(get_analysis("^NSEBANK"), "BANK NIFTY")
 
 elif choice == "Commodities & Forex":
-    # Multiplier set to 93.5 to match Upstox
     display_data(get_analysis("CL=F"), "CRUDE OIL MCX", mult=93.5)
     st.divider()
     a_data = get_analysis("AEDINR=X")
