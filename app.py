@@ -1,55 +1,62 @@
 import streamlit as st
 import yfinance as yf
-import google.generativeai as genai
-from streamlit_mic_recorder import speech_to_text
+import pandas as pd
 
-st.set_page_config(page_title="Paichi Pro AI", page_icon="💎")
+st.set_page_config(page_title="Paichi Trader Pro", page_icon="📈", layout="wide")
 
-# നീ തന്ന പുതിയ API Key
-API_KEY = "AIzaSyA6GffWmhFd3YVOWuh_dOYu1gHJ1UnekH8"
-genai.configure(api_key=API_KEY)
+st.title("📈 Paichi Smart Trading Signals")
 
-# 404 Error വരാതിരിക്കാൻ ഈ മോഡൽ പേര് ഉപയോഗിക്കാം
-model = genai.GenerativeModel('gemini-1.5-flash-latest')
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-st.sidebar.title("💎 Menu")
-menu = st.sidebar.radio("സേവനം:", ["🤖 AI Assistant", "📈 Market Rates"])
-
-def get_p(ticker):
+def get_signal(ticker):
     try:
-        data = yf.download(ticker, period="1d", interval="1m", progress=False)
-        return float(data['Close'].iloc[-1]) if not data.empty else None
-    except: return None
+        # 5 മിനിറ്റ് ചാർട്ട് ഡാറ്റ എടുക്കുന്നു
+        df = yf.download(ticker, period="2d", interval="5m", progress=False)
+        if len(df) < 25: return None, None, None
 
-if menu == "🤖 AI Assistant":
-    st.header("Ask Paichi AI 🎤")
-    v_text = speech_to_text(language='en', start_prompt="🎤 സംസാരിക്കുക", key='v_inp')
-    
-    for m in st.session_state.messages:
-        with st.chat_message(m["role"]): st.markdown(m["content"])
+        # 1. RSI (14) Manual Calculation
+        delta = df['Close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        df['RSI'] = 100 - (100 / (1 + rs))
 
-    prompt = st.chat_input("ചോദിക്കൂ...")
-    if v_text: prompt = v_text 
-
-    if prompt:
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"): st.markdown(prompt)
+        # 2. Moving Average (SMA 20)
+        df['SMA_20'] = df['Close'].rolling(window=20).mean()
         
-        with st.chat_message("assistant"):
-            try:
-                res = model.generate_content(prompt)
-                st.markdown(res.text)
-                st.session_state.messages.append({"role": "assistant", "content": res.text})
-            except Exception as e:
-                # എറർ ഉണ്ടെങ്കിൽ അത് കൃത്യമായി അറിയാൻ
-                st.error(f"AI Error: {e}")
+        last_price = float(df['Close'].iloc[-1])
+        last_rsi = float(df['RSI'].iloc[-1])
+        last_sma = float(df['SMA_20'].iloc[-1])
 
-elif menu == "📈 Market Rates":
-    st.header("Live Updates")
-    oil = get_p("CL=F")
-    if oil: st.metric("Crude Oil", f"₹{oil*91.5:.2f}")
-    aed = get_p("AEDINR=X")
-    if aed: st.metric("1 AED to INR", f"₹{aed:.2f}")
+        # സിഗ്നൽ നിയമം (Logic)
+        signal = "WAIT ⏳"
+        if last_rsi < 35 and last_price > last_sma:
+            signal = "BUY 🟢"
+        elif last_rsi > 65 and last_price < last_sma:
+            signal = "SELL 🔴"
+            
+        return last_price, signal, last_rsi
+    except Exception as e:
+        return None, None, None
+
+# ഡിസ്‌പ്ലേ ഭാഗം
+col1, col2 = st.columns(2)
+
+# ക്രൂഡ് ഓയിൽ സിഗ്നൽ
+p_oil, s_oil, r_oil = get_signal("CL=F")
+with col1:
+    st.info("🛢️ Crude Oil")
+    if p_oil:
+        st.metric("Price", f"${p_oil:.2f}")
+        st.write(f"RSI: {r_oil:.2f}")
+        st.subheader(f"Action: {s_oil}")
+
+# നിഫ്റ്റി സിഗ്നൽ
+p_nifty, s_nifty, r_nifty = get_signal("^NSEI")
+with col2:
+    st.info("📊 Nifty 50")
+    if p_nifty:
+        st.metric("Price", f"{p_nifty:.2f}")
+        st.write(f"RSI: {r_nifty:.2f}")
+        st.subheader(f"Action: {s_nifty}")
+
+st.divider()
+st.warning("ഇത് ലളിതമായ RSI/SMA സിഗ്നൽ മാത്രമാണ്. നിന്റെ സ്വന്തം പ്ലാൻ കൂടി നോക്കി മാത്രം ട്രേഡ് ചെയ്യുക.")
