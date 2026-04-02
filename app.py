@@ -1,100 +1,21 @@
-import streamlit as st
-import pandas as pd
-import requests
-
-st.set_page_config(page_title="Paichi Trader Pro", layout="wide")
-
-# സൈഡ് ബാർ
-st.sidebar.title("💎 Paichi Menu")
-choice = st.sidebar.radio("സേവനം തിരഞ്ഞെടുക്കുക:", ["Indian Indices", "Commodities", "Quick Links"])
-st.sidebar.info("Intraday Trader Faisal, Al Barsha")
-
-# Yahoo Finance-ൽ നിന്ന് ഡാറ്റ എടുക്കാനുള്ള ഫംഗ്ഷൻ
-def get_data(symbol):
-    try:
-        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=5m&range=1d"
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(url, headers=headers)
-        data = response.json()
-        result = data['chart']['result'][0]
-        price = result['meta']['regularMarketPrice']
-        prices = result['indicators']['quote'][0]['close']
-        
-        # RSI Calculation
-        df = pd.Series(prices).dropna()
-        if len(df) > 14:
-            delta = df.diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-            rsi = 100 - (100 / (1 + (gain / loss)))
-            last_rsi = float(rsi.iloc[-1])
-        else:
-            last_rsi = 50 # Default
-            
-        return {"price": price, "rsi": last_rsi}
-    except:
-        return None
-
-# --- മെയിൻ ആപ്പ് ---
-
-if choice == "Indian Indices":
-    st.title("📊 Indian Stock Market Indices")
-    st.write("ഇൻഡിക്കേറ്ററുകൾ നോക്കാൻ ബട്ടൺ അമർത്തുക.")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button("📈 Nifty 50"):
-            d = get_data("^NSEI")
-            if d:
-                st.metric("Nifty 50", f"{d['price']:.2f}")
-                st.write(f"RSI: {d['rsi']:.2f}")
-                if d['rsi'] < 35: st.success("SIGNAL: BUY 🟢")
-                elif d['rsi'] > 65: st.error("SIGNAL: SELL 🔴")
-                else: st.warning("SIGNAL: WAIT ⏳")
-
-        if st.button("🏦 Bank Nifty"):
-            d = get_data("^NSEBANK")
-            if d:
-                st.metric("Bank Nifty", f"{d['price']:.2f}")
-                st.write(f"RSI: {d['rsi']:.2f}")
-                if d['rsi'] < 35: st.success("SIGNAL: BUY 🟢")
-                elif d['rsi'] > 65: st.error("SIGNAL: SELL 🔴")
-                else: st.warning("SIGNAL: WAIT ⏳")
-
-    with col2:
-        if st.button("🚀 Fin Nifty"):
-            d = get_data("NIFTY_FIN_SERVICE.NS")
-            if d:
-                st.metric("Fin Nifty", f"{d['price']:.2f}")
-                st.write(f"RSI: {d['rsi']:.2f}")
-        
-        if st.button("🏛️ Sensex"):
-            d = get_data("^BSESN")
-            if d:
-                st.metric("Sensex", f"{d['price']:.2f}")
-
 elif choice == "Commodities":
     st.title("🛢️ Commodities & Gold")
     
-    if st.button("🇮🇳 Crude Oil (India Price Approx)"):
-        d = get_data("CL=F")
-        if d:
-            # MCX Price Calculation (Approx: USD Price * USDINR * 100)
-            mcx_price = d['price'] * 83.5 # ലളിതമായ ഇന്ത്യൻ രൂപയിലെ വില
-            st.metric("Crude Oil (Approx INR)", f"₹{mcx_price:.2f}")
-            st.write(f"Global RSI: {d['rsi']:.2f}")
-            if d['rsi'] < 35: st.success("SIGNAL: BUY 🟢")
-            elif d['rsi'] > 65: st.error("SIGNAL: SELL 🔴")
-            else: st.warning("SIGNAL: WAIT ⏳")
-
-    if st.button("💰 Gold (8 Gram INR)"):
-        d = get_data("GC=F")
-        if d:
-            price_8g = ((d['price'] / 31.1) * 83.5 * 1.15) * 8
-            st.metric("Gold 8g (Approx)", f"₹{price_8g:.0f}")
-
-else:
-    st.title("🔗 Quick Access")
-    st.markdown("### [🌐 Open Upstox](https://upstox.com/)")
-    st.markdown("### [📊 TradingView](https://www.tradingview.com/chart/)")
+    if st.button("🇮🇳 Crude Oil (MCX India Price)"):
+        with st.spinner('Fetching MCX Data...'):
+            d = get_data("CL=F") # Global Price
+            if d:
+                # MCX ഏകദേശ വില കണക്കാക്കുന്ന രീതി:
+                # Global Price * USDINR * 10 (Multiplier)
+                mcx_price = d['price'] * 83.5 * 1.25 
+                
+                st.metric("Crude Oil MCX (Approx)", f"₹{mcx_price:.2f}")
+                st.write(f"Global RSI: {d['rsi']:.2f}")
+                
+                # നീ ഉപയോഗിക്കുന്ന സൂപ്പർ ട്രെൻഡ് പോലെ സിഗ്നൽ നൽകുന്നു
+                if d['rsi'] < 35: 
+                    st.success("SIGNAL: BUY 🟢 (Oversold)")
+                elif d['rsi'] > 65: 
+                    st.error("SIGNAL: SELL 🔴 (Overbought)")
+                else: 
+                    st.warning("SIGNAL: WAIT ⏳")
