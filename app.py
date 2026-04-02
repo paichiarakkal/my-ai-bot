@@ -6,13 +6,25 @@ from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(page_title="Paichi Trader Pro", layout="wide")
 
-# 1 second auto refresh
-st_autorefresh(interval=1000, limit=1000, key="faisal_final_v3")
+# 1 Second Auto Refresh
+st_autorefresh(interval=1000, limit=1000, key="faisal_final_telegram")
 
-st.sidebar.title("💎 Paichi Menu")
-choice = st.sidebar.radio("സേവനം തിരഞ്ഞെടുക്കുക:", ["Indian Indices", "Commodities & Forex", "Quick Links"])
+# --- TELEGRAM SETTINGS ---
+# നിന്റെ ബോട്ട് ടോക്കൺ ഇവിടെ സെറ്റ് ചെയ്തു
+BOT_TOKEN = "8638662433:AAEI4BwJuO7Bg8XTEv8OHmfP6CexFe2SiwA"
+# നിന്റെ Chat ID കണ്ടുപിടിക്കാൻ @userinfobot ഉപയോഗിക്കുക. തൽക്കാലം ഇത് താഴെ നൽകുക.
+CHAT_ID = "YOUR_CHAT_ID_HERE" 
 
-def get_supertrend_analysis(symbol):
+def send_telegram(message):
+    if CHAT_ID != "YOUR_CHAT_ID_HERE":
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage?chat_id={CHAT_ID}&text={message}&parse_mode=Markdown"
+        try:
+            requests.get(url)
+        except:
+            pass
+
+# --- TRADING LOGIC ---
+def get_analysis(symbol):
     try:
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1m&range=1d"
         headers = {'User-Agent': 'Mozilla/5.0'}
@@ -22,11 +34,7 @@ def get_supertrend_analysis(symbol):
         price = result['meta']['regularMarketPrice']
         ohlc = result['indicators']['quote'][0]
         
-        df = pd.DataFrame({
-            'close': ohlc['close'],
-            'high': ohlc['high'],
-            'low': ohlc['low']
-        }).dropna()
+        df = pd.DataFrame({'close': ohlc['close'], 'high': ohlc['high'], 'low': ohlc['low']}).dropna()
 
         if len(df) > 20:
             # RSI (14)
@@ -36,13 +44,12 @@ def get_supertrend_analysis(symbol):
             rsi = 100 - (100 / (1 + (gain / loss)))
             last_rsi = float(rsi.iloc[-1])
 
-            # ATR for Supertrend (10, 3 settings)
+            # Supertrend (10, 3)
             df['tr'] = df['high'] - df['low']
             atr = df['tr'].rolling(window=10).mean().iloc[-1]
-            mid_price = (df['high'].iloc[-1] + df['low'].iloc[-1]) / 2
-            lower_band = mid_price - (3 * atr)
+            mid = (df['high'].iloc[-1] + df['low'].iloc[-1]) / 2
+            lower_band = mid - (3 * atr)
             
-            # Trend Logic
             trend = "BUY 🟢" if price > lower_band else "SELL 🔴"
             color = "green" if price > lower_band else "red"
 
@@ -50,53 +57,38 @@ def get_supertrend_analysis(symbol):
     except:
         return None
 
-def display_dashboard(data, title, mult=1):
+# --- UI & LOGIC ---
+st.sidebar.title("💎 Paichi Menu")
+choice = st.sidebar.radio("സേവനം:", ["Indian Indices", "Commodities & Forex"])
+
+# Session State for Alert
+if 'last_signal' not in st.session_state:
+    st.session_state.last_signal = ""
+
+def display_data(data, title, mult=1):
     if data:
         p = data['price'] * mult
-        with st.container():
-            st.subheader(title)
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Live Price", f"₹{p:.2f}")
-            c2.metric("RSI (14)", f"{data['rsi']:.2f}")
-            c3.metric("Supertrend", data['trend'])
-            
-            if data['color'] == "green": st.success(f"🔥 {title}: BUY SIGNAL")
-            else: st.error(f"💥 {title}: SELL SIGNAL")
-    else:
-        st.error(f"{title} data ലഭ്യമല്ല")
-
-# --- Main Dashboard ---
+        st.subheader(title)
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Price", f"₹{p:.2f}")
+        c2.metric("RSI", f"{data['rsi']:.2f}")
+        c3.metric("Supertrend", data['trend'])
+        
+        # Alert Logic for Crude Oil
+        if title == "CRUDE OIL MCX":
+            if data['trend'] != st.session_state.last_signal:
+                msg = f"🚀 *CRUDE OIL ALERT!* \nTrend: {data['trend']}\nPrice: ₹{p:.2f}"
+                send_telegram(msg)
+                st.session_state.last_signal = data['trend']
 
 if choice == "Indian Indices":
-    st.title("📊 Indian Markets - Supertrend")
-    display_dashboard(get_supertrend_analysis("^NSEI"), "NIFTY 50")
+    display_data(get_analysis("^NSEI"), "NIFTY 50")
     st.divider()
-    display_dashboard(get_supertrend_analysis("^NSEBANK"), "BANK NIFTY")
-    st.divider()
-    display_dashboard(get_supertrend_analysis("NIFTY_FIN_SERVICE.NS"), "FIN NIFTY")
+    display_data(get_analysis("^NSEBANK"), "BANK NIFTY")
 
 elif choice == "Commodities & Forex":
-    st.title("🛢️ Commodities & Currency")
-    
-    # Crude Oil (Multiplier 93.5 to match your Upstox price)
-    display_dashboard(get_supertrend_analysis("CL=F"), "CRUDE OIL MCX", mult=93.5)
-    
+    # Multiplier set to 93.5 to match Upstox
+    display_data(get_analysis("CL=F"), "CRUDE OIL MCX", mult=93.5)
     st.divider()
-    
-    # Gold 8 Gram
-    g_data = get_supertrend_analysis("GC=F")
-    if g_data:
-        g_price = ((g_data['price'] / 31.1) * 83.5 * 1.15) * 8
-        st.metric("GOLD 8 GRAM (Approx)", f"₹{g_price:.0f}")
-
-    st.divider()
-    
-    # 🇦🇪 INR to Dirham (AED) - ഇതാണ് നീ ചോദിച്ചത്
-    st.subheader("🇦🇪 Dirham (AED) to INR")
-    a_data = get_supertrend_analysis("AEDINR=X")
-    if a_data:
-        st.metric("1 AED", f"₹{a_data['price']:.2f}")
-
-else:
-    st.title("🔗 Quick Access")
-    st.markdown("### [🌐 Open Upstox Login](https://upstox.com/)")
+    a_data = get_analysis("AEDINR=X")
+    if a_data: st.metric("1 AED to INR", f"₹{a_data['price']:.2f}")
