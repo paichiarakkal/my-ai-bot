@@ -4,5 +4,4 @@ pandas
 streamlit-autorefresh
 scikit-learn
 plotly
-googletrans==3.1.0a0
-httpx==0.13.3
+mtranslate
