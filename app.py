@@ -7,7 +7,7 @@ import os
 from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
 
-# 1. പേജ് സെറ്റിംഗ്സ് & തീം (Gold & Silver)
+# 1. പേജ് സെറ്റിംഗ്സ് & തീം
 st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
 
 st.markdown("""
@@ -20,9 +20,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=2000, key="faisal_v3_refresh")
+st_autorefresh(interval=2000, key="faisal_v4_refresh")
 
-# 2. ഡാറ്റ സേവിംഗ് ഫംഗ്ഷൻ (Order updated)
+# 2. സേവിംഗ് ഫംഗ്ഷൻ
 def save_trade(symbol, action, entry_p, exit_p, qty, pnl):
     file = 'trade_history_v2.csv'
     date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -53,11 +53,7 @@ with st.sidebar:
     
     if cat == "MARKET":
         sub_cat = st.selectbox("Category:", ["INDEX", "COMMODITY", "GOLD"])
-        opts = {
-            "INDEX": [("^NSEI", "NIFTY 50"), ("^NSEBANK", "BANK NIFTY")], 
-            "COMMODITY": [("CL=F", "CRUDE OIL MCX", 93.5)], 
-            "GOLD": [("GC=F", "GOLD 1G", 2.56)]
-        }
+        opts = {"INDEX": [("^NSEI", "NIFTY 50"), ("^NSEBANK", "BANK NIFTY")], "COMMODITY": [("CL=F", "CRUDE OIL MCX", 93.5)], "GOLD": [("GC=F", "GOLD 1G", 2.56)]}
         sel_name = st.selectbox("Select Item:", [i[1] for i in opts[sub_cat]])
         sel_data = next(i for i in opts[sub_cat] if i[1] == sel_name)
 
@@ -78,23 +74,25 @@ if cat == "MARKET":
 elif cat == "JOURNAL & HISTORY":
     st.subheader("📝 Trading Journal & History")
     with st.expander("Add New Trade"):
-        c1, c2 = st.columns(2)
-        s = c1.text_input("Stock/Index Name")
-        a = c1.selectbox("Action", ["BUY", "SELL"])
+        col_a, col_b = st.columns(2)
+        s = col_a.text_input("Stock/Index Name", value="Nifty")
+        a = col_b.selectbox("Action", ["BUY", "SELL"])
         
-        # ക്രമം മാറ്റിയത് ഇവിടെയാണ്: Entry മുകളിലും Exit താഴെയും
-        entry_p = c2.number_input("Entry Price", value=0.0)
-        exit_p = c2.number_input("Exit Price", value=0.0)
+        entry_p = col_a.number_input("Entry Price", value=0.0)
+        exit_p = col_b.number_input("Exit Price", value=0.0)
         qty = st.number_input("Quantity", value=1, step=1)
         
-        # ലാഭം കണക്കാക്കുന്നു
-        pnl = (exit_p - entry_p) * qty if a == "BUY" else (entry_p - exit_p) * qty
-        
+        # BUY/SELL അനുസരിച്ചുള്ള കൃത്യമായ ലാഭം
+        if a == "BUY":
+            pnl = (exit_p - entry_p) * qty
+        else:
+            pnl = (entry_p - exit_p) * qty
+            
         if st.button("Save to History"):
             save_trade(s, a, entry_p, exit_p, qty, pnl)
-            st.success(f"Saved! Profit: ₹{pnl:.2f}")
+            st.success(f"Saved! Result: ₹{pnl:.2f}")
     
     if os.path.isfile('trade_history_v2.csv'):
         df = pd.read_csv('trade_history_v2.csv')
         st.dataframe(df, use_container_width=True)
-        st.metric("Total P&L", f"₹ {df['P&L'].sum():.2f}")
+        st.metric("Total Net P&L", f"₹ {df['P&L'].sum():.2f}")
