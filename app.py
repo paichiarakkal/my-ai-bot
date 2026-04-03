@@ -98,6 +98,6 @@ st.divider()
 display_card("^NSEI", "NIFTY 50")
 st.divider()
 display_card("^NSEBANK", "BANK NIFTY")
-# --- GOLD 8 GRAM (1 PAVAN) ---
-display_card("GC=F", "GOLD 8 GRAM (24K)", mult=0.257) 
-st.divider()
+# --- 22K GOLD 8 GRAM (1 PAVAN) INDIAN PRICE ---
+# ഇവിടെ mult=52.5 എന്നത് ഡോളർ വിലയെ ഏകദേശം ഇന്ത്യൻ 22K പവൻ വിലയിലേക്ക് മാറ്റാനുള്ളതാണ്.
+display_card("GC=F", "22K GOLD 8 GRAM (PAVAN)", mult=52.5) 
