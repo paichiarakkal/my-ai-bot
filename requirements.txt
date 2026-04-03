@@ -5,3 +5,4 @@ streamlit-autorefresh
 scikit-learn
 plotly
 streamlit-autorefresh
+googletrans==4.0.0-rc1
