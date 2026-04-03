@@ -65,3 +65,4 @@ if data:
     c2.markdown(f"<div style='background:{'#1B5E20' if 'BUY' in data['t'] else '#B71C1C'};padding:10px;border-radius:8px;color:#FFF;text-align:center;font-weight:bold;'>{data['t']}</div>", unsafe_allow_html=True)
     c3.metric("Status", "Active")
     c4.metric("AI Prediction", f"₹{data['ai']*m:.2f}", delta=f"{(data['ai']-data['p'])*m:.2f}")
+    
