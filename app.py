@@ -7,7 +7,7 @@ import os
 from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
 
-# 1. സെറ്റിംഗ്സ് & ഗോൾഡ്-സിൽവർ തീം
+# 1. പേജ് സെറ്റിംഗ്സ് & ഗോൾഡ്-സിൽവർ തീം
 st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
 
 st.markdown("""
@@ -20,15 +20,19 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# 2 സെക്കൻഡിൽ ഓട്ടോ റിഫ്രഷ്
 st_autorefresh(interval=2000, key="faisal_final_refresh")
 
-# 2. ഡാറ്റ സേവിംഗ് ഫംഗ്ഷൻ (Journal & History)
-def save_trade(symbol, action, price, pnl):
+# 2. ഡാറ്റ സേവിംഗ് ഫംഗ്ഷൻ
+def save_trade(symbol, action, price, qty, pnl):
     file = 'trade_history.csv'
     date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    df_new = pd.DataFrame([[date, symbol, action, price, pnl]], columns=['Date', 'Item', 'Type', 'Price', 'P&L'])
-    if not os.path.isfile(file): df_new.to_csv(file, index=False)
-    else: df_new.to_csv(file, mode='a', header=False, index=False)
+    df_new = pd.DataFrame([[date, symbol, action, price, qty, pnl]], 
+                          columns=['Date', 'Item', 'Type', 'Entry Price', 'Qty', 'P&L'])
+    if not os.path.isfile(file): 
+        df_new.to_csv(file, index=False)
+    else: 
+        df_new.to_csv(file, mode='a', header=False, index=False)
 
 def get_analysis(symbol):
     try:
@@ -40,7 +44,7 @@ def get_analysis(symbol):
         return {"p": p, "t": "BUY 🟢" if p > np.mean(close[-5:]) else "SELL 🔴", "ai": ai_p}
     except: return None
 
-# 3. സിൽവർ സൈഡ് ബാർ
+# 3. സിൽവർ സൈഡ് ബാർ (Silver Sidebar)
 with st.sidebar:
     st.title("🚀 Paichi Trader")
     aed = st.number_input("AED Rate", value=1.0)
@@ -50,11 +54,15 @@ with st.sidebar:
     
     if cat == "MARKET":
         sub_cat = st.selectbox("Category:", ["INDEX", "COMMODITY", "GOLD"])
-        opts = {"INDEX": [("^NSEI", "NIFTY 50"), ("^NSEBANK", "BANK NIFTY")], "COMMODITY": [("CL=F", "CRUDE OIL MCX", 93.5)], "GOLD": [("GC=F", "GOLD 1G", 2.56)]}
+        opts = {
+            "INDEX": [("^NSEI", "NIFTY 50"), ("^NSEBANK", "BANK NIFTY")], 
+            "COMMODITY": [("CL=F", "CRUDE OIL MCX", 93.5)], 
+            "GOLD": [("GC=F", "GOLD 1G", 2.56)]
+        }
         sel_name = st.selectbox("Select Item:", [i[1] for i in opts[sub_cat]])
         sel_data = next(i for i in opts[sub_cat] if i[1] == sel_name)
 
-# 4. മെയിൻ പേജ് ലോജിക്
+# 4. മെയിൻ പേജ് ലോജിക് (Gold Main Page)
 st.markdown('<p class="main-title">🚀 Paichi AI Trader</p>', unsafe_allow_html=True)
 
 if cat == "MARKET":
@@ -72,13 +80,18 @@ elif cat == "JOURNAL & HISTORY":
     st.subheader("📝 Trading Journal & History")
     with st.expander("Add New Trade"):
         c1, c2 = st.columns(2)
-        s = c1.text_input("Stock/Index")
-        a = c2.selectbox("Action", ["BUY", "SELL"])
-        p = c1.number_input("Price", value=0.0)
-        l = c2.number_input("Profit/Loss", value=0.0)
+        s = c1.text_input("Stock/Index Name")
+        qty = c2.number_input("Quantity", value=1, step=1)
+        a = c1.selectbox("Action", ["BUY", "SELL"])
+        entry_p = c2.number_input("Entry Price", value=0.0)
+        exit_p = c1.number_input("Exit Price", value=0.0)
+        
+        # ലാഭം ഓട്ടോമാറ്റിക് ആയി കണക്കാക്കുന്നു
+        pnl = (exit_p - entry_p) * qty if a == "BUY" else (entry_p - exit_p) * qty
+        
         if st.button("Save to History"):
-            save_trade(s, a, p, l)
-            st.success("Saved! 🚀")
+            save_trade(s, a, entry_p, qty, pnl)
+            st.success(f"Saved! Profit: ₹{pnl:.2f}")
     
     if os.path.isfile('trade_history.csv'):
         df = pd.read_csv('trade_history.csv')
