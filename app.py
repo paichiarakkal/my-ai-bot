@@ -7,7 +7,7 @@ import os
 from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
 
-# 1. പേജ് സെറ്റിംഗ്സ് & ഗോൾഡ്-സിൽവർ തീം
+# 1. പേജ് സെറ്റിംഗ്സ് & തീം (Gold & Silver)
 st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
 
 st.markdown("""
@@ -20,15 +20,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 2 സെക്കൻഡിൽ ഓട്ടോ റിഫ്രഷ്
-st_autorefresh(interval=2000, key="faisal_final_refresh")
+st_autorefresh(interval=2000, key="faisal_v2_refresh")
 
-# 2. ഡാറ്റ സേവിംഗ് ഫംഗ്ഷൻ
-def save_trade(symbol, action, price, qty, pnl):
-    file = 'trade_history.csv'
+# 2. ഡാറ്റ സേവിംഗ് ഫംഗ്ഷൻ (V2 - Updated Columns)
+def save_trade(symbol, action, entry_p, exit_p, qty, pnl):
+    file = 'trade_history_v2.csv' # എറർ ഒഴിവാക്കാൻ ഫയൽ നെയിം മാറ്റി
     date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    df_new = pd.DataFrame([[date, symbol, action, price, qty, pnl]], 
-                          columns=['Date', 'Item', 'Type', 'Entry Price', 'Qty', 'P&L'])
+    df_new = pd.DataFrame([[date, symbol, action, entry_p, exit_p, qty, pnl]], 
+                          columns=['Date', 'Item', 'Type', 'Entry', 'Exit', 'Qty', 'P&L'])
     if not os.path.isfile(file): 
         df_new.to_csv(file, index=False)
     else: 
@@ -44,7 +43,7 @@ def get_analysis(symbol):
         return {"p": p, "t": "BUY 🟢" if p > np.mean(close[-5:]) else "SELL 🔴", "ai": ai_p}
     except: return None
 
-# 3. സിൽവർ സൈഡ് ബാർ (Silver Sidebar)
+# 3. സിൽവർ സൈഡ് ബാർ
 with st.sidebar:
     st.title("🚀 Paichi Trader")
     aed = st.number_input("AED Rate", value=1.0)
@@ -62,7 +61,7 @@ with st.sidebar:
         sel_name = st.selectbox("Select Item:", [i[1] for i in opts[sub_cat]])
         sel_data = next(i for i in opts[sub_cat] if i[1] == sel_name)
 
-# 4. മെയിൻ പേജ് ലോജിക് (Gold Main Page)
+# 4. മെയിൻ പേജ് ലോജിക്
 st.markdown('<p class="main-title">🚀 Paichi AI Trader</p>', unsafe_allow_html=True)
 
 if cat == "MARKET":
@@ -90,10 +89,10 @@ elif cat == "JOURNAL & HISTORY":
         pnl = (exit_p - entry_p) * qty if a == "BUY" else (entry_p - exit_p) * qty
         
         if st.button("Save to History"):
-            save_trade(s, a, entry_p, qty, pnl)
+            save_trade(s, a, entry_p, exit_p, qty, pnl)
             st.success(f"Saved! Profit: ₹{pnl:.2f}")
     
-    if os.path.isfile('trade_history.csv'):
-        df = pd.read_csv('trade_history.csv')
+    if os.path.isfile('trade_history_v2.csv'):
+        df = pd.read_csv('trade_history_v2.csv')
         st.dataframe(df, use_container_width=True)
         st.metric("Total P&L", f"₹ {df['P&L'].sum():.2f}")
