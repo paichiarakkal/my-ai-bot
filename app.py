@@ -18,12 +18,12 @@ st.markdown("""
     section[data-testid="stSidebar"] { background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; }
     div[data-testid="stSidebar"] button { width: 100%; background-color: #000 !important; color: #BF953F !important; border: 1px solid #FFD700 !important; margin-bottom: 5px; font-weight: bold; }
     .main-title { color: #FFF; font-size: 35px; font-weight: 800; text-align: center; text-shadow: 2px 2px 4px #000; }
-    .news-ticker { background:#000; color:#BF953F; padding:10px; font-weight:bold; border-bottom:2px solid #BF953F; }
+    .news-box { background-color: #000; padding: 10px; border-radius: 5px; border: 1px solid #BF953F; margin-bottom: 20px; }
 </style>
 """, unsafe_allow_html=True)
 
 # 15 സെക്കൻഡിൽ ആപ്പ് ഓട്ടോ റിഫ്രഷ് ആകും
-st_autorefresh(interval=15000, key="faisal_final_fixed_v15")
+st_autorefresh(interval=15000, key="faisal_ultimate_fixed_v20")
 
 FILE_NAME = 'trade_history_v2.csv'
 
@@ -60,11 +60,18 @@ def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
     if not os.path.isfile(FILE_NAME): df_new.to_csv(FILE_NAME, index=False)
     else: df_new.to_csv(FILE_NAME, mode='a', header=False, index=False)
 
-# --- ന്യൂസ് ടിക്കർ (TOP) ---
+# --- 1. മലയാളം ലൈവ് വാർത്തകൾ (TOP) ---
 news_mal = get_live_news_malayalam()
-st.markdown(f'<div class="news-ticker"><marquee scrollamount="5">📢 വാർത്തകൾ: {news_mal}</marquee></div>', unsafe_allow_html=True)
+st.markdown(f"""
+    <div class="news-box">
+        <h4 style="color: #BF953F; margin: 0; font-size: 16px; text-align: center;">📰 മലയാളം ലൈവ് വാർത്തകൾ</h4>
+        <marquee scrollamount="5" style="color: #FFF; font-size: 18px; font-weight: bold; padding-top: 5px;">
+            📢 {news_mal}
+        </marquee>
+    </div>
+""", unsafe_allow_html=True)
 
-# --- സൈഡ് ബാർ ---
+# --- 2. സൈഡ് ബാർ ---
 with st.sidebar:
     st.title("🚀 Paichi Pro")
     
@@ -73,7 +80,7 @@ with st.sidebar:
     st.subheader("💰 Live Currency")
     aed_in = st.number_input("AED (Dirham)", value=1.0)
     st.success(f"₹ {aed_in * live_aed:.2f} (INR)")
-    st.caption(f"1 AED = ₹{live_aed:.2f}")
+    st.caption(f"Current Rate: 1 AED = ₹{live_aed:.2f}")
     st.divider()
 
     mode = st.radio("മെനു തിരഞ്ഞെടുക്കുക:", ["MARKET", "JOURNAL", "DASHBOARD"])
@@ -93,7 +100,7 @@ with st.sidebar:
 if 'sel' not in st.session_state:
     st.session_state.sel = ("^NSEI", "NIFTY 50", 1)
 
-# --- മെയിൻ കണ്ടന്റ് ---
+# --- 3. മെയിൻ കണ്ടന്റ് ---
 st.markdown(f'<p class="main-title">🚀 Paichi AI Trader</p>', unsafe_allow_html=True)
 
 if mode == "MARKET":
@@ -120,14 +127,14 @@ elif mode == "JOURNAL":
             st.warning(f"💡 AI അഡ്വൈസ്: SL ₹{sl:.2f} | Target ₹{en*1.02 if a=='BUY' else en*0.98:.2f}")
         q = col1.number_input("Qty", value=1, step=1)
         mood = col2.selectbox("മൂഡ്", ["Calm", "Happy", "Fear", "Greedy"])
-        if st.button("Save to History"):
+        if st.button("Save Trade"):
             pnl = (ex - en) * q if a == "BUY" else (en - ex) * q
             save_trade(s, a, en, ex, q, pnl, mood)
-            st.success(f"സേവ് ചെയ്തു! P&L: ₹{pnl}")
+            st.success("സേവ് ചെയ്തു!")
             st.rerun()
     
     if os.path.isfile(FILE_NAME):
-        st.dataframe(pd.read_csv(FILE_NAME), use_container_width=True) #
+        st.dataframe(pd.read_csv(FILE_NAME), use_container_width=True)
 
 elif mode == "DASHBOARD":
     st.subheader("📊 പെർഫോമൻസ് & വിൻ റേറ്റ്")
@@ -136,7 +143,7 @@ elif mode == "DASHBOARD":
         wins = len(df[df['P&L'] > 0])
         total = len(df)
         st.metric("Win Rate 🎯", f"{(wins/total*100) if total > 0 else 0:.1f}%")
-        st.plotly_chart(px.pie(df, names='Mood', title="സൈക്കോളജി ചാർട്ട്", hole=0.4)) #
+        st.plotly_chart(px.pie(df, names='Mood', title="Psychology Chart", hole=0.4))
         st.plotly_chart(px.bar(df, x='Date', y='P&L', color='P&L', title="P&L Trend"))
     else:
-        st.info("ഹിസ്റ്ററി ലഭ്യമല്ല. ട്രേഡുകൾ സേവ് ചെയ്യുക.")
+        st.info("ഹിസ്റ്ററി ലഭ്യമല്ല.")
