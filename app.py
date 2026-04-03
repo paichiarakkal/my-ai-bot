@@ -12,24 +12,25 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. വിഷ്വൽസ് & ടൈറ്റിൽ ക്ലിയറിറ്റി (CSS) ---
+# --- 2. അൾട്രാ വിസിബിലിറ്റി CSS (ഇത് എല്ലാ അക്ഷരങ്ങളും വെളുപ്പിക്കും) ---
 st.markdown("""
 <style>
-    /* ബാക്ക്ഗ്രൗണ്ട് കറുപ്പ് */
+    /* ബാക്ക്ഗ്രൗണ്ട് കറുപ്പ് തന്നെ */
     .stApp { background-color: #0E1117; color: #FFFFFF; }
     section[data-testid="stSidebar"] { background-color: #1A1C24 !important; }
     
-    /* മെയിൻ ടൈറ്റിൽ (Paichi AI Trader) തെളിഞ്ഞു കാണാൻ */
+    /* മെയിൻ ടൈറ്റിൽ (Paichi AI Trader) */
     .main-title {
         color: #FFFFFF !important;
-        font-size: 45px !important;
+        font-size: 40px !important;
         font-weight: 800 !important;
         text-align: center;
-        text-shadow: 2px 2px 10px rgba(255, 255, 255, 0.3);
-        margin-bottom: 20px;
+        margin-top: -50px;
+        padding-bottom: 20px;
+        border-bottom: 2px solid #444;
     }
 
-    /* സൈഡ്ബാറിലെ അക്ഷരങ്ങൾ വെളുപ്പിക്കാൻ */
+    /* സൈഡ്ബാറിലെ അക്ഷരങ്ങൾ (INDEX, COMMODITY etc.) */
     div[data-testid="stSidebar"] label, 
     div[data-testid="stSidebar"] p, 
     div[data-testid="stSidebar"] span {
@@ -38,24 +39,30 @@ st.markdown("""
         font-size: 18px !important;
     }
 
-    /* ലൈവ് പ്രൈസ് - വെളുപ്പ് */
+    /* ലൈവ് പ്രൈസ് - തിളങ്ങുന്ന വെളുപ്പ് */
     div[data-testid="stMetricValue"] > div {
         color: #FFFFFF !important;
         font-weight: 800 !important;
-        font-size: 35px !important;
+        font-size: 38px !important;
     }
 
-    /* AI PREDICTION - മഞ്ഞ നിറം */
+    /* AI PREDICTION - തിളങ്ങുന്ന മഞ്ഞ */
     div[data-testid="column"]:nth-of-type(4) div[data-testid="stMetricValue"] > div {
         color: #FFFF00 !important; 
         text-shadow: 0px 0px 10px rgba(255, 255, 0, 0.8);
     }
+
+    /* മെട്രിക്സ് ലേബലുകൾ */
+    div[data-testid="stMetricLabel"] > div {
+        color: #E0E0E0 !important;
+        font-size: 16px !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=2000, key="faisal_title_fix_v21")
+st_autorefresh(interval=2000, key="faisal_final_white_fix")
 
-# --- 3. ഡാറ്റ ലോജിക് ---
+# --- 3. ഡാറ്റ ഫെച്ചിംഗ് ---
 def get_analysis(symbol):
     try:
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1m&range=1d"
@@ -87,28 +94,29 @@ main_cat = st.sidebar.radio("Select Category:", ["INDEX", "COMMODITY", "GOLD"])
 
 selected = None
 if main_cat == "INDEX":
-    selected = st.sidebar.selectbox("Choose Index:", ["NIFTY 50", "BANK NIFTY", "SENSEX", "FIN NIFTY"])
+    selected = st.sidebar.selectbox("Choose Index:", ["NIFTY 50", "BANK NIFTY", "SENSEX", "GIFT NIFTY"])
 elif main_cat == "COMMODITY":
     selected = st.sidebar.selectbox("Choose:", ["CRUDE OIL MCX"])
 elif main_cat == "GOLD":
     selected = st.sidebar.selectbox("Choose:", ["22K GOLD 8 GRAM"])
 
 # --- 5. മെയിൻ ഡിസ്പ്ലേ ---
-# ടൈറ്റിൽ ഇവിടെയാണ് നമ്മൾ ശരിയാക്കിയത്
 st.markdown('<p class="main-title">🚀 Paichi AI Trader</p>', unsafe_allow_html=True)
-st.write(f"### Current View: {selected}")
 
 def display(symbol, name, mult=1):
     data = get_analysis(symbol)
     if data:
         p = data['price'] * mult
         ai_p = data['ai'] * mult
-        st.subheader(name)
+        st.subheader(f"📊 {name}")
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Live Price", f"₹{p:.2f}")
+        
         t_color = "#1B5E20" if "BUY" in data['trend'] else "#B71C1C"
-        c2.markdown(f"<div style='background-color:{t_color}; padding:10px; border-radius:8px; color:white; text-align:center; font-weight:bold;'>{data['trend']}</div>", unsafe_allow_html=True)
+        c2.markdown(f"<div style='background-color:{t_color}; padding:10px; border-radius:8px; color:white; text-align:center; font-weight:bold; margin-top:10px;'>{data['trend']}</div>", unsafe_allow_html=True)
+        
         c3.metric("Status", "Active")
+        
         diff = ai_p - p
         c4.metric("AI Prediction", f"₹{ai_p:.2f}", delta=f"{diff:.2f}")
         st.divider()
@@ -116,6 +124,6 @@ def display(symbol, name, mult=1):
 if selected == "NIFTY 50": display("^NSEI", "NIFTY 50")
 elif selected == "BANK NIFTY": display("^NSEBANK", "BANK NIFTY")
 elif selected == "SENSEX": display("^BSESN", "SENSEX")
-elif selected == "FIN NIFTY": display("NIFTY_FIN_SERVICE.NS", "FIN NIFTY")
+elif selected == "GIFT NIFTY": display("INDF.NS", "GIFT NIFTY")
 elif selected == "CRUDE OIL MCX": display("CL=F", "CRUDE OIL", mult=93.5)
 elif selected == "22K GOLD 8 GRAM": display("GC=F", "22K GOLD 8 GRAM", mult=20.5)
