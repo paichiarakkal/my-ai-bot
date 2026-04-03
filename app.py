@@ -5,9 +5,46 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
 
-# ആപ്പ് സെറ്റിംഗ്സ്
-st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
-st_autorefresh(interval=2000, limit=100, key="faisal_navigation_v9")
+# --- 1. വൃശ്യങ്ങൾ മെച്ചപ്പെടുത്താൻ (Dark Mode & Layout) ---
+st.set_page_config(
+    page_title="Paichi AI Trader Pro",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# പേജിന്റെ നിറങ്ങൾ മാറ്റാൻ (Custom CSS)
+st.markdown("""
+<style>
+    /* മെയിൻ പേജ് കറുപ്പിക്കാൻ */
+    .stApp {
+        background-color: #121212;
+        color: white;
+    }
+    /* സൈഡ് ബാർ കറുപ്പിക്കാൻ */
+    section[data-testid="stSidebar"] {
+        background-color: #1E1E1E;
+    }
+    /* മെട്രിക്സ് ബോക്സ് ഭംഗിയാക്കാൻ */
+    div[data-testid="metric-container"] {
+        background-color: #2D2D2D;
+        border: 1px solid #444;
+        padding: 15px;
+        border-radius: 10px;
+        color: white;
+    }
+    /* ടൈറ്റിൽ നിറം */
+    h1, h2, h3 {
+        color: #E0E0E0 !important;
+    }
+    /* കറൻസി കാൽക്കുലേറ്റർ ബോക്സ് */
+    div.stNumberInput {
+        background-color: #2D2D2D;
+        color: white;
+    }
+</style>
+""", unsafe_allow_mode=True)
+
+st_autorefresh(interval=2000, limit=100, key="faisal_visuals_v10")
 
 # --- ലൈവ് കറൻസി റേറ്റ് ---
 def get_live_aed_rate():
@@ -27,6 +64,7 @@ st.sidebar.subheader("💰 Live Currency")
 live_rate = get_live_aed_rate()
 aed_val = st.sidebar.number_input("Enter AED", value=1.0)
 st.sidebar.success(f"₹ {aed_val * live_rate:.2f}")
+st.sidebar.caption(f"1 AED = ₹ {live_rate:.2f}")
 
 st.sidebar.divider()
 
@@ -89,17 +127,22 @@ def display_card(symbol, name, mult=1):
     if data:
         p = data['price'] * mult
         ai_p = data['ai'] * mult if data['ai'] else 0
-        st.write(f"## {name}")
+        st.write(f"### {name}")
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Live Price", f"₹{p:.2f}")
-        c2.metric("Trend", data['trend'])
+        
+        # ട്രെൻഡ് അനുസരിച്ച് നിറം മാറ്റാൻ
+        trend_color = "#4CAF50" if "BUY" in data['trend'] else "#F44336"
+        c2.markdown(f"<div style='background-color:{trend_color}; padding:10px; border-radius:5px; color:white; font-weight:bold; text-align:center;'>{data['trend']}</div>", unsafe_allow_mode=True)
+        
         c3.metric("RSI", f"{data['rsi']:.2f}")
+        
         diff = ai_p - p
         c4.metric("AI Prediction", f"₹{ai_p:.2f}", delta=f"{diff:.2f}")
         st.divider()
 
 # --- മെയിൻ പേജ് കൺട്രോൾ ---
-st.title(f"Market Analysis: {selected_item}")
+st.title(f"Paichi AI: {selected_item}")
 
 if selected_item == "NIFTY 50" or selected_item == "All Indices":
     display_card("^NSEI", "NIFTY 50")
@@ -118,4 +161,5 @@ if selected_item == "CRUDE OIL MCX":
     display_card("CL=F", "CRUDE OIL MCX", mult=93.5)
 
 if selected_item == "22K GOLD 8 GRAM":
+    # ഗോൾഡ് പവൻ വില ശരിയാക്കാൻ mult=20.5 ചേർത്തു
     display_card("GC=F", "22K GOLD 8 GRAM (PAVAN)", mult=20.5)
