@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import datetime
 import os
+import plotly.express as px
 from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
 
@@ -16,23 +17,20 @@ st.markdown("""
     section[data-testid="stSidebar"] { background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; }
     div[data-testid="stSidebar"] *, div[data-testid="stWidgetLabel"] p { color: #000 !important; font-weight: bold !important; }
     .main-title { color: #FFF; font-size: 38px; font-weight: 800; text-align: center; text-shadow: 2px 2px 4px #000; }
-    div[data-testid="stMetricValue"] > div { color: #FFF !important; font-weight: 800; }
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=2000, key="faisal_v6_refresh")
+st_autorefresh(interval=2000, key="faisal_v_final")
 
-# 2. സേവിംഗ് & ഡിലീറ്റിംഗ് ഫംഗ്ഷനുകൾ
 FILE_NAME = 'trade_history_v2.csv'
 
-def save_trade(symbol, action, entry_p, exit_p, qty, pnl):
+# 2. ഫംഗ്ഷനുകൾ
+def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
     date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    df_new = pd.DataFrame([[date, symbol, action, entry_p, exit_p, qty, pnl]], 
-                          columns=['Date', 'Item', 'Type', 'Entry', 'Exit', 'Qty', 'P&L'])
-    if not os.path.isfile(FILE_NAME): 
-        df_new.to_csv(FILE_NAME, index=False)
-    else: 
-        df_new.to_csv(FILE_NAME, mode='a', header=False, index=False)
+    df_new = pd.DataFrame([[date, symbol, action, entry_p, exit_p, qty, pnl, mood]], 
+                          columns=['Date', 'Item', 'Type', 'Entry', 'Exit', 'Qty', 'P&L', 'Mood'])
+    if not os.path.isfile(FILE_NAME): df_new.to_csv(FILE_NAME, index=False)
+    else: df_new.to_csv(FILE_NAME, mode='a', header=False, index=False)
 
 def get_analysis(symbol):
     try:
@@ -50,18 +48,20 @@ with st.sidebar:
     aed = st.number_input("AED Rate", value=1.0)
     st.success(f"₹ {aed * 22.75:.2f}")
     st.divider()
-    cat = st.radio("MENU:", ["MARKET", "JOURNAL & HISTORY"])
-    
-    if cat == "MARKET":
-        sub_cat = st.selectbox("Category:", ["INDEX", "COMMODITY", "GOLD"])
-        opts = {"INDEX": [("^NSEI", "NIFTY 50"), ("^NSEBANK", "BANK NIFTY")], "COMMODITY": [("CL=F", "CRUDE OIL MCX", 93.5)], "GOLD": [("GC=F", "GOLD 1G", 2.56)]}
-        sel_name = st.selectbox("Select Item:", [i[1] for i in opts[sub_cat]])
-        sel_data = next(i for i in opts[sub_cat] if i[1] == sel_name)
+    cat = st.radio("MENU:", ["MARKET", "JOURNAL", "DASHBOARD"])
+    st.divider()
+    st.subheader("🔔 Price Alert")
+    alert_price = st.number_input("Target Price", value=0.0)
 
 # 4. മെയിൻ പേജ്
 st.markdown('<p class="main-title">🚀 Paichi AI Trader</p>', unsafe_allow_html=True)
 
 if cat == "MARKET":
+    sub_cat = st.selectbox("Category:", ["INDEX", "COMMODITY", "GOLD"])
+    opts = {"INDEX": [("^NSEI", "NIFTY 50"), ("^NSEBANK", "BANK NIFTY")], "COMMODITY": [("CL=F", "CRUDE OIL MCX", 93.5)], "GOLD": [("GC=F", "GOLD 1G", 2.56)]}
+    sel_name = st.selectbox("Select Item:", [i[1] for i in opts[sub_cat]])
+    sel_data = next(i for i in opts[sub_cat] if i[1] == sel_name)
+    
     data = get_analysis(sel_data[0])
     if data:
         m = sel_data[2] if len(sel_data) > 2 else 1
@@ -72,40 +72,43 @@ if cat == "MARKET":
         c3.metric("Status", "Active")
         c4.metric("AI Predict", f"₹{data['ai']*m:.2f}", delta=f"{(data['ai']-data['p'])*m:.2f}")
 
-elif cat == "JOURNAL & HISTORY":
-    st.subheader("📝 Trading Journal & History")
-    
-    # ട്രേഡ് ആഡ് ചെയ്യാനുള്ള ഭാഗം
+elif cat == "JOURNAL":
+    st.subheader("📝 Trading Journal")
     with st.expander("Add New Trade"):
         col_a, col_b = st.columns(2)
-        s = col_a.text_input("Stock/Index Name", value="Nifty")
+        s = col_a.text_input("Item Name", value="Nifty")
         a = col_b.selectbox("Action", ["BUY", "SELL"])
-        entry_p = col_a.number_input("Entry Price", value=0.0)
-        exit_p = col_b.number_input("Exit Price", value=0.0)
-        qty = st.number_input("Quantity", value=1, step=1)
-        pnl = (exit_p - entry_p) * qty
+        en = col_a.number_input("Entry Price", value=0.0)
+        ex = col_b.number_input("Exit Price", value=0.0)
+        q = col_a.number_input("Quantity", value=1, step=1)
+        mood = col_b.selectbox("Mood", ["Calm", "Happy", "Fear", "Greedy"])
+        pnl = (ex - en) * q
         if st.button("Save to History"):
-            save_trade(s, a, entry_p, exit_p, qty, pnl)
-            st.success(f"Saved! Result: ₹{pnl:.2f}")
+            save_trade(s, a, en, ex, q, pnl, mood)
+            st.success(f"Saved! Profit: ₹{pnl}")
 
-    # ഹിസ്റ്ററി കാണുന്നതും ഡിലീറ്റ് ചെയ്യുന്നതും
     if os.path.isfile(FILE_NAME):
         df = pd.read_csv(FILE_NAME)
         st.dataframe(df, use_container_width=True)
-        st.metric("Total Net P&L", f"₹ {df['P&L'].sum():.2f}")
+        st.metric("Total P&L", f"₹ {df['P&L'].sum():.2f}")
         
-        # ഡിലീറ്റ് ബട്ടണുകൾ
-        st.divider()
-        col_d1, col_d2 = st.columns(2)
-        
-        if col_d1.button("🗑️ Delete Last Entry"):
+        c1, c2 = st.columns(2)
+        if c1.button("🗑️ Delete Last"):
             df[:-1].to_csv(FILE_NAME, index=False)
-            st.warning("Last entry deleted!")
+            st.rerun()
+        if c2.button("🔥 Clear All"):
+            os.remove(FILE_NAME)
             st.rerun()
 
-        if col_d2.button("🔥 Clear All History"):
-            os.remove(FILE_NAME)
-            st.error("All history cleared!")
-            st.rerun()
+elif cat == "DASHBOARD":
+    st.subheader("📊 Performance Dashboard")
+    if os.path.isfile(FILE_NAME):
+        df = pd.read_csv(FILE_NAME)
+        fig = px.bar(df, x='Date', y='P&L', color='P&L', title="P&L Trend")
+        st.plotly_chart(fig, use_container_width=True)
+        
+        c1, c2 = st.columns(2)
+        c1.plotly_chart(px.pie(df, names='Mood', title="Psychology"), use_container_width=True)
+        c2.plotly_chart(px.pie(df, names='Item', values='P&L', title="Profit by Item"), use_container_width=True)
     else:
-        st.info("No history found.")
+        st.info("No data available.")
