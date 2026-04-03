@@ -98,3 +98,6 @@ st.divider()
 display_card("^NSEI", "NIFTY 50")
 st.divider()
 display_card("^NSEBANK", "BANK NIFTY")
+# --- GOLD 8 GRAM (1 PAVAN) ---
+display_card("GC=F", "GOLD 8 GRAM (24K)", mult=0.257) 
+st.divider()
