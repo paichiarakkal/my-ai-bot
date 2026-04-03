@@ -7,7 +7,7 @@ import os
 import plotly.express as px
 from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
-from googletrans import Translator # മലയാളം മാറ്റാൻ ഇത് വേണം
+from mtranslate import translate # പുതിയ ട്രാൻസ്ലേറ്റർ
 
 # 1. പേജ് സെറ്റിംഗ്സ് & തീം
 st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
@@ -21,24 +21,20 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=10000, key="faisal_mal_news_v1") # പത്ത് സെക്കൻഡിൽ പുതുക്കാം
+st_autorefresh(interval=10000, key="faisal_v_final_mal")
 
 FILE_NAME = 'trade_history_v2.csv'
-translator = Translator()
 
-# 2. ലൈവ് മലയാളം ന്യൂസ് ഫംഗ്ഷൻ
+# 2. ലൈവ് മലയാളം ന്യൂസ് ഫംഗ്ഷൻ (പുതുക്കിയത്)
 def get_live_news_malayalam():
     try:
         url = "https://query1.finance.yahoo.com/v1/finance/search?q=Nifty,Crude%20Oil&quotesCount=0&newsCount=5"
         res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}).json()
         news_list = [item['title'] for item in res['news']]
-        full_news = " | ".join(news_list)
-        
-        # ഇംഗ്ലീഷ് വാർത്ത മലയാളത്തിലേക്ക് മാറ്റുന്നു
-        translated = translator.translate(full_news, src='en', dest='ml')
-        return translated.text
+        full_news = "  🔥  ".join(news_list)
+        return translate(full_news, "ml", "en")
     except:
-        return "മാർക്കറ്റ് വാർത്തകൾ അപ്‌ഡേറ്റ് ചെയ്യുന്നു... ദയവായി കാത്തിരിക്കുക!"
+        return "മാർക്കറ്റ് വാർത്തകൾ അപ്‌ഡേറ്റ് ചെയ്യുന്നു..."
 
 # 3. ഡാറ്റാ ഫംഗ്ഷനുകൾ
 def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
@@ -61,7 +57,7 @@ def get_analysis(symbol):
 # --- മലയാളം ന്യൂസ് ടിക്കർ ---
 news_mal = get_live_news_malayalam()
 st.markdown(f"""
-    <div style="background-color: #000; color: #BF953F; padding: 12px; font-weight: bold; border-bottom: 2px solid #BF953F; font-family: sans-serif;">
+    <div style="background-color: #000; color: #BF953F; padding: 12px; font-weight: bold; border-bottom: 2px solid #BF953F;">
         <marquee scrollamount="5">📢 വാർത്തകൾ: {news_mal}</marquee>
     </div>
 """, unsafe_allow_html=True)
@@ -108,14 +104,15 @@ elif cat == "JOURNAL":
         pnl = (ex - en) * q
         if st.button("സേവ് ചെയ്യുക"):
             save_trade(s, a, en, ex, q, pnl, mood)
-            st.success(f"സേവ് ചെയ്തു! ലാഭം/നഷ്ടം: ₹{pnl}")
+            st.success(f"സേവ് ചെയ്തു! ലാഭം: ₹{pnl}")
 
     if os.path.isfile(FILE_NAME):
         df = pd.read_csv(FILE_NAME)
         st.dataframe(df, use_container_width=True)
         st.metric("ആകെ ലാഭം/നഷ്ടം", f"₹ {df['P&L'].sum():.2f}")
         
-        if st.button("🗑️ അവസാനം ചേർത്തത് മാറ്റുക"):
+        c1, col_del = st.columns(2)
+        if c1.button("🗑️ Delete Last"):
             df[:-1].to_csv(FILE_NAME, index=False)
             st.rerun()
 
