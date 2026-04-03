@@ -12,34 +12,47 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# --- 2. വിഷ്വൽസ് & ടെക്സ്റ്റ് ക്ലിയറിറ്റി (CSS) ---
+# --- 2. അൾട്രാ ക്ലിയർ വിഷ്വൽസ് & സൈഡ്‌ബാർ ഫിക്സ് (CSS) ---
 st.markdown("""
 <style>
-    /* മെയിൻ പേജ് & ടെക്സ്റ്റ് */
-    .stApp { background-color: #121212; color: #FFFFFF; }
-    section[data-testid="stSidebar"] { background-color: #1E1E1E; }
+    .stApp { background-color: #0E1117; color: #FFFFFF; }
+    section[data-testid="stSidebar"] { background-color: #1A1C24; }
     
-    /* മെട്രിക്സ് ബോക്സ് - നമ്പറുകൾ വ്യക്തമാക്കാൻ */
-    div[data-testid="metric-container"] {
-        background-color: #262626;
-        border: 1px solid #444;
-        padding: 15px;
-        border-radius: 10px;
+    /* സൈഡ്ബാറിലെ റേഡിയോ ബട്ടൺ ടെക്സ്റ്റ് വെളുപ്പിക്കാൻ */
+    div[data-testid="stSidebar"] .st-emotion-cache-17l243g, 
+    div[data-testid="stSidebar"] p, 
+    div[data-testid="stSidebar"] span,
+    div[data-testid="stSidebar"] label {
+        color: #FFFFFF !important;
+        font-weight: 500 !important;
     }
-    div[data-testid="stMetricValue"] { color: #FFFFFF !important; font-weight: bold !important; font-size: 32px !important; }
-    label[data-testid="stMetricLabel"] { color: #ADADAD !important; }
+
+    /* മെട്രിക്സ് ലേബലുകൾ (Live Price, RSI etc.) */
+    div[data-testid="stMetricLabel"] > div {
+        color: #D1D1D1 !important;
+        font-size: 15px !important;
+    }
+
+    /* മെയിൻ നമ്പറുകൾ */
+    div[data-testid="stMetricValue"] > div {
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+        font-size: 34px !important;
+    }
+
+    /* റെഡ് ഡെൽറ്റ */
+    div[data-testid="stMetricDelta"] > div[data-font-color="red"] {
+        color: #FF4B4B !important;
+    }
     
-    h1, h2, h3 { color: #FFFFFF !important; font-weight: bold !important; }
-    
-    /* ഇൻപുട്ട് ബോക്സുകൾ */
-    div.stNumberInput input, div.stSelectbox div[data-baseweb="select"] {
-        color: white !important;
-        background-color: #333 !important;
+    /* ഗ്രീൻ ഡെൽറ്റ */
+    div[data-testid="stMetricDelta"] > div[data-font-color="green"] {
+        color: #00EB93 !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=2000, limit=100, key="faisal_clear_nav_v13")
+st_autorefresh(interval=2000, limit=100, key="faisal_all_in_one_v17")
 
 # --- ലൈവ് കറൻസി റേറ്റ് ---
 def get_live_aed_rate():
@@ -48,47 +61,37 @@ def get_live_aed_rate():
         headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(url, headers=headers).json()
         return response['chart']['result'][0]['meta']['regularMarketPrice']
-    except: return 25.22 
+    except: return 25.25 
 
-# --- സൈഡ് ബാർ (സബ് മെനു ഇവിടെ ശരിയാക്കിയിട്ടുണ്ട്) ---
+# --- സൈഡ് ബാർ (പൂർണ്ണമായും സെറ്റാണ്) ---
 st.sidebar.title("🚀 Paichi Trader")
 
-# കറൻസി കാൽക്കുലേറ്റർ
+# കറൻസി ഭാഗം
 st.sidebar.subheader("💰 Live Currency")
 live_rate = get_live_aed_rate()
-aed_val = st.sidebar.number_input("Enter AED", value=1.0)
+aed_val = st.sidebar.number_input("Enter AED", value=1.0, step=1.0)
 st.sidebar.success(f"₹ {aed_val * live_rate:.2f}")
 st.sidebar.caption(f"1 AED = ₹ {live_rate:.2f}")
 
 st.sidebar.divider()
 
-# മെയിൻ മെനു
+# മെനു ഭാഗം
 st.sidebar.subheader("📊 Market Menu")
 main_menu = st.sidebar.radio("Select Category:", ["📈 INDEX", "🔥 COMMODITY", "✨ GOLD"])
 
-st.sidebar.divider() # മെനുവിന് താഴെ ഒരു വരി ഇട്ടു
-
-# 3. ഉപമെനുകൾ (ഇവിടെയാണ് തിരുത്തൽ വരുത്തിയത്)
 selected_item = None
-
-# നമ്മൾ റേഡിയോ ബട്ടൺ ഞെക്കുമ്പോൾ അതിന്റെ താഴെത്തന്നെ selectbox വരാൻ st.sidebar.selectbox ഉപയോഗിച്ചു.
 if main_menu == "📈 INDEX":
     selected_item = st.sidebar.selectbox("Choose Index:", 
-        ["All Indices", "NIFTY 50", "BANK NIFTY", "SENSEX", "FIN NIFTY", "MIDCAP SELECT", "GIFT NIFTY"],
-        key="index_select")
-
+        ["All Indices", "NIFTY 50", "BANK NIFTY", "SENSEX", "FIN NIFTY", "MIDCAP SELECT", "GIFT NIFTY"])
 elif main_menu == "🔥 COMMODITY":
-    selected_item = st.sidebar.selectbox("Choose Commodity:", ["All Commodities", "CRUDE OIL MCX"],
-        key="commodity_select")
-
+    selected_item = st.sidebar.selectbox("Choose Commodity:", ["All Commodities", "CRUDE OIL MCX"])
 elif main_menu == "✨ GOLD":
-    selected_item = st.sidebar.selectbox("Choose Gold Type:", ["22K GOLD 8 GRAM"],
-        key="gold_select")
+    selected_item = st.sidebar.selectbox("Choose Gold Type:", ["22K GOLD 8 GRAM"])
 
 st.sidebar.divider()
 st.sidebar.info("Al Barsha, Dubai Edition")
 
-# --- AI Logic ---
+# --- AI & Data Logic ---
 def predict_next_price(prices):
     if len(prices) > 10:
         y = np.array(prices[-10:]).reshape(-1, 1)
@@ -123,17 +126,15 @@ def display_card(symbol, name, mult=1):
     if data:
         p = data['price'] * mult
         ai_p = data['ai'] * mult if data['ai'] else 0
-        st.write(f"## {name}") # ടൈറ്റിൽ വ്യക്തമാക്കാൻ
+        st.write(f"## {name}") 
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Live Price", f"₹{p:.2f}")
         
-        # ട്രെൻഡ് സിഗ്നൽ
-        trend_color = "#2E7D32" if "BUY" in data['trend'] else "#C62828"
+        trend_color = "#1B5E20" if "BUY" in data['trend'] else "#B71C1C"
         c2.markdown(f"<div style='background-color:{trend_color}; padding:15px; border-radius:8px; color:white; font-weight:bold; text-align:center; font-size:20px; margin-top:10px;'>{data['trend']}</div>", unsafe_allow_html=True)
         
         c3.metric("RSI (14)", f"{data['rsi']:.2f}")
-        diff = ai_p - p
-        c4.metric("AI Prediction", f"₹{ai_p:.2f}", delta=f"{diff:.2f}")
+        c4.metric("AI Prediction", f"₹{ai_p:.2f}", delta=f"{ai_p - p:.2f}")
         st.divider()
 
 # --- മെയിൻ ഡിസ്പ്ലേ ---
@@ -148,5 +149,4 @@ if selected_item in ["GIFT NIFTY", "All Indices"]: display_card("INDF.NS", "GIFT
 
 if selected_item in ["CRUDE OIL MCX", "All Commodities"]: display_card("CL=F", "CRUDE OIL MCX", mult=93.5)
 
-if selected_item == "22K GOLD 8 GRAM":
-    display_card("GC=F", "22K GOLD 8 GRAM (PAVAN)", mult=20.5)
+if selected_item == "22K GOLD 8 GRAM": display_card("GC=F", "22K GOLD 8 GRAM (PAVAN)", mult=20.5)
