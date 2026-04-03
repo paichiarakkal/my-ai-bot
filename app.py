@@ -7,21 +7,33 @@ from streamlit_autorefresh import st_autorefresh
 
 # ആപ്പ് സെറ്റിംഗ്സ്
 st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
-st_autorefresh(interval=1000, limit=100, key="faisal_final_fix")
+st_autorefresh(interval=2000, limit=100, key="faisal_final_live_v8")
 
-# --- സൈഡ് ബാർ (Side Bar Menu) ---
+# --- ലൈവ് കറൻസി റേറ്റ് എടുക്കാനുള്ള ഫങ്ക്ഷൻ ---
+def get_live_aed_rate():
+    try:
+        url = "https://query1.finance.yahoo.com/v8/finance/chart/AEDINR=X?interval=1m&range=1d"
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(url, headers=headers)
+        data = response.json()
+        return data['chart']['result'][0]['meta']['regularMarketPrice']
+    except:
+        return 25.10 # നെറ്റ്വർക്ക് പ്രശ്നമുണ്ടെങ്കിൽ മാത്രം ഈ റേറ്റ് കാണിക്കും
+
+# --- സൈഡ് ബാർ സെക്ഷൻ ---
 st.sidebar.title("🚀 Paichi Trader")
 
-# കറൻസി കൺവേർട്ടർ (New Rate Added)
-st.sidebar.subheader("💰 Currency")
-aed_input = st.sidebar.number_input("AED to INR", value=1.0)
-inr_rate = 25.10  # ദിർഹം റേറ്റ് അപ്‌ഡേറ്റ് ചെയ്തു
-inr_result = aed_input * inr_rate
-st.sidebar.success(f"₹ {inr_result:.2f}")
+# ലൈവ് കറൻസി കാൽക്കുലേറ്റർ
+st.sidebar.subheader("💰 Live Currency")
+live_rate = get_live_aed_rate()
+aed_input = st.sidebar.number_input("Enter AED Amount", value=1.0)
+inr_total = aed_input * live_rate
+st.sidebar.success(f"Total INR: ₹ {inr_total:.2f}")
+st.sidebar.caption(f"Live Rate: 1 AED = ₹ {live_rate:.2f}")
 
 st.sidebar.divider()
 
-# മെയിൻ മെനു
+# മെയിൻ മെനു (Radio Buttons)
 st.sidebar.subheader("📊 Market Menu")
 menu = st.sidebar.radio("Select Category:", ["📈 INDEX", "🔥 COMMODITY", "✨ GOLD"])
 
@@ -68,17 +80,17 @@ def display_card(symbol, name, mult=1):
     if data:
         p = data['price'] * mult
         ai_p = data['ai'] * mult if data['ai'] else 0
-        st.write(f"## {name}")
+        st.write(f"### {name}")
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Live Price", f"₹{p:.2f}")
         c2.metric("Trend", data['trend'])
         c3.metric("RSI", f"{data['rsi']:.2f}")
         diff = ai_p - p
-        c4.metric("AI Prediction", f"₹{ai_p:.2f}", delta=f"{diff:.2f}")
+        c4.metric("AI Prediction (1m)", f"₹{ai_p:.2f}", delta=f"{diff:.2f}")
         st.divider()
 
-# --- മെയിൻ ഡിസ്പ്ലേ ---
-st.title(f"Market Data: {menu}")
+# --- മെയിൻ പേജ് കন্টന്റ് ---
+st.title(f"Paichi AI: {menu}")
 
 if menu == "📈 INDEX":
     display_card("^NSEI", "NIFTY 50")
