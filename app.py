@@ -2,12 +2,16 @@ import streamlit as st
 import pandas as pd
 import requests
 import numpy as np
+from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
 
-st.set_page_config(page_title="Paichi Trader Pro", layout="wide")
-st_autorefresh(interval=1000, limit=1000, key="faisal_early_alert")
+# ആപ്പ് സെറ്റിംഗ്സ്
+st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
 
-# --- ടെലിഗ്രാം ---
+# 1 സെക്കൻഡ് ഓട്ടോ റിഫ്രഷ്
+st_autorefresh(interval=1000, limit=100, key="faisal_ai_v4")
+
+# --- ടെലിഗ്രാം സെറ്റിംഗ്സ് ---
 BOT_TOKEN = "8638662433:AAEI4BwJuO7Bg8XTEv8OHmfP6CexFe2SiwA"
 CHAT_ID = "6091133068"
 
@@ -15,6 +19,17 @@ def send_telegram(message):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage?chat_id={CHAT_ID}&text={message}&parse_mode=Markdown"
     try: requests.get(url)
     except: pass
+
+# --- AI പ്രൈസ് പ്രെഡിക്ഷൻ ലോജിക് ---
+def predict_next_price(prices):
+    if len(prices) > 10:
+        y = np.array(prices[-10:]).reshape(-1, 1)
+        x = np.arange(10).reshape(-1, 1)
+        model = LinearRegression()
+        model.fit(x, y)
+        prediction = model.predict([[10]])
+        return float(prediction[0][0])
+    return None
 
 # --- ഡാറ്റ അനാലിസിസ് ---
 def get_analysis(symbol):
@@ -25,66 +40,61 @@ def get_analysis(symbol):
         data = response.json()
         result = data['chart']['result'][0]
         price = result['meta']['regularMarketPrice']
-        ohlc = result['indicators']['quote'][0]
+        ohlc = result['indicators']['quote'][0]['close']
         
-        df = pd.DataFrame({'close': ohlc['close'], 'high': ohlc['high'], 'low': ohlc['low']}).dropna()
-
-        if len(df) > 20:
-            delta = df['close'].diff()
+        df_close = [p for p in ohlc if p is not None]
+        
+        if len(df_close) > 20:
+            # RSI Calculation
+            delta = pd.Series(df_close).diff()
             gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
             loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-            rsi = 100 - (100 / (1 + (gain / loss)))
-            last_rsi = float(rsi.iloc[-1])
-
-            # Supertrend
-            df['tr'] = df['high'] - df['low']
-            atr = df['tr'].rolling(window=10).mean().iloc[-1]
-            mid = (df['high'].iloc[-1] + df['low'].iloc[-1]) / 2
-            lower_band = mid - (3 * atr)
-            upper_band = mid + (3 * atr)
+            rsi = 100 - (100 / (1 + (gain / loss))).iloc[-1]
             
-            trend = "BUY 🟢" if price > lower_band else "SELL 🔴"
+            # Trend Logic (Simple)
+            avg = sum(df_close[-10:]) / 10
+            trend = "BUY 🟢" if price > avg else "SELL 🔴"
             
-            # --- Early Warning Logic ---
-            warning = ""
-            if trend == "BUY 🟢" and last_rsi > 70:
-                warning = "⚠️ *SELL വരാൻ സാധ്യതയുണ്ട്!* (RSI High)"
-            elif trend == "SELL 🔴" and last_rsi < 30:
-                warning = "⚠️ *BUY വരാൻ സാധ്യതയുണ്ട്!* (RSI Low)"
-
-            return {"price": price, "rsi": last_rsi, "trend": trend, "warning": warning}
+            # AI Prediction
+            ai_price = predict_next_price(df_close)
+            
+            return {"price": price, "rsi": rsi, "trend": trend, "ai": ai_price}
     except: return None
 
 # --- മെയിൻ ഡിസ്പ്ലേ ---
 if 'last_signal' not in st.session_state: st.session_state.last_signal = ""
-if 'last_warning' not in st.session_state: st.session_state.last_warning = ""
 
-st.title("🚀 Paichi Trader Pro (Advanced)")
+st.title("🚀 Paichi AI Trader Pro")
+st.write("AI ഉപയോഗിച്ച് ക്രൂഡ് ഓയിൽ, നിഫ്റ്റി പ്രവചനങ്ങൾ തത്സമയം കാണുക.")
 
-def display_data(data, title, mult=1):
+def display_card(symbol, name, mult=1):
+    data = get_analysis(symbol)
     if data:
         p = data['price'] * mult
-        st.subheader(title)
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Live Price", f"₹{p:.2f}")
-        c2.metric("RSI (14)", f"{data['rsi']:.2f}")
-        c3.metric("Trend", data['trend'])
+        ai_p = data['ai'] * mult if data['ai'] else 0
         
-        if data['warning']:
-            st.warning(data['warning'])
+        st.subheader(f"📊 {name}")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        col1.metric("Live Price", f"₹{p:.2f}")
+        col2.metric("Trend", data['trend'])
+        col3.metric("RSI (14)", f"{data['rsi']:.2f}")
+        
+        # AI പ്രവചനം കാണിക്കുന്നു
+        diff = ai_p - p
+        color = "normal" if diff > 0 else "inverse"
+        col4.metric("AI Predicted (1m)", f"₹{ai_p:.2f}", delta=f"{diff:.2f}", delta_color=color)
 
-        # അലേർട്ടുകൾ
-        if title == "CRUDE OIL MCX":
-            # 1. മെയിൻ സിഗ്നൽ അലേർട്ട്
+        # ടെലിഗ്രാം അലേർട്ട്
+        if name == "CRUDE OIL MCX":
             if data['trend'] != st.session_state.last_signal:
-                send_telegram(f"⚡ *SIGNAL CHANGE!* \nTrend: {data['trend']}\nPrice: ₹{p:.2f}")
+                msg = f"⚡ *SIGNAL CHANGE!*\n{name}\nTrend: {data['trend']}\nPrice: ₹{p:.2f}\nAI Forecast: ₹{ai_p:.2f}"
+                send_telegram(msg)
                 st.session_state.last_signal = data['trend']
-            
-            # 2. മുൻകൂട്ടിയുള്ള മുന്നറിയിപ്പ് (Early Alert)
-            if data['warning'] != st.session_state.last_warning and data['warning'] != "":
-                send_telegram(f"🔔 *EARLY ALERT!* \n{data['warning']}\nPrice: ₹{p:.2f}")
-                st.session_state.last_warning = data['warning']
 
-display_data(get_analysis("CL=F"), "CRUDE OIL MCX", mult=93.5)
+# --- റീഡർ ---
+display_card("CL=F", "CRUDE OIL MCX", mult=93.5)
 st.divider()
-display_data(get_analysis("^NSEI"), "NIFTY 50")
+display_card("^NSEI", "NIFTY 50")
+st.divider()
+display_card("^NSEBANK", "BANK NIFTY")
