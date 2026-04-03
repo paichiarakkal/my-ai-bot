@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 import numpy as np
 from sklearn.linear_model import LinearRegression
+from streamlit_autorefresh import st_autorefresh
 
 # --- 1. പേജ് സെറ്റിംഗ്സ് ---
 st.set_page_config(
@@ -11,62 +12,55 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. അൾട്രാ ക്ലിയർ വിഷ്വൽ ഫിക്സ് (CSS) ---
-# ഇവിടെയാണ് ഗോൾഡും സിൽവറും നമ്മൾ സെറ്റ് ചെയ്യുന്നത്
+# --- 2. സിൽവർ & ഗോൾഡ് തീം (CSS) ---
 st.markdown("""
 <style>
-    /* മെയിൻ ബാക്ക്ഗ്രൗണ്ട് - ഗോൾഡ് ഗ്രേഡിയന്റ് */
+    /* മെയിൻ ബാക്ക്ഗ്രൗണ്ട് - ഗോൾഡ് */
     .stApp { 
         background: linear-gradient(135deg, #BF953F, #FCF6BA, #B38728, #FBF5B7, #AA771C);
         color: #000000 !important; 
     }
     
-    /* സ്ലൈഡ് ബാർ - സിൽവർ ഗ്രേഡിയന്റ് */
+    /* സ്ലൈഡ് ബാർ - സിൽവർ */
     section[data-testid="stSidebar"] { 
         background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; 
         border-right: 1px solid #444;
     }
     
-    /* സൈഡ്ബാറിലെ അക്ഷരങ്ങൾ കറുപ്പ് നിറത്തിൽ തെളിഞ്ഞു കാണാൻ */
+    /* സൈഡ്ബാറിലെ അക്ഷരങ്ങൾ കറുപ്പ് */
     div[data-testid="stSidebar"] label, 
     div[data-testid="stSidebar"] p, 
-    div[data-testid="stSidebar"] span,
-    div[data-testid="stWidgetLabel"] p {
+    div[data-testid="stSidebar"] span {
         color: #000000 !important;
         font-weight: bold !important;
-        font-size: 16px !important;
     }
 
-    /* മെയിൻ ടൈറ്റിൽ വെളുപ്പ് നിറത്തിൽ */
+    /* മെയിൻ ടൈറ്റിൽ വെളുപ്പ് */
     .main-title {
         color: #FFFFFF !important;
         font-size: 38px !important;
         font-weight: 800 !important;
         text-align: center;
-        text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.4);
-        margin-top: -30px;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
     }
 
-    /* ലൈവ് പ്രൈസ് വെളുപ്പ് നിറത്തിൽ */
+    /* ലൈവ് പ്രൈസ് വെളുപ്പ് */
     div[data-testid="stMetricValue"] > div {
         color: #FFFFFF !important;
         font-weight: 800 !important;
     }
 
-    /* AI Prediction മഞ്ഞ നിറത്തിൽ */
+    /* AI Prediction മഞ്ഞ */
     div[data-testid="column"]:nth-of-type(4) div[data-testid="stMetricValue"] > div {
         color: #FFFF00 !important;
-    }
-
-    /* മെട്രിക്സ് ലേബലുകൾ (Live Price, Status) */
-    div[data-testid="stMetricLabel"] > div {
-        color: #000000 !important;
-        font-weight: bold !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. ഡാറ്റ ഫെച്ചിംഗ് ലോജിക് ---
+# നീ ചോദിച്ച ആ പഴയ ലിങ്ക് (Autorefresh) ഇവിടെ ചേർത്തു
+st_autorefresh(interval=2000, key="faisal_final_style_refresh")
+
+# --- 3. ഡാറ്റ ലോജിക് ---
 def get_analysis(symbol):
     try:
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1m&range=1d"
@@ -86,36 +80,31 @@ def get_analysis(symbol):
         return {"price": price, "trend": trend, "ai": ai_p}
     except: return None
 
-# --- 4. സ്ലൈഡ് ബാർ (സിൽവർ ലുക്ക്) ---
-# ഇതിനുള്ളിലെ അക്ഷരങ്ങളെല്ലാം നമ്മൾ കറുപ്പ് നിറത്തിലാക്കി
+# --- 4. സ്ലൈഡ് ബാർ (Silver) ---
 with st.sidebar:
     st.markdown('<p style="font-size:24px; font-weight:bold; color:black;">🚀 Paichi Trader</p>', unsafe_allow_html=True)
     
-    # AED to INR കൺവെർട്ടർ
     st.write("💰 **AED TO INR**")
-    aed_rate = 22.75 # ലൈവ് റേറ്റ് അനുസരിച്ച് മാറ്റാം
-    aed_input = st.number_input("Enter Durham (AED)", value=1.0, step=1.0)
-    st.success(f"₹ {aed_input * aed_rate:.2f}")
+    aed_rate = 22.75 
+    aed_input = st.number_input("Enter AED", value=1.0)
+    st.success(f"INR: ₹ {aed_input * aed_rate:.2f}")
     
     st.divider()
     
-    # കാറ്റഗറി സെലക്ഷൻ
-    st.write("📊 **CHOOSE CATEGORY**")
-    main_cat = st.radio("", ["INDEX", "COMMODITY", "GOLD"], label_visibility="collapsed")
+    main_cat = st.radio("CATEGORY:", ["INDEX", "COMMODITY", "GOLD"])
     
     selected = None
     if main_cat == "INDEX":
-        selected = st.selectbox("Choose Index:", ["NIFTY 50", "BANK NIFTY", "GIFT NIFTY", "SENSEX"])
+        selected = st.selectbox("Index:", ["NIFTY 50", "BANK NIFTY", "GIFT NIFTY", "SENSEX"])
     elif main_cat == "COMMODITY":
-        selected = st.selectbox("Choose:", ["CRUDE OIL MCX"])
+        selected = st.selectbox("Item:", ["CRUDE OIL MCX"])
     elif main_cat == "GOLD":
-        selected = st.selectbox("Choose Unit:", ["22K GOLD (1 Gram)", "22K GOLD (8 Gram)"])
+        selected = st.selectbox("Unit:", ["22K GOLD (1 Gram)", "22K GOLD (8 Gram)"])
 
-# --- 5. മെയിൻ പേജ് (ഗോൾഡ് ലുക്ക്) ---
-# ടൈറ്റിൽ വെളുപ്പ് നിറത്തിൽ കൊടുത്തിരിക്കുന്നു
+# --- 5. മെയിൻ പേജ് (Gold) ---
 st.markdown('<p class="main-title">🚀 Paichi AI Trader</p>', unsafe_allow_html=True)
 
-def display(symbol, name, mult=mult=1):
+def display(symbol, name, mult=1):
     data = get_analysis(symbol)
     if data:
         p = data['price'] * mult
@@ -134,6 +123,6 @@ if selected == "NIFTY 50": display("^NSEI", "NIFTY 50")
 elif selected == "BANK NIFTY": display("^NSEBANK", "BANK NIFTY")
 elif selected == "GIFT NIFTY": display("INDF.NS", "GIFT NIFTY")
 elif selected == "SENSEX": display("^BSESN", "SENSEX")
-elif selected == "CRUDE OIL MCX": display("CL=F", "CRUDE OIL", mult=mult=93.5)
-elif selected == "22K GOLD (1 Gram)": display("GC=F", "GOLD 1G", mult=mult=2.56)
-elif selected == "22K GOLD (8 Gram)": display("GC=F", "GOLD 8G (PAVAN)", mult=mult=20.5)
+elif selected == "CRUDE OIL MCX": display("CL=F", "CRUDE OIL", mult=93.5)
+elif selected == "22K GOLD (1 Gram)": display("GC=F", "GOLD 1G", mult=2.56)
+elif selected == "22K GOLD (8 Gram)": display("GC=F", "GOLD 8G (PAVAN)", mult=20.5)
