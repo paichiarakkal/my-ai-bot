@@ -1,128 +1,67 @@
 import streamlit as st
-import pandas as pd
 import requests
 import numpy as np
 from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
 
-# --- 1. പേജ് സെറ്റിംഗ്സ് ---
-st.set_page_config(
-    page_title="Paichi AI Trader Pro",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# 1. പേജ് സെറ്റിംഗ്സ് & സ്റ്റൈൽ (Gold & Silver Theme)
+st.set_page_config(page_title="Paichi AI Trader", layout="wide")
 
-# --- 2. സിൽവർ & ഗോൾഡ് തീം (CSS) ---
 st.markdown("""
 <style>
-    /* മെയിൻ ബാക്ക്ഗ്രൗണ്ട് - ഗോൾഡ് */
-    .stApp { 
-        background: linear-gradient(135deg, #BF953F, #FCF6BA, #B38728, #FBF5B7, #AA771C);
-        color: #000000 !important; 
-    }
-    
-    /* സ്ലൈഡ് ബാർ - സിൽവർ */
-    section[data-testid="stSidebar"] { 
-        background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; 
-        border-right: 1px solid #444;
-    }
-    
-    /* സൈഡ്ബാറിലെ അക്ഷരങ്ങൾ കറുപ്പ് */
-    div[data-testid="stSidebar"] label, 
-    div[data-testid="stSidebar"] p, 
-    div[data-testid="stSidebar"] span {
-        color: #000000 !important;
-        font-weight: bold !important;
-    }
-
-    /* മെയിൻ ടൈറ്റിൽ വെളുപ്പ് */
-    .main-title {
-        color: #FFFFFF !important;
-        font-size: 38px !important;
-        font-weight: 800 !important;
-        text-align: center;
-        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-    }
-
-    /* ലൈവ് പ്രൈസ് വെളുപ്പ് */
-    div[data-testid="stMetricValue"] > div {
-        color: #FFFFFF !important;
-        font-weight: 800 !important;
-    }
-
-    /* AI Prediction മഞ്ഞ */
-    div[data-testid="column"]:nth-of-type(4) div[data-testid="stMetricValue"] > div {
-        color: #FFFF00 !important;
-    }
+    .stApp { background: linear-gradient(135deg, #BF953F, #FCF6BA, #B38728, #AA771C); color: #000; }
+    section[data-testid="stSidebar"] { background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; }
+    div[data-testid="stSidebar"] *, div[data-testid="stWidgetLabel"] p { color: #000 !important; font-weight: bold !important; }
+    .main-title { color: #FFF; font-size: 38px; font-weight: 800; text-align: center; text-shadow: 2px 2px 4px #000; }
+    div[data-testid="stMetricValue"] > div { color: #FFF !important; font-weight: 800; }
+    div[data-testid="column"]:nth-of-type(4) div[data-testid="stMetricValue"] > div { color: #FFFF00 !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# നീ ചോദിച്ച ആ പഴയ ലിങ്ക് (Autorefresh) ഇവിടെ ചേർത്തു
-st_autorefresh(interval=2000, key="faisal_final_style_refresh")
+st_autorefresh(interval=2000, key="faisal_refresh")
 
-# --- 3. ഡാറ്റ ലോജിക് ---
+# 2. ഡാറ്റ എടുക്കാനുള്ള ഫംഗ്ഷൻ (Simplified)
 def get_analysis(symbol):
     try:
-        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1m&range=1d"
-        res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}).json()
-        result = res['chart']['result'][0]
-        price = result['meta']['regularMarketPrice']
-        df_close = [p for p in result['indicators']['quote'][0]['close'] if p is not None]
+        res = requests.get(f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1m&range=1d", headers={'User-Agent': 'Mozilla/5.0'}).json()
+        data = res['chart']['result'][0]
+        price = data['meta']['regularMarketPrice']
+        close = [p for p in data['indicators']['quote'][0]['close'] if p is not None]
         
         ai_p = 0
-        if len(df_close) > 10:
-            y = np.array(df_close[-10:]).reshape(-1, 1)
-            x = np.arange(10).reshape(-1, 1)
-            model = LinearRegression().fit(x, y)
-            ai_p = float(model.predict([[10]])[0][0])
-            
-        trend = "BUY 🟢" if price > (sum(df_close[-10:])/10) else "SELL 🔴"
-        return {"price": price, "trend": trend, "ai": ai_p}
+        if len(close) > 5:
+            model = LinearRegression().fit(np.arange(5).reshape(-1, 1), np.array(close[-5:]).reshape(-1, 1))
+            ai_p = float(model.predict([[5]])[0][0])
+        
+        return {"p": price, "t": "BUY 🟢" if price > np.mean(close[-5:]) else "SELL 🔴", "ai": ai_p}
     except: return None
 
-# --- 4. സ്ലൈഡ് ബാർ (Silver) ---
+# 3. സ്ലൈഡ് ബാർ (Silver Sidebar)
 with st.sidebar:
-    st.markdown('<p style="font-size:24px; font-weight:bold; color:black;">🚀 Paichi Trader</p>', unsafe_allow_html=True)
-    
-    st.write("💰 **AED TO INR**")
-    aed_rate = 22.75 
-    aed_input = st.number_input("Enter AED", value=1.0)
-    st.success(f"INR: ₹ {aed_input * aed_rate:.2f}")
-    
+    st.title("🚀 Paichi Trader")
+    aed = st.number_input("AED to INR", value=1.0)
+    st.success(f"₹ {aed * 22.75:.2f}")
     st.divider()
+    cat = st.radio("CATEGORY:", ["INDEX", "COMMODITY", "GOLD"])
     
-    main_cat = st.radio("CATEGORY:", ["INDEX", "COMMODITY", "GOLD"])
-    
-    selected = None
-    if main_cat == "INDEX":
-        selected = st.selectbox("Index:", ["NIFTY 50", "BANK NIFTY", "GIFT NIFTY", "SENSEX"])
-    elif main_cat == "COMMODITY":
-        selected = st.selectbox("Item:", ["CRUDE OIL MCX"])
-    elif main_cat == "GOLD":
-        selected = st.selectbox("Unit:", ["22K GOLD (1 Gram)", "22K GOLD (8 Gram)"])
+    # ഓരോ കാറ്റഗറിയിലെയും ഓപ്ഷനുകൾ
+    opts = {
+        "INDEX": [("^NSEI", "NIFTY 50"), ("^NSEBANK", "BANK NIFTY"), ("INDF.NS", "GIFT NIFTY")],
+        "COMMODITY": [("CL=F", "CRUDE OIL MCX", 93.5)],
+        "GOLD": [("GC=F", "GOLD 1G", 2.56), ("GC=F", "GOLD 8G", 20.5)]
+    }
+    sel_name = st.selectbox("Select Item:", [i[1] for i in opts[cat]])
+    sel_data = next(i for i in opts[cat] if i[1] == sel_name)
 
-# --- 5. മെയിൻ പേജ് (Gold) ---
+# 4. മെയിൻ പേജ് ഡിസ്പ്ലേ (Gold Main Page)
 st.markdown('<p class="main-title">🚀 Paichi AI Trader</p>', unsafe_allow_html=True)
 
-def display(symbol, name, mult=1):
-    data = get_analysis(symbol)
-    if data:
-        p = data['price'] * mult
-        ai = data['ai'] * mult
-        st.subheader(f"📍 {name}")
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Live Price", f"₹{p:.2f}")
-        t_color = "#1B5E20" if "BUY" in data['trend'] else "#B71C1C"
-        c2.markdown(f"<div style='background-color:{t_color}; padding:10px; border-radius:8px; color:white; text-align:center; font-weight:bold;'>{data['trend']}</div>", unsafe_allow_html=True)
-        c3.metric("Status", "Active")
-        diff = ai - p
-        c4.metric("AI Prediction", f"₹{ai:.2f}", delta=f"{diff:.2f}")
-        st.divider()
-
-if selected == "NIFTY 50": display("^NSEI", "NIFTY 50")
-elif selected == "BANK NIFTY": display("^NSEBANK", "BANK NIFTY")
-elif selected == "GIFT NIFTY": display("INDF.NS", "GIFT NIFTY")
-elif selected == "SENSEX": display("^BSESN", "SENSEX")
-elif selected == "CRUDE OIL MCX": display("CL=F", "CRUDE OIL", mult=93.5)
-elif selected == "22K GOLD (1 Gram)": display("GC=F", "GOLD 1G", mult=2.56)
-elif selected == "22K GOLD (8 Gram)": display("GC=F", "GOLD 8G (PAVAN)", mult=20.5)
+data = get_analysis(sel_data[0])
+if data:
+    m = sel_data[2] if len(sel_data) > 2 else 1
+    st.subheader(f"📍 {sel_data[1]}")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Live Price", f"₹{data['p']*m:.2f}")
+    c2.markdown(f"<div style='background:{'#1B5E20' if 'BUY' in data['t'] else '#B71C1C'};padding:10px;border-radius:8px;color:#FFF;text-align:center;font-weight:bold;'>{data['t']}</div>", unsafe_allow_html=True)
+    c3.metric("Status", "Active")
+    c4.metric("AI Prediction", f"₹{data['ai']*m:.2f}", delta=f"{(data['ai']-data['p'])*m:.2f}")
