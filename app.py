@@ -20,7 +20,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=2000, key="faisal_v4_refresh")
+st_autorefresh(interval=2000, key="faisal_v5_refresh")
 
 # 2. സേവിംഗ് ഫംഗ്ഷൻ
 def save_trade(symbol, action, entry_p, exit_p, qty, pnl):
@@ -82,11 +82,8 @@ elif cat == "JOURNAL & HISTORY":
         exit_p = col_b.number_input("Exit Price", value=0.0)
         qty = st.number_input("Quantity", value=1, step=1)
         
-        # BUY/SELL അനുസരിച്ചുള്ള കൃത്യമായ ലാഭം
-        if a == "BUY":
-            pnl = (exit_p - entry_p) * qty
-        else:
-            pnl = (entry_p - exit_p) * qty
+        # ലളിതമായ ലാഭക്കണക്ക്: Exit - Entry
+        pnl = (exit_p - entry_p) * qty
             
         if st.button("Save to History"):
             save_trade(s, a, entry_p, exit_p, qty, pnl)
