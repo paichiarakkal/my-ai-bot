@@ -20,11 +20,21 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=2000, key="faisal_v_final")
+st_autorefresh(interval=5000, key="faisal_final_v1")
 
 FILE_NAME = 'trade_history_v2.csv'
 
-# 2. ഫംഗ്ഷനുകൾ
+# 2. ലൈവ് ന്യൂസ് ഫംഗ്ഷൻ
+def get_live_news():
+    try:
+        url = "https://query1.finance.yahoo.com/v1/finance/search?q=Nifty,Crude%20Oil&quotesCount=0&newsCount=5"
+        res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}).json()
+        news_list = [item['title'] for item in res['news']]
+        return "  🔥  ".join(news_list)
+    except:
+        return "Market News Updating... Stay Tuned!"
+
+# 3. ഡാറ്റാ ഫംഗ്ഷനുകൾ
 def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
     date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     df_new = pd.DataFrame([[date, symbol, action, entry_p, exit_p, qty, pnl, mood]], 
@@ -42,7 +52,15 @@ def get_analysis(symbol):
         return {"p": p, "t": "BUY 🟢" if p > np.mean(close[-5:]) else "SELL 🔴", "ai": ai_p}
     except: return None
 
-# 3. സൈഡ് ബാർ
+# --- ന്യൂസ് ടിക്കർ (മുകളിൽ) ---
+news_text = get_live_news()
+st.markdown(f"""
+    <div style="background-color: #000; color: #BF953F; padding: 10px; font-weight: bold; border-bottom: 2px solid #BF953F;">
+        <marquee scrollamount="6">📢 LIVE UPDATES: {news_text}</marquee>
+    </div>
+""", unsafe_allow_html=True)
+
+# 4. സൈഡ് ബാർ
 with st.sidebar:
     st.title("🚀 Paichi Trader")
     aed = st.number_input("AED Rate", value=1.0)
@@ -51,14 +69,16 @@ with st.sidebar:
     cat = st.radio("MENU:", ["MARKET", "JOURNAL", "DASHBOARD"])
     st.divider()
     st.subheader("🔔 Price Alert")
-    alert_price = st.number_input("Target Price", value=0.0)
+    alert_p = st.number_input("Target Price", value=0.0)
 
-# 4. മെയിൻ പേജ്
+# 5. മെയിൻ കണ്ടന്റ്
 st.markdown('<p class="main-title">🚀 Paichi AI Trader</p>', unsafe_allow_html=True)
 
 if cat == "MARKET":
     sub_cat = st.selectbox("Category:", ["INDEX", "COMMODITY", "GOLD"])
-    opts = {"INDEX": [("^NSEI", "NIFTY 50"), ("^NSEBANK", "BANK NIFTY")], "COMMODITY": [("CL=F", "CRUDE OIL MCX", 93.5)], "GOLD": [("GC=F", "GOLD 1G", 2.56)]}
+    opts = {"INDEX": [("^NSEI", "NIFTY 50"), ("^NSEBANK", "BANK NIFTY")], 
+            "COMMODITY": [("CL=F", "CRUDE OIL MCX", 93.5)], 
+            "GOLD": [("GC=F", "GOLD 1G", 2.56)]}
     sel_name = st.selectbox("Select Item:", [i[1] for i in opts[sub_cat]])
     sel_data = next(i for i in opts[sub_cat] if i[1] == sel_name)
     
@@ -83,7 +103,7 @@ elif cat == "JOURNAL":
         q = col_a.number_input("Quantity", value=1, step=1)
         mood = col_b.selectbox("Mood", ["Calm", "Happy", "Fear", "Greedy"])
         pnl = (ex - en) * q
-        if st.button("Save to History"):
+        if st.button("Save Trade"):
             save_trade(s, a, en, ex, q, pnl, mood)
             st.success(f"Saved! Profit: ₹{pnl}")
 
@@ -104,11 +124,11 @@ elif cat == "DASHBOARD":
     st.subheader("📊 Performance Dashboard")
     if os.path.isfile(FILE_NAME):
         df = pd.read_csv(FILE_NAME)
-        fig = px.bar(df, x='Date', y='P&L', color='P&L', title="P&L Trend")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(px.bar(df, x='Date', y='P&L', color='P&L', title="P&L Trend"), use_container_width=True)
         
         c1, c2 = st.columns(2)
-        c1.plotly_chart(px.pie(df, names='Mood', title="Psychology"), use_container_width=True)
+        if 'Mood' in df.columns:
+            c1.plotly_chart(px.pie(df, names='Mood', title="Psychology Chart"), use_container_width=True)
         c2.plotly_chart(px.pie(df, names='Item', values='P&L', title="Profit by Item"), use_container_width=True)
     else:
-        st.info("No data available.")
+        st.info("No data for analysis.")
