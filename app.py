@@ -20,18 +20,19 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=2000, key="faisal_v5_refresh")
+st_autorefresh(interval=2000, key="faisal_v6_refresh")
 
-# 2. സേവിംഗ് ഫംഗ്ഷൻ
+# 2. സേവിംഗ് & ഡിലീറ്റിംഗ് ഫംഗ്ഷനുകൾ
+FILE_NAME = 'trade_history_v2.csv'
+
 def save_trade(symbol, action, entry_p, exit_p, qty, pnl):
-    file = 'trade_history_v2.csv'
     date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     df_new = pd.DataFrame([[date, symbol, action, entry_p, exit_p, qty, pnl]], 
                           columns=['Date', 'Item', 'Type', 'Entry', 'Exit', 'Qty', 'P&L'])
-    if not os.path.isfile(file): 
-        df_new.to_csv(file, index=False)
+    if not os.path.isfile(FILE_NAME): 
+        df_new.to_csv(FILE_NAME, index=False)
     else: 
-        df_new.to_csv(file, mode='a', header=False, index=False)
+        df_new.to_csv(FILE_NAME, mode='a', header=False, index=False)
 
 def get_analysis(symbol):
     try:
@@ -43,7 +44,7 @@ def get_analysis(symbol):
         return {"p": p, "t": "BUY 🟢" if p > np.mean(close[-5:]) else "SELL 🔴", "ai": ai_p}
     except: return None
 
-# 3. സിൽവർ സൈഡ് ബാർ
+# 3. സൈഡ് ബാർ
 with st.sidebar:
     st.title("🚀 Paichi Trader")
     aed = st.number_input("AED Rate", value=1.0)
@@ -57,7 +58,7 @@ with st.sidebar:
         sel_name = st.selectbox("Select Item:", [i[1] for i in opts[sub_cat]])
         sel_data = next(i for i in opts[sub_cat] if i[1] == sel_name)
 
-# 4. മെയിൻ പേജ് ലോജിക്
+# 4. മെയിൻ പേജ്
 st.markdown('<p class="main-title">🚀 Paichi AI Trader</p>', unsafe_allow_html=True)
 
 if cat == "MARKET":
@@ -73,23 +74,38 @@ if cat == "MARKET":
 
 elif cat == "JOURNAL & HISTORY":
     st.subheader("📝 Trading Journal & History")
+    
+    # ട്രേഡ് ആഡ് ചെയ്യാനുള്ള ഭാഗം
     with st.expander("Add New Trade"):
         col_a, col_b = st.columns(2)
         s = col_a.text_input("Stock/Index Name", value="Nifty")
         a = col_b.selectbox("Action", ["BUY", "SELL"])
-        
         entry_p = col_a.number_input("Entry Price", value=0.0)
         exit_p = col_b.number_input("Exit Price", value=0.0)
         qty = st.number_input("Quantity", value=1, step=1)
-        
-        # ലളിതമായ ലാഭക്കണക്ക്: Exit - Entry
         pnl = (exit_p - entry_p) * qty
-            
         if st.button("Save to History"):
             save_trade(s, a, entry_p, exit_p, qty, pnl)
             st.success(f"Saved! Result: ₹{pnl:.2f}")
-    
-    if os.path.isfile('trade_history_v2.csv'):
-        df = pd.read_csv('trade_history_v2.csv')
+
+    # ഹിസ്റ്ററി കാണുന്നതും ഡിലീറ്റ് ചെയ്യുന്നതും
+    if os.path.isfile(FILE_NAME):
+        df = pd.read_csv(FILE_NAME)
         st.dataframe(df, use_container_width=True)
         st.metric("Total Net P&L", f"₹ {df['P&L'].sum():.2f}")
+        
+        # ഡിലീറ്റ് ബട്ടണുകൾ
+        st.divider()
+        col_d1, col_d2 = st.columns(2)
+        
+        if col_d1.button("🗑️ Delete Last Entry"):
+            df[:-1].to_csv(FILE_NAME, index=False)
+            st.warning("Last entry deleted!")
+            st.rerun()
+
+        if col_d2.button("🔥 Clear All History"):
+            os.remove(FILE_NAME)
+            st.error("All history cleared!")
+            st.rerun()
+    else:
+        st.info("No history found.")
