@@ -20,11 +20,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=2000, key="faisal_v2_refresh")
+st_autorefresh(interval=2000, key="faisal_v3_refresh")
 
-# 2. ഡാറ്റ സേവിംഗ് ഫംഗ്ഷൻ (V2 - Updated Columns)
+# 2. ഡാറ്റ സേവിംഗ് ഫംഗ്ഷൻ (Order updated)
 def save_trade(symbol, action, entry_p, exit_p, qty, pnl):
-    file = 'trade_history_v2.csv' # എറർ ഒഴിവാക്കാൻ ഫയൽ നെയിം മാറ്റി
+    file = 'trade_history_v2.csv'
     date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     df_new = pd.DataFrame([[date, symbol, action, entry_p, exit_p, qty, pnl]], 
                           columns=['Date', 'Item', 'Type', 'Entry', 'Exit', 'Qty', 'P&L'])
@@ -80,12 +80,14 @@ elif cat == "JOURNAL & HISTORY":
     with st.expander("Add New Trade"):
         c1, c2 = st.columns(2)
         s = c1.text_input("Stock/Index Name")
-        qty = c2.number_input("Quantity", value=1, step=1)
         a = c1.selectbox("Action", ["BUY", "SELL"])
-        entry_p = c2.number_input("Entry Price", value=0.0)
-        exit_p = c1.number_input("Exit Price", value=0.0)
         
-        # ലാഭം ഓട്ടോമാറ്റിക് ആയി കണക്കാക്കുന്നു
+        # ക്രമം മാറ്റിയത് ഇവിടെയാണ്: Entry മുകളിലും Exit താഴെയും
+        entry_p = c2.number_input("Entry Price", value=0.0)
+        exit_p = c2.number_input("Exit Price", value=0.0)
+        qty = st.number_input("Quantity", value=1, step=1)
+        
+        # ലാഭം കണക്കാക്കുന്നു
         pnl = (exit_p - entry_p) * qty if a == "BUY" else (entry_p - exit_p) * qty
         
         if st.button("Save to History"):
