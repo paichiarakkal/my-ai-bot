@@ -7,27 +7,25 @@ from streamlit_autorefresh import st_autorefresh
 
 # ആപ്പ് സെറ്റിംഗ്സ്
 st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
-st_autorefresh(interval=1000, limit=100, key="faisal_final_v5")
+st_autorefresh(interval=1000, limit=100, key="faisal_v7")
 
-# --- സൈഡ് ബാർ (INR to AED Converter) ---
-st.sidebar.title("💰 Currency Converter")
-st.sidebar.subheader("INR to AED")
-inr_input = st.sidebar.number_input("Enter Amount (INR)", value=1000.0)
-aed_rate = 0.044 # ഏകദേശ ദുർഹം റേറ്റ് (ഇത് മാറ്റാം)
-aed_result = inr_input * aed_rate
-st.sidebar.success(f"AED: {aed_result:.2f}")
+# --- സൈഡ് ബാർ (Side Bar Menu) ---
+st.sidebar.title("🚀 Paichi Trader")
+
+# 1. കറൻസി കൺവേർട്ടർ
+st.sidebar.subheader("💰 Currency")
+aed_input = st.sidebar.number_input("AED to INR", value=1.0)
+inr_result = aed_input * 22.75
+st.sidebar.success(f"₹ {inr_result:.2f}")
 
 st.sidebar.divider()
-st.sidebar.info("Paichi AI Trader - Dubai Edition")
 
-# --- ടെലിഗ്രാം ---
-BOT_TOKEN = "8638662433:AAEI4BwJuO7Bg8XTEv8OHmfP6CexFe2SiwA"
-CHAT_ID = "6091133068"
+# 2. മെയിൻ മെനു (ബട്ടണുകൾക്ക് പകരം സെലക്ഷൻ)
+st.sidebar.subheader("📊 Market Menu")
+menu = st.sidebar.radio("Select Category:", ["📈 INDEX", "🔥 COMMODITY", "✨ GOLD"])
 
-def send_telegram(message):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage?chat_id={CHAT_ID}&text={message}&parse_mode=Markdown"
-    try: requests.get(url)
-    except: pass
+st.sidebar.divider()
+st.sidebar.info("Al Barsha, Dubai Edition")
 
 # --- AI & Analysis Logic ---
 def predict_next_price(prices):
@@ -60,33 +58,33 @@ def get_analysis(symbol):
             return {"price": price, "rsi": rsi, "trend": trend, "ai": ai_price}
     except: return None
 
-# --- മെയിൻ പേജ് ഡിസ്പ്ലേ ---
-if 'last_signal' not in st.session_state: st.session_state.last_signal = ""
-
-st.title("🚀 Paichi AI Trader Pro")
-
 def display_card(symbol, name, mult=1):
     data = get_analysis(symbol)
     if data:
         p = data['price'] * mult
         ai_p = data['ai'] * mult if data['ai'] else 0
-        st.subheader(f"📊 {name}")
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Live Price", f"₹{p:.2f}")
-        col2.metric("Trend", data['trend'])
-        col3.metric("RSI (14)", f"{data['rsi']:.2f}")
+        st.write(f"## {name}")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Live Price", f"₹{p:.2f}")
+        c2.metric("Trend", data['trend'])
+        c3.metric("RSI", f"{data['rsi']:.2f}")
         diff = ai_p - p
-        col4.metric("AI Prediction", f"₹{ai_p:.2f}", delta=f"{diff:.2f}")
+        c4.metric("AI Prediction", f"₹{ai_p:.2f}", delta=f"{diff:.2f}")
+        st.divider()
 
-        if name == "CRUDE OIL MCX" and data['trend'] != st.session_state.last_signal:
-            send_telegram(f"⚡ *SIGNAL CHANGE!*\n{name}\nTrend: {data['trend']}\nPrice: ₹{p:.2f}")
-            st.session_state.last_signal = data['trend']
+# --- മെയിൻ പേജ് (മെനുവിൽ സെലക്ട് ചെയ്യുന്നത് അനുസരിച്ച് മാറും) ---
+st.title(f"Market Data: {menu}")
 
-# --- എല്ലാ ബട്ടണുകളും മെയിൻ പേജിൽ വരാൻ ---
-display_card("CL=F", "CRUDE OIL MCX", mult=93.5)
-st.divider()
-display_card("^NSEI", "NIFTY 50")
-st.divider()
-display_card("^NSEBANK", "BANK NIFTY")
-st.divider()
-display_card("GC=F", "22K GOLD 8 GRAM (PAVAN)", mult=20.5)
+if menu == "📈 INDEX":
+    display_card("^NSEI", "NIFTY 50")
+    display_card("^NSEBANK", "BANK NIFTY")
+    display_card("^BSESN", "SENSEX")
+    display_card("NIFTY_FIN_SERVICE.NS", "FIN NIFTY")
+    display_card("^NSEMDCP50", "MIDCAP SELECT")
+    display_card("INDF.NS", "GIFT NIFTY")
+
+elif menu == "🔥 COMMODITY":
+    display_card("CL=F", "CRUDE OIL MCX", mult=93.5)
+
+elif menu == "✨ GOLD":
+    display_card("GC=F", "22K GOLD 8 GRAM (PAVAN)", mult=20.5)
