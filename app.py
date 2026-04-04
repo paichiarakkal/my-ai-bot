@@ -3,10 +3,26 @@ import yfinance as yf
 import pandas as pd
 import datetime
 import os
+import streamlit.components.v1 as components
 from streamlit_autorefresh import st_autorefresh
 
 # 1. പേജ് സെറ്റിംഗ്സ് & ഗോൾഡൻ തീം
-st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide", initial_sidebar_state="auto")
+st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
+
+# സൈഡ്‌ബാർ ഓട്ടോമാറ്റിക് ആയി ക്ലോസ് ചെയ്യാനുള്ള JavaScript
+def close_sidebar_js():
+    components.html(
+        """
+        <script>
+            var sidebar = window.parent.document.querySelector('[data-testid="stSidebar"]');
+            var button = window.parent.document.querySelector('button[kind="headerNoSpacing"]');
+            if (sidebar && window.innerWidth < 768) {
+                button.click();
+            }
+        </script>
+        """,
+        height=0,
+    )
 
 st.markdown("""
 <style>
@@ -18,7 +34,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=30000, key="faisal_sidebar_fix")
+st_autorefresh(interval=30000, key="faisal_sidebar_ultimate_fix")
 FILE_NAME = 'trade_history_v2.csv'
 
 # --- ഫംഗ്ഷനുകൾ ---
@@ -39,36 +55,41 @@ def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
 if 'sel_ticker' not in st.session_state:
     st.session_state.sel_ticker = ("^NSEI", "NIFTY 50")
 
-# --- 2. സൈഡ് ബാർ (ബട്ടൺ അമർത്തിയാൽ മെയിൻ പേജിലേക്ക് മാറാൻ) ---
+# --- 2. സൈഡ് ബാർ ---
 with st.sidebar:
     st.markdown("### 🚀 Paichi Pro")
-    # മോഡ് മാറുമ്പോൾ പേജ് റീഫ്രഷ് ആകും, സ്ലൈഡ് ബാർ തനിയെ ഉള്ളിലേക്ക് പോകും
     mode = st.radio("മെനു തിരഞ്ഞെടുക്കുക:", ["MARKET", "JOURNAL"])
     st.divider()
 
     if mode == "MARKET":
         st.write("### 📊 MARKET INDEX")
         
-        # ഓരോ ബട്ടണിലും st.rerun() നൽകിയാൽ മൊബൈലിൽ സ്ലൈഡ് ബാർ തനിയെ ക്ലോസ് ആകും
+        # ബട്ടൺ ക്ലിക്ക് ചെയ്താൽ JavaScript വർക്ക് ആകും
         if st.button("📈 NIFTY 50"):
             st.session_state.sel_ticker = ("^NSEI", "NIFTY 50")
+            close_sidebar_js()
             st.rerun()
         if st.button("🏦 BANK NIFTY"):
             st.session_state.sel_ticker = ("^NSEBANK", "BANK NIFTY")
+            close_sidebar_js()
             st.rerun()
         if st.button("💳 FIN NIFTY"):
             st.session_state.sel_ticker = ("NIFTY_FIN_SERVICE.NS", "FIN NIFTY")
+            close_sidebar_js()
             st.rerun()
         if st.button("📊 SENSEX"):
             st.session_state.sel_ticker = ("^BSESN", "SENSEX")
+            close_sidebar_js()
             st.rerun()
         if st.button("📉 MIDCAP GROWTH"):
             st.session_state.sel_ticker = ("^NSEMDCP50", "MIDCAP 50")
+            close_sidebar_js()
             st.rerun()
         
         st.write("### 🛢️ COMMODITY")
         if st.button("⛽ CRUDE OIL"):
             st.session_state.sel_ticker = ("CL=F", "CRUDE OIL")
+            close_sidebar_js()
             st.rerun()
         
         st.divider()
@@ -88,7 +109,6 @@ if mode == "MARKET":
     if current_p > 0:
         st.write(f"### ലൈവ് വില")
         st.metric(label=name, value=f"₹ {current_p:,.2f}")
-        # ഗ്രാഫ് ഒഴിവാക്കി
     else:
         st.error("ഡാറ്റ ലഭ്യമായില്ല.")
 
@@ -111,7 +131,7 @@ elif mode == "JOURNAL":
     st.divider()
     if os.path.isfile(FILE_NAME):
         df = pd.read_csv(FILE_NAME)
-        st.table(df.iloc[::-1]) # ജേണൽ ടേബിൾ
+        st.table(df.iloc[::-1]) #
         st.write("---")
         del_idx = st.number_input("ഡിലീറ്റ് ചെയ്യേണ്ട ഇൻഡക്സ് (Index) നൽകുക:", min_value=0, max_value=len(df)-1, step=1)
         if st.button("Delete Entry"):
@@ -119,5 +139,4 @@ elif mode == "JOURNAL":
             df.to_csv(FILE_NAME, index=False)
             st.rerun()
 
-# --- FOOTER ---
 st.markdown(f'<p style="text-align: center; color: #FFF; margin-top: 50px;">Created by <b>Faisal Arakkal</b></p>', unsafe_allow_html=True)
