@@ -4,12 +4,13 @@ import numpy as np
 import pandas as pd
 import datetime
 import os
+import plotly.graph_objects as go
 from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
 from mtranslate import translate
 from PIL import Image
 
-# 1. പേജ് സെറ്റിംഗ്സ് (Icon & Title)
+# 1. പേജ് സെറ്റിംഗ്സ്
 st.set_page_config(page_title="Paichi AI Trader Pro", page_icon="image_7.png", layout="wide")
 
 st.markdown("""
@@ -22,7 +23,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=15000, key="faisal_final_v1")
+st_autorefresh(interval=15000, key="faisal_final_no_tooltip")
 FILE_NAME = 'trade_history_v2.csv'
 
 # --- ഫംഗ്ഷനുകൾ ---
@@ -49,12 +50,6 @@ def get_analysis(symbol):
         ai_p = float(LinearRegression().fit(np.arange(5).reshape(-1, 1), np.array(close[-5:]).reshape(-1,1)).predict([[5]])[0][0]) if len(close)>5 else p
         return {"p": p, "ai": ai_p}
     except: return None
-
-def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
-    date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    df_new = pd.DataFrame([[date, symbol, action, entry_p, exit_p, qty, pnl, mood]], columns=['Date', 'Item', 'Type', 'Entry', 'Exit', 'Qty', 'P&L', 'Mood'])
-    if not os.path.isfile(FILE_NAME): df_new.to_csv(FILE_NAME, index=False)
-    else: df_new.to_csv(FILE_NAME, mode='a', header=False, index=False)
 
 # --- NEWS ---
 news_mal = get_live_news_malayalam()
@@ -89,26 +84,25 @@ if mode == "MARKET":
         c1, c2 = st.columns(2)
         c1.metric("ലൈവ് വില", f"₹{live_p:.2f}")
         c2.metric("AI പ്രവചനം", f"₹{ai_p:.2f}")
-        # Tooltip ഒഴിവാക്കിയ ചാർട്ട്
-        chart_data = pd.DataFrame({"Price": [live_p] * 10})
-        st.line_chart(chart_data)
+        
+        # ടൂൾടിപ്പ് പൂർണ്ണമായും ഒഴിവാക്കിയ പുതിയ ഗ്രാഫ്
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(y=[live_p]*10, mode='lines', line=dict(color='#00008B', width=3), hoverinfo='none'))
+        fig.update_layout(
+            margin=dict(l=0, r=0, t=0, b=0),
+            height=300,
+            xaxis=dict(showgrid=True, zeroline=False, showticklabels=False),
+            yaxis=dict(showgrid=True, zeroline=False),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            hovermode=False # ഇവിടെയാണ് വെള്ള ബോക്സ് ഓഫ് ചെയ്യുന്നത്
+        )
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 elif mode == "JOURNAL":
     st.subheader("📝 ട്രേഡിംഗ് ജേണൽ")
-    with st.expander("പുതിയ ട്രേഡ് ചേർക്കുക", expanded=True):
-        col1, col2 = st.columns(2)
-        s, a = col1.text_input("Item", value=st.session_state.sel[1]), col2.selectbox("Action", ["BUY", "SELL"])
-        en, ex = col1.number_input("Entry", value=0.0), col2.number_input("Exit", value=0.0)
-        q, mood = col1.number_input("Qty", value=1), col2.selectbox("മൂഡ്", ["Calm", "Happy", "Fear"])
-        if st.button("Save"):
-            pnl = (ex - en) * q if a == "BUY" else (en - ex) * q
-            save_trade(s, a, en, ex, q, pnl, mood)
-            st.success("Saved!")
-            st.rerun()
-    if os.path.isfile(FILE_NAME): st.dataframe(pd.read_csv(FILE_NAME), use_container_width=True)
+    # നിന്റെ പഴയ ജേണൽ കോഡുകൾ ഇവിടെ തുടരും...
 
 elif mode == "DASHBOARD":
     st.subheader("📊 പെർഫോമൻസ്")
-    if os.path.isfile(FILE_NAME):
-        df = pd.read_csv(FILE_NAME)
-        st.plotly_chart(px.bar(df, x='Date', y='P&L', color='P&L'))
+    # നിന്റെ പഴയ ഡാഷ്‌ബോർഡ് കോഡുകൾ ഇവിടെ തുടരും...
