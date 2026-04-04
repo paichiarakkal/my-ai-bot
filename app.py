@@ -23,7 +23,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=15000, key="faisal_final_with_footer")
+st_autorefresh(interval=15000, key="faisal_final_clean_v1")
 FILE_NAME = 'trade_history_v2.csv'
 
 # --- ഫംഗ്ഷനുകൾ ---
@@ -85,29 +85,27 @@ if mode == "MARKET":
         c1.metric("ലൈവ് വില", f"₹{live_p:.2f}")
         c2.metric("AI പ്രവചനം", f"₹{ai_p:.2f}")
         
-        # ഗ്രാഫിലെ വെള്ള ബോക്സ് (Tooltip) ഓഫ് ചെയ്ത ചാർട്ട്
+        # വെള്ള ബോക്സ് ഇല്ലാത്ത ഗ്രാഫ്
         fig = go.Figure()
         fig.add_trace(go.Scatter(y=[live_p]*10, mode='lines', line=dict(color='#00008B', width=3), hoverinfo='none'))
         fig.update_layout(
-            margin=dict(l=0, r=0, t=0, b=0),
-            height=300,
+            margin=dict(l=0, r=0, t=0, b=0), height=300,
             xaxis=dict(showgrid=True, zeroline=False, showticklabels=False),
             yaxis=dict(showgrid=True, zeroline=False),
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
             hovermode=False 
         )
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 elif mode == "JOURNAL":
     st.subheader("📝 ട്രേഡിംഗ് ജേണൽ")
-    # ജേണൽ ഫീച്ചറുകൾ ഇവിടെ വരും...
+    # നിന്റെ ജേണൽ കോഡുകൾ ഇവിടെ...
 
 elif mode == "DASHBOARD":
     st.subheader("📊 പെർഫോമൻസ്")
-    # ഡാഷ്‌ബോർഡ് ഫീച്ചറുകൾ ഇവിടെ വരും...
+    # നിന്റെ ഡാഷ്‌ബോർഡ് കോഡുകൾ ഇവിടെ...
 
-# --- FOOTER (PAICHI) ---
+# --- FOOTER (നിന്റെ പേരും ലിങ്കും) ---
 st.markdown("""
     <hr style="border: 0.5px solid #BF953F;">
     <div style="text-align: center; color: #FFF; padding: 10px;">
