@@ -11,7 +11,10 @@ from mtranslate import translate
 from PIL import Image
 
 # 1. പേജ് സെറ്റിംഗ്സ് & ഗോൾഡൻ തീം
-st.set_page_config(
+st.set_page_config( page_title="Paichi AI Trader Pro", 
+    page_icon="image_7.png", 
+    layout="wide",
+    initial_sidebar_state="expanded" 
     page_title="Paichi AI Trader Pro", 
     page_icon="image_7.png", 
     layout="wide"
