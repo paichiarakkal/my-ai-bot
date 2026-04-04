@@ -8,22 +8,46 @@ import plotly.express as px
 from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
 from mtranslate import translate
+from PIL import Image
 
 # 1. പേജ് സെറ്റിംഗ്സ് & ഗോൾഡൻ തീം
-st.set_page_config(page_title="Paichi AI Trader Pro", page_icon="image_7.png", layout="wide")
+st.set_page_config(
+    page_title="Paichi AI Trader Pro", 
+    page_icon="image_7.png", 
+    layout="wide"
+)
 
 st.markdown("""
 <style>
+    /* ഗോൾഡൻ തീം ബാക്ക്ഗ്രൗണ്ട് */
     .stApp { background: linear-gradient(135deg, #BF953F, #FCF6BA, #B38728, #AA771C); color: #000; }
+    
+    /* സൈഡ് ബാർ സ്റ്റൈൽ */
     section[data-testid="stSidebar"] { background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; }
     div[data-testid="stSidebar"] button { width: 100%; background-color: #000 !important; color: #BF953F !important; border: 1px solid #FFD700 !important; margin-bottom: 5px; font-weight: bold; }
+    
+    /* പ്രൊഫൈൽ ഫോട്ടോ വട്ടത്തിൽ വരാൻ */
+    .profile-img {
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+        width: 150px;
+        height: 150px;
+        border-radius: 50%;
+        border: 4px solid #000;
+        object-fit: cover;
+    }
+    
     .main-title { color: #FFF; font-size: 35px; font-weight: 800; text-align: center; text-shadow: 2px 2px 4px #000; }
     .news-box { background-color: #000; padding: 10px; border-radius: 5px; border: 1px solid #BF953F; margin-bottom: 20px; }
+    
+    /* അനാവശ്യ ബട്ടണുകൾ ഒഴിവാക്കാൻ */
+    header, footer, .stDeployButton { visibility: hidden !important; display: none !important; }
 </style>
 """, unsafe_allow_html=True)
 
 # 15 സെക്കൻഡിൽ ആപ്പ് ഓട്ടോ റിഫ്രഷ് ആകും
-st_autorefresh(interval=15000, key="faisal_ultimate_fixed_v20")
+st_autorefresh(interval=15000, key="faisal_ultimate_fixed_v26")
 
 FILE_NAME = 'trade_history_v2.csv'
 
@@ -64,8 +88,7 @@ def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
 news_mal = get_live_news_malayalam()
 st.markdown(f"""
     <div class="news-box">
-        <h4 style="color: #BF953F; margin: 0; font-size: 16px; text-align: center;">📰 മലയാളം ലൈവ് വാർത്തകൾ</h4>
-        <marquee scrollamount="5" style="color: #FFF; font-size: 18px; font-weight: bold; padding-top: 5px;">
+        <marquee scrollamount="5" style="color: #FFF; font-size: 18px; font-weight: bold;">
             📢 {news_mal}
         </marquee>
     </div>
@@ -73,6 +96,14 @@ st.markdown(f"""
 
 # --- 2. സൈഡ് ബാർ ---
 with st.sidebar:
+    # നിന്റെ ഫോട്ടോ സൈഡ് ബാറിൽ വരാനുള്ള കോഡ്
+    if os.path.exists("image_7.png"):
+        img = Image.open("image_7.png")
+        st.image(img, use_container_width=True)
+        st.markdown("<p style='text-align: center; font-weight: bold; color: black;'>Faisal @Paichi</p>", unsafe_allow_html=True)
+    else:
+        st.warning("Photo not found!")
+
     st.title("🚀 Paichi Pro")
     
     # ലൈവ് ദിർഹം കൺവെർട്ടർ
@@ -80,7 +111,6 @@ with st.sidebar:
     st.subheader("💰 Live Currency")
     aed_in = st.number_input("AED (Dirham)", value=1.0)
     st.success(f"₹ {aed_in * live_aed:.2f} (INR)")
-    st.caption(f"Current Rate: 1 AED = ₹{live_aed:.2f}")
     st.divider()
 
     mode = st.radio("മെനു തിരഞ്ഞെടുക്കുക:", ["MARKET", "JOURNAL", "DASHBOARD"])
@@ -145,5 +175,3 @@ elif mode == "DASHBOARD":
         st.metric("Win Rate 🎯", f"{(wins/total*100) if total > 0 else 0:.1f}%")
         st.plotly_chart(px.pie(df, names='Mood', title="Psychology Chart", hole=0.4))
         st.plotly_chart(px.bar(df, x='Date', y='P&L', color='P&L', title="P&L Trend"))
-    else:
-        st.info("ഹിസ്റ്ററി ലഭ്യമല്ല.")
