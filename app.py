@@ -8,24 +8,22 @@ from streamlit_autorefresh import st_autorefresh
 # 1. പേജ് സെറ്റിംഗ്‌സ്
 st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
 
-# --- സൈഡ്ബാർ തിരികെ വരാനുള്ള ഫിക്സഡ് സ്റ്റൈൽ ---
+# --- സൈഡ്ബാർ ഐക്കൺ തിരികെ വരാനും ബാക്കി ഹൈഡ് ചെയ്യാനുമുള്ള ഫിക്സ് ---
 st.markdown("""
 <style>
-    /* 1. മുകളിലെ വെള്ള വര ഹൈഡ് ചെയ്യുന്നു */
+    /* മുകളിലെ വെള്ള വര ഹൈഡ് ചെയ്യുന്നു */
     div[data-testid="stDecoration"] {display:none !important;}
     
-    /* 2. 'Manage App' ബട്ടൺ മാത്രം ഹൈഡ് ചെയ്യുന്നു */
+    /* 'Manage App' ബട്ടൺ ഹൈഡ് ചെയ്യുന്നു */
     .stDeployButton {display:none !important;}
     
-    /* 3. താഴെ കാണുന്ന ടൂൾബാർ (Logs) ഹൈഡ് ചെയ്യുന്നു */
+    /* ഫൂട്ടർ ഹൈഡ് ചെയ്യുന്നു */
     footer {visibility: hidden !important;}
-    div[data-testid="stToolbar"] {display:none !important;}
 
-    /* സൈഡ്ബാർ ബട്ടൺ (Menu Icon) തെളിഞ്ഞു കാണാൻ */
-    button[data-testid="stBaseButton-headerNoPadding"] {
-        background-color: rgba(0,0,0,0.5) !important;
-        color: white !important;
-        border-radius: 50%;
+    /* സൈഡ്ബാർ ഐക്കൺ കൃത്യമായി കാണാൻ (This is the Fix) */
+    header[data-testid="stHeader"] {
+        background-color: rgba(0,0,0,0) !important;
+        visibility: visible !important;
     }
 
     /* ആപ്പ് തീം */
@@ -36,13 +34,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- ലോഗിൻ സിസ്റ്റം ---
+# --- സെഷൻ സ്റ്റേറ്റ് ---
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 
+# --- ലോഗിൻ ഫംഗ്ഷൻ ---
 def login_section():
-    st.markdown('<div style="background:white; padding:20px; border-radius:10px; text-align:center;">', unsafe_allow_html=True)
-    st.subheader("🔒 Faisal Pro Login")
+    st.markdown('<div style="background:white; padding:20px; border-radius:10px; text-align:center; color:black;">', unsafe_allow_html=True)
+    st.subheader("🔒 Private Access")
     u = st.text_input("Username", key="u")
     p = st.text_input("Password", type="password", key="p")
     if st.button("Unlock"):
@@ -52,25 +51,28 @@ def login_section():
         else: st.error("Wrong!")
     st.markdown('</div>', unsafe_allow_html=True)
 
+st_autorefresh(interval=30000, key="faisal_v_recovery")
+
 # --- സൈഡ് ബാർ ---
 with st.sidebar:
-    st.header("🚀 Paichi Menu")
-    mode = st.radio("Go to:", ["MARKET", "JOURNAL", "DASHBOARD"])
+    st.header("🚀 Paichi Pro")
+    mode = st.radio("മെനു:", ["MARKET", "JOURNAL", "DASHBOARD"])
     if st.session_state.logged_in:
         if st.button("Logout"):
             st.session_state.logged_in = False
             st.rerun()
 
-# --- മെയിൻ ബോഡി ---
+# --- മെയിൻ കണ്ടന്റ് ---
 if mode == "MARKET":
     st.markdown('<p class="main-title">📈 LIVE MARKET</p>', unsafe_allow_html=True)
-    # ലൈവ് പ്രൈസ് കാണിക്കുന്ന വരികൾ...
-    nifty = yf.Ticker("^NSEI").history(period='1d')['Close'].iloc[-1]
-    st.metric("NIFTY 50", f"₹ {nifty:,.2f}")
+    try:
+        nifty_price = yf.Ticker("^NSEI").history(period='1d')['Close'].iloc[-1]
+        st.metric("NIFTY 50", f"₹ {nifty_price:,.2f}")
+    except:
+        st.write("Market data loading...")
 
 elif mode == "JOURNAL" or mode == "DASHBOARD":
     if not st.session_state.logged_in:
         login_section()
     else:
-        st.write(f"Welcome to {mode}!")
-        # നിന്റെ പഴയ ജേണൽ കോഡ് ഇവിടെ വരും...
+        st.write(f"Welcome to {mode} Section!")
