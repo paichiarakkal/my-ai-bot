@@ -10,7 +10,7 @@ from streamlit_autorefresh import st_autorefresh
 from mtranslate import translate
 
 # 1. പേജ് സെറ്റിംഗ്സ് & ഗോൾഡൻ തീം
-st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
+st.set_page_config(page_title="Paichi AI Trader Pro", page_icon="image_7.png", layout="wide")
 
 st.markdown("""
 <style>
