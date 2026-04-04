@@ -9,8 +9,7 @@ from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
 from mtranslate import translate
 
-# --- 1. പേജ് സെറ്റിംഗ്സ് & സ്ലൈഡ് ബാർ ഫിക്സ് ---
-# initial_sidebar_state="expanded" നൽകിയാൽ സ്ലൈഡ് ബാർ എപ്പോഴും കാണാം
+# --- 1. പേജ് സെറ്റിംഗ്സ് & ഒറിജിനൽ സ്ലൈഡ് ബാർ ---
 st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
@@ -19,7 +18,7 @@ st.markdown("""
     .stApp { background: linear-gradient(135deg, #BF953F, #FCF6BA, #B38728, #AA771C); color: #000; }
     
     /* സൈഡ് ബാർ ഡിസൈൻ */
-    section[data-testid="stSidebar"] { background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; min-width: 250px !important; }
+    section[data-testid="stSidebar"] { background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; }
     div[data-testid="stSidebar"] button { width: 100%; background-color: #000 !important; color: #BF953F !important; border: 1px solid #FFD700 !important; margin-bottom: 5px; font-weight: bold; }
 
     /* അനാവശ്യ ബട്ടണുകൾ ഹൈഡ് ചെയ്യാൻ */
@@ -36,7 +35,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 15 സെക്കൻഡിൽ ഓട്ടോ റിഫ്രഷ്
-st_autorefresh(interval=15000, key="faisal_sidebar_fixed")
+st_autorefresh(interval=15000, key="faisal_pure_original")
 
 FILE_NAME = 'trade_history_v2.csv'
 
@@ -77,7 +76,7 @@ def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
 news_mal = get_live_news_malayalam()
 st.markdown(f'<div class="news-box"><marquee scrollamount="5" style="color: #FFF; font-size: 18px; font-weight: bold;">📢 {news_mal}</marquee></div>', unsafe_allow_html=True)
 
-# --- 3. സൈഡ് ബാർ (ഇവിടെയാണ് മെനു ഉള്ളത്) ---
+# --- 3. സൈഡ് ബാർ (മെനു) ---
 with st.sidebar:
     st.title("🚀 Paichi Pro")
     live_aed = get_live_aed_rate()
