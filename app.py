@@ -9,40 +9,39 @@ from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
 from mtranslate import translate
 
-# --- 1. പേജ് സെറ്റിംഗ്സ് & ക്ലീൻ ഡിസൈൻ ---
-st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide", initial_sidebar_state="collapsed")
+# --- 1. പേജ് സെറ്റിംഗ്സ് (Sidebar എപ്പോഴും ലഭ്യമാക്കാൻ 'auto' സെറ്റ് ചെയ്തു) ---
+st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide", initial_sidebar_state="auto")
 
-# നീ ആവശ്യപ്പെട്ടതുപോലെ മുകളിലെ Fork/Logo ഉം താഴെയുള്ള ഐക്കണുകളും നീക്കാനുള്ള CSS
+# അനാവശ്യമായ താഴത്തെ ലോഗോകളും മുകളിലെ ബട്ടണുകളും മാറ്റാനുള്ള CSS
 st.markdown("""
 <style>
     /* ഗോൾഡൻ ബാക്ക്ഗ്രൗണ്ട് */
     .stApp { background: linear-gradient(135deg, #BF953F, #FCF6BA, #B38728, #AA771C); color: #000; }
     
-    /* സൈഡ് ബാർ തീം */
+    /* സൈഡ് ബാർ ഡിസൈൻ */
     section[data-testid="stSidebar"] { background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; }
     div[data-testid="stSidebar"] button { width: 100%; background-color: #000 !important; color: #BF953F !important; border: 1px solid #FFD700 !important; margin-bottom: 5px; font-weight: bold; }
     
-    /* മുകളിലെ ഹെഡർ (Fork, GitHub) പൂർണ്ണമായി നീക്കാൻ */
+    /* മുകളിലെ Fork, GitHub, Menu എന്നിവ മറയ്ക്കാൻ */
     header, [data-testid="stHeader"] { visibility: hidden !important; height: 0px !important; }
     
-    /* താഴെയുള്ള ഐക്കണുകൾ (Created by, Hosted with) നീക്കാൻ */
+    /* താഴെയുള്ള ചിഹ്നങ്ങൾ (Created by, Hosted with) പൂർണ്ണമായി ഒഴിവാക്കാൻ */
     footer {visibility: hidden !important;}
     .stDeployButton {display:none !important;}
     #MainMenu {visibility: hidden !important;}
     
-    /* സ്ക്രീനിന്റെ ഏറ്റവും താഴെ കാണുന്ന ആ രണ്ട് ചിഹ്നങ്ങൾ ഒഴിവാക്കാൻ */
+    /* സ്ക്രീനിന്റെ അടിയിലുള്ള ചുവപ്പ്, വയലറ്റ് ബാറുകൾ നീക്കാൻ */
     [data-testid="stDecoration"] { display: none !important; }
     [data-testid="stStatusWidget"] { visibility: hidden !important; }
-    iframe { display: none !important; }
-
-    /* ടൈറ്റിൽ & ന്യൂസ് ബോക്സ് */
+    
+    /* ടൈറ്റിൽ & ന്യൂസ് ബോക്സ് അഡ്ജസ്റ്റ്മെന്റ് */
     .main-title { color: #FFF; font-size: 35px; font-weight: 800; text-align: center; text-shadow: 2px 2px 4px #000; margin-top: -60px; }
     .news-box { background-color: #000; padding: 10px; border-radius: 5px; border: 1px solid #BF953F; margin-bottom: 20px; }
 </style>
 """, unsafe_allow_html=True)
 
 # 15 സെക്കൻഡിൽ ഓട്ടോ റിഫ്രഷ്
-st_autorefresh(interval=15000, key="faisal_ultimate_clean_v80")
+st_autorefresh(interval=15000, key="faisal_final_sidebar_fix")
 
 FILE_NAME = 'trade_history_v2.csv'
 
@@ -83,13 +82,13 @@ def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
 news_mal = get_live_news_malayalam()
 st.markdown(f'<div class="news-box"><h4 style="color:#BF953F;text-align:center;">📰 മലയാളം ലൈവ് വാർത്തകൾ</h4><marquee scrollamount="5" style="color:#FFF;font-weight:bold;">📢 {news_mal}</marquee></div>', unsafe_allow_html=True)
 
-# --- 3. സൈഡ് ബാർ ---
+# --- 3. സൈഡ് ബാർ (Sidebar Fixed) ---
 with st.sidebar:
     st.title("🚀 Paichi Pro")
     live_aed = get_live_aed_rate()
     st.subheader("💰 Live Currency")
     aed_in = st.number_input("AED (Dirham)", value=1.0)
-    st.success(f"₹ {aed_in * live_aed:.2f} (INR)")
+    st.success(f"₹ {aed_in * live_aed:.2f} (INR)") #
     st.divider()
     mode = st.radio("മെനു തിരഞ്ഞെടുക്കുക:", ["MARKET", "JOURNAL", "DASHBOARD"])
     st.divider()
@@ -110,21 +109,18 @@ if mode == "MARKET":
     if data:
         st.subheader(f"📍 {name}")
         c1, c2 = st.columns(2)
-        c1.metric("ലൈവ് വില", f"₹{data['p']*multi:.2f}")
+        c1.metric("ലൈവ് വില", f"₹{data['p']*multi:.2f}") #
         c2.metric("AI പ്രവചനം", f"₹{data['ai']*multi:.2f}")
         st.line_chart(pd.DataFrame({"Price": [data['p']*multi]*10}))
     else: st.error("ഇന്റർനെറ്റ് കണക്ഷൻ പരിശോധിക്കുക.")
 
 elif mode == "JOURNAL":
-    st.subheader("📝 ട്രേഡിംഗ് ജേണൽ & SL Advisor")
+    st.subheader("📝 ട്രേഡിംഗ് ജേണൽ") #
     with st.expander("പുതിയ ട്രേഡ് ചേർക്കുക", expanded=True):
         col1, col2 = st.columns(2)
         s = col1.text_input("Item", value=st.session_state.sel[1])
         a = col2.selectbox("Action", ["BUY", "SELL"])
         en, ex = col1.number_input("Entry Price", value=0.0), col2.number_input("Exit Price", value=0.0)
-        if en > 0:
-            sl = en * 0.99 if a == "BUY" else en * 1.01
-            st.warning(f"💡 AI അഡ്വൈസ്: SL ₹{sl:.2f} | Target ₹{en*1.02 if a=='BUY' else en*0.98:.2f}")
         qty = col1.number_input("Qty", value=1, step=1)
         mood = col2.selectbox("മൂഡ്", ["Calm", "Happy", "Fear", "Greedy"])
         if st.button("Save Trade"):
@@ -135,7 +131,7 @@ elif mode == "JOURNAL":
         st.dataframe(pd.read_csv(FILE_NAME), use_container_width=True)
 
 elif mode == "DASHBOARD":
-    st.subheader("📊 പെർഫോമൻസ്")
+    st.subheader("📊 പെർഫോമൻസ്") #
     if os.path.isfile(FILE_NAME):
         df = pd.read_csv(FILE_NAME)
         st.metric("Win Rate 🎯", f"{(len(df[df['P&L']>0])/len(df)*100) if len(df)>0 else 0:.1f}%")
