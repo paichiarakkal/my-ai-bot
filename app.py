@@ -8,40 +8,22 @@ import plotly.express as px
 from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
 from mtranslate import translate
-from PIL import Image
 
 # 1. പേജ് സെറ്റിംഗ്സ് & ഗോൾഡൻ തീം
-st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
 
 st.markdown("""
 <style>
-    /* ഗോൾഡൻ തീം ബാക്ക്ഗ്രൗണ്ട് */
     .stApp { background: linear-gradient(135deg, #BF953F, #FCF6BA, #B38728, #AA771C); color: #000; }
-    
-    /* സൈഡ് ബാർ സ്റ്റൈൽ */
-    section[data-testid="stSidebar"] { background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; min-width: 260px !important; }
+    section[data-testid="stSidebar"] { background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; }
     div[data-testid="stSidebar"] button { width: 100%; background-color: #000 !important; color: #BF953F !important; border: 1px solid #FFD700 !important; margin-bottom: 5px; font-weight: bold; }
-    
-    /* പ്രൊഫൈൽ ഫോട്ടോ സ്റ്റൈൽ */
-    .profile-container { text-align: center; padding-bottom: 15px; }
-    .profile-img {
-        width: 120px; height: 120px;
-        border-radius: 50%; border: 3px solid #000;
-        object-fit: cover; box-shadow: 0px 4px 10px rgba(0,0,0,0.5);
-    }
-    .profile-name { color: #000; font-size: 20px; font-weight: bold; margin-top: 8px; text-align: center; }
-
-    /* ടൈറ്റിൽ & ന്യൂസ് ബോക്സ് */
-    .main-title { color: #FFF; font-size: 35px; font-weight: 800; text-align: center; text-shadow: 2px 2px 4px #000; margin-top: -30px; }
+    .main-title { color: #FFF; font-size: 35px; font-weight: 800; text-align: center; text-shadow: 2px 2px 4px #000; }
     .news-box { background-color: #000; padding: 10px; border-radius: 5px; border: 1px solid #BF953F; margin-bottom: 20px; }
-    
-    /* അനാവശ്യ ബട്ടണുകൾ ഹൈഡ് ചെയ്യാൻ */
-    header, [data-testid="stHeader"], footer, .stDeployButton, [data-testid="stDecoration"], #MainMenu { visibility: hidden !important; display: none !important; }
 </style>
 """, unsafe_allow_html=True)
 
 # 15 സെക്കൻഡിൽ ആപ്പ് ഓട്ടോ റിഫ്രഷ് ആകും
-st_autorefresh(interval=15000, key="faisal_ultimate_fixed_v21")
+st_autorefresh(interval=15000, key="faisal_ultimate_fixed_v20")
 
 FILE_NAME = 'trade_history_v2.csv'
 
@@ -82,24 +64,15 @@ def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
 news_mal = get_live_news_malayalam()
 st.markdown(f"""
     <div class="news-box">
-        <marquee scrollamount="5" style="color: #FFF; font-size: 18px; font-weight: bold;">
+        <h4 style="color: #BF953F; margin: 0; font-size: 16px; text-align: center;">📰 മലയാളം ലൈവ് വാർത്തകൾ</h4>
+        <marquee scrollamount="5" style="color: #FFF; font-size: 18px; font-weight: bold; padding-top: 5px;">
             📢 {news_mal}
         </marquee>
     </div>
 """, unsafe_allow_html=True)
 
-# --- 2. സൈഡ് ബാർ (ഫോട്ടോ ഉൾപ്പെടെ) ---
+# --- 2. സൈഡ് ബാർ ---
 with st.sidebar:
-    # നിന്റെ ഫോട്ടോ image_7.png എന്ന പേരിൽ ലോഡ് ചെയ്യുന്നു
-    if os.path.exists("image_7.png"):
-        img = Image.open("image_7.png")
-        st.markdown('<div class="profile-container">', unsafe_allow_html=True)
-        st.image(img, use_container_width=True)
-        st.markdown('<div class="profile-name">Faisal @Paichi</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-    else:
-        st.warning("image_7.png കണ്ടില്ല!")
-
     st.title("🚀 Paichi Pro")
     
     # ലൈവ് ദിർഹം കൺവെർട്ടർ
@@ -107,6 +80,7 @@ with st.sidebar:
     st.subheader("💰 Live Currency")
     aed_in = st.number_input("AED (Dirham)", value=1.0)
     st.success(f"₹ {aed_in * live_aed:.2f} (INR)")
+    st.caption(f"Current Rate: 1 AED = ₹{live_aed:.2f}")
     st.divider()
 
     mode = st.radio("മെനു തിരഞ്ഞെടുക്കുക:", ["MARKET", "JOURNAL", "DASHBOARD"])
@@ -171,3 +145,5 @@ elif mode == "DASHBOARD":
         st.metric("Win Rate 🎯", f"{(wins/total*100) if total > 0 else 0:.1f}%")
         st.plotly_chart(px.pie(df, names='Mood', title="Psychology Chart", hole=0.4))
         st.plotly_chart(px.bar(df, x='Date', y='P&L', color='P&L', title="P&L Trend"))
+    else:
+        st.info("ഹിസ്റ്ററി ലഭ്യമല്ല.")
