@@ -22,8 +22,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 15 സെക്കൻഡിൽ ആപ്പ് ഓട്ടോ റിഫ്രഷ്
-st_autorefresh(interval=15000, key="faisal_all_features_v35")
+# 15 സെക്കൻഡിൽ ആപ്പ് ഓട്ടോ റിഫ്രഷ് ആകും
+st_autorefresh(interval=15000, key="faisal_full_online_v40")
 
 FILE_NAME = 'trade_history_v2.csv'
 
@@ -31,21 +31,21 @@ FILE_NAME = 'trade_history_v2.csv'
 
 def get_live_aed_rate():
     try:
-        res = requests.get("https://query1.finance.yahoo.com/v8/finance/chart/AEDINR=X?interval=1m&range=1d", timeout=2).json()
+        res = requests.get("https://query1.finance.yahoo.com/v8/finance/chart/AEDINR=X?interval=1m&range=1d", headers={'User-Agent': 'Mozilla/5.0'}).json()
         return res['chart']['result'][0]['meta']['regularMarketPrice']
     except: return 22.75
 
 def get_live_news_malayalam():
     try:
         url = "https://query1.finance.yahoo.com/v1/finance/search?q=Nifty,Crude%20Oil,Gold&newsCount=5"
-        res = requests.get(url, timeout=2).json()
+        res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}).json()
         news_list = [item['title'] for item in res['news']]
         return translate("  |  ".join(news_list), "ml", "en")
-    except: return "വാർത്തകൾ ലഭ്യമല്ല (Offline Mode)"
+    except: return "വാർത്തകൾ അപ്‌ഡേറ്റ് ചെയ്യുന്നു..."
 
 def get_analysis(symbol):
     try:
-        res = requests.get(f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1m&range=1d", timeout=2).json()
+        res = requests.get(f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1m&range=1d", headers={'User-Agent': 'Mozilla/5.0'}).json()
         data = res['chart']['result'][0]
         p = data['meta']['regularMarketPrice']
         close = [c for c in data['indicators']['quote'][0]['close'] if c is not None]
@@ -60,17 +60,27 @@ def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
     if not os.path.isfile(FILE_NAME): df_new.to_csv(FILE_NAME, index=False)
     else: df_new.to_csv(FILE_NAME, mode='a', header=False, index=False)
 
-# --- 1. മലയാളം വാർത്തകൾ ---
+# --- 1. മലയാളം ലൈവ് വാർത്തകൾ (TOP) ---
 news_mal = get_live_news_malayalam()
-st.markdown(f'<div class="news-box"><h4 style="color:#BF953F;text-align:center;">📰 മലയാളം ലൈവ് വാർത്തകൾ</h4><marquee scrollamount="5" style="color:#FFF;font-weight:bold;">📢 {news_mal}</marquee></div>', unsafe_allow_html=True)
+st.markdown(f"""
+    <div class="news-box">
+        <h4 style="color: #BF953F; margin: 0; font-size: 16px; text-align: center;">📰 മലയാളം ലൈവ് വാർത്തകൾ</h4>
+        <marquee scrollamount="5" style="color: #FFF; font-size: 18px; font-weight: bold; padding-top: 5px;">
+            📢 {news_mal}
+        </marquee>
+    </div>
+""", unsafe_allow_html=True)
 
 # --- 2. സൈഡ് ബാർ ---
 with st.sidebar:
     st.title("🚀 Paichi Pro")
+    
+    # ലൈവ് ദിർഹം കൺവെർട്ടർ
     live_aed = get_live_aed_rate()
     st.subheader("💰 Live Currency")
     aed_in = st.number_input("AED (Dirham)", value=1.0)
     st.success(f"₹ {aed_in * live_aed:.2f} (INR)")
+    st.caption(f"1 AED = ₹{live_aed:.2f}")
     st.divider()
 
     mode = st.radio("മെനു തിരഞ്ഞെടുക്കുക:", ["MARKET", "JOURNAL", "DASHBOARD"])
@@ -80,10 +90,15 @@ with st.sidebar:
         st.subheader("🎯 തിരഞ്ഞെടുക്കുക:")
         if st.button("📈 NIFTY 50"): st.session_state.sel = ("^NSEI", "NIFTY 50", 1)
         if st.button("🏦 BANK NIFTY"): st.session_state.sel = ("^NSEBANK", "BANK NIFTY", 1)
+        if st.button("💳 FIN NIFTY"): st.session_state.sel = ("NIFTY_FIN_SERVICE.NS", "FIN NIFTY", 1)
+        if st.button("📊 SENSEX"): st.session_state.sel = ("^BSESN", "SENSEX", 1)
+        if st.button("📉 MIDCAP 50"): st.session_state.sel = ("^NSEMDCP50", "MIDCAP 50", 1)
+        st.divider()
         if st.button("🛢️ CRUDE OIL MCX"): st.session_state.sel = ("CL=F", "CRUDE OIL MCX", 93.5)
-        if st.button("💰 GOLD 8G"): st.session_state.sel = ("GC=F", "GOLD 8G", 84.5 * 8)
+        if st.button("💰 GOLD 8G (INDIAN)"): st.session_state.sel = ("GC=F", "GOLD 8 GRAM (1 PAVAN)", 84.5 * 8)
 
-if 'sel' not in st.session_state: st.session_state.sel = ("^NSEI", "NIFTY 50", 1)
+if 'sel' not in st.session_state:
+    st.session_state.sel = ("^NSEI", "NIFTY 50", 1)
 
 # --- 3. മെയിൻ കണ്ടന്റ് ---
 st.markdown(f'<p class="main-title">🚀 Paichi AI Trader</p>', unsafe_allow_html=True)
@@ -93,35 +108,44 @@ if mode == "MARKET":
     data = get_analysis(symbol)
     if data:
         st.subheader(f"📍 {name}")
+        live_p, ai_p = data['p'] * multi, data['ai'] * multi
         c1, c2 = st.columns(2)
-        c1.metric("ലൈവ് വില", f"₹{data['p']*multi:.2f}")
-        c2.metric("AI പ്രവചനം", f"₹{data['ai']*multi:.2f}")
-        st.line_chart(pd.DataFrame({"Price": [data['p']*multi]*10}))
+        c1.metric("ലൈവ് വില", f"₹{live_p:.2f}")
+        c2.metric("AI പ്രവചനം", f"₹{ai_p:.2f}")
+        st.line_chart(pd.DataFrame({"Price": [live_p]*10}))
     else:
-        st.error("ലൈവ് വില ലഭ്യമല്ല. ഇന്റർനെറ്റ് പരിശോധിക്കുക.")
+        st.error("ലൈവ് വില ലഭ്യമല്ല. ഇന്റർനെറ്റ് കണക്ഷൻ പരിശോധിക്കുക.")
 
 elif mode == "JOURNAL":
-    st.subheader("📝 ട്രേഡിംഗ് ജേണൽ")
+    st.subheader("📝 ട്രേഡിംഗ് ജേണൽ & SL Advisor")
     with st.expander("പുതിയ ട്രേഡ് ചേർക്കുക", expanded=True):
         col1, col2 = st.columns(2)
         s = col1.text_input("Item", value=st.session_state.sel[1])
         a = col2.selectbox("Action", ["BUY", "SELL"])
-        en, ex = col1.number_input("Entry", value=0.0), col2.number_input("Exit", value=0.0)
+        en = col1.number_input("Entry Price", value=0.0)
+        ex = col2.number_input("Exit Price", value=0.0)
+        if en > 0:
+            sl = en * 0.99 if a == "BUY" else en * 1.01
+            st.warning(f"💡 AI അഡ്വൈസ്: SL ₹{sl:.2f} | Target ₹{en*1.02 if a=='BUY' else en*0.98:.2f}")
         q = col1.number_input("Qty", value=1, step=1)
         mood = col2.selectbox("മൂഡ്", ["Calm", "Happy", "Fear", "Greedy"])
         if st.button("Save Trade"):
             pnl = (ex - en) * q if a == "BUY" else (en - ex) * q
             save_trade(s, a, en, ex, q, pnl, mood)
-            st.success("സേവ് ചെയ്തു!"); st.rerun()
+            st.success("സേവ് ചെയ്തു!")
+            st.rerun()
     
     if os.path.isfile(FILE_NAME):
         st.dataframe(pd.read_csv(FILE_NAME), use_container_width=True) #
 
 elif mode == "DASHBOARD":
-    st.subheader("📊 പെർഫോമൻസ്")
+    st.subheader("📊 പെർഫോമൻസ് & വിൻ റേറ്റ്")
     if os.path.isfile(FILE_NAME):
         df = pd.read_csv(FILE_NAME)
-        st.metric("Win Rate 🎯", f"{(len(df[df['P&L']>0])/len(df)*100) if len(df)>0 else 0:.1f}%")
-        st.plotly_chart(px.pie(df, names='Mood', title="Psychology Chart", hole=0.4))
+        wins = len(df[df['P&L'] > 0])
+        total = len(df)
+        st.metric("Win Rate 🎯", f"{(wins/total*100) if total > 0 else 0:.1f}%")
+        st.plotly_chart(px.pie(df, names='Mood', title="Psychology Chart", hole=0.4)) #
         st.plotly_chart(px.bar(df, x='Date', y='P&L', color='P&L', title="P&L Trend"))
-    else: st.info("ഡാറ്റ ലഭ്യമല്ല.")
+    else:
+        st.info("ഹിസ്റ്ററി ലഭ്യമല്ല.")
