@@ -8,26 +8,26 @@ from streamlit_autorefresh import st_autorefresh
 # 1. പേജ് സെറ്റിംഗ്‌സ്
 st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
 
-# --- സെക്യൂരിറ്റി & ഡിസൈൻ അപ്‌ഡേറ്റ് (Hide All Menus & Manage Buttons) ---
+# --- സൈഡ്ബാർ തിരികെ കൊണ്ടുവരാനും ബാക്കി ഹൈഡ് ചെയ്യാനുമുള്ള കോഡ് ---
 st.markdown("""
 <style>
-    /* മുകളിലെ മെനുവും ഹെഡറും ഹൈഡ് ചെയ്യാൻ */
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
+    /* 1. മുകളിലെ വെള്ള വരയും ഡെക്കറേഷനും ഹൈഡ് ചെയ്യാൻ */
+    div[data-testid="stDecoration"] {display:none !important;}
     
-    /* 'Manage App' ബട്ടണും ടൂൾബാറും ഹൈഡ് ചെയ്യാൻ */
-    .stDeployButton {display:none;}
-    div[data-testid="stToolbar"] {display:none;}
+    /* 2. 'Manage App' ബട്ടൺ മാത്രം ഹൈഡ് ചെയ്യാൻ */
+    .stDeployButton {display:none !important;}
     
-    /* ആപ്പ് തീം (ഗോൾഡൻ ഗ്രേഡിയന്റ്) */
+    /* 3. താഴെ കാണുന്ന ടൂൾബാർ (Logs) ഹൈഡ് ചെയ്യാൻ */
+    footer {visibility: hidden !important;}
+    div[data-testid="stToolbar"] {display:none !important;}
+
+    /* ആപ്പ് തീം & ഡിസൈൻ */
     .stApp { background: linear-gradient(135deg, #BF953F, #FCF6BA, #B38728, #AA771C); color: #000; }
     section[data-testid="stSidebar"] { background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; }
     .stButton>button { width: 100%; border-radius: 4px; background-color: #000 !important; color: #FFD700 !important; border: 1px solid #FFD700 !important; font-weight: bold; }
     .main-title { color: #FFF; font-size: 26px; font-weight: 800; text-align: center; text-shadow: 2px 2px 4px #000; }
     .info-box { background-color: #f8f9fa; padding: 10px; border-radius: 8px; color: #333; font-weight: bold; text-align: center; border: 1px solid #ddd; margin-bottom: 5px; }
     
-    /* ലോഗിൻ കാർഡ് സ്റ്റൈൽ */
     .login-card { 
         background: white; padding: 30px; border-radius: 15px; 
         box-shadow: 0px 4px 15px rgba(0,0,0,0.2); border-top: 5px solid #BF953F;
@@ -57,7 +57,7 @@ if 'logged_in' not in st.session_state:
 if 'sel_ticker' not in st.session_state:
     st.session_state.sel_ticker = ("^NSEI", "NIFTY 50")
 
-st_autorefresh(interval=30000, key="faisal_vfinal_refresh")
+st_autorefresh(interval=30000, key="faisal_v7_refresh")
 FILE_NAME = 'trade_history_v2.csv'
 
 def get_live_price(ticker):
@@ -73,7 +73,7 @@ def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
     if not os.path.isfile(FILE_NAME): df_new.to_csv(FILE_NAME, index=False)
     else: df_new.to_csv(FILE_NAME, mode='a', header=False, index=False)
 
-# --- സൈഡ് ബാർ ---
+# --- സൈഡ് ബാർ (ഇപ്പോൾ ഇത് തിരികെ വരും) ---
 with st.sidebar:
     st.markdown("### 🚀 Paichi Pro")
     ex_rate = get_live_price("AEDINR=X")
@@ -83,14 +83,13 @@ with st.sidebar:
     mode = st.radio("മെനു തിരഞ്ഞെടുക്കുക:", ["MARKET", "JOURNAL", "DASHBOARD"])
     st.divider()
 
-    if st.session_state.logged_in:
+    if st.session_state.get('logged_in', False):
         if st.button("🚪 LOGOUT"):
             st.session_state.logged_in = False
             st.rerun()
 
 # --- മെയിൻ ബോഡി കണ്ടന്റ് ---
 if mode == "MARKET":
-    # 🔓 Public Market Section
     st.markdown('<p class="main-title">🚀 LIVE MARKET DATA</p>', unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
@@ -106,7 +105,6 @@ if mode == "MARKET":
     st.markdown(f'<div class="info-box">🟡 Gold Price (8g): ₹ {gold_8g_inr:,.0f} (Approx)</div>', unsafe_allow_html=True)
 
 elif mode == "JOURNAL" or mode == "DASHBOARD":
-    # 🔒 Private Protected Section
     if not st.session_state.logged_in:
         login_section()
     else:
