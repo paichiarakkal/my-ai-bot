@@ -23,7 +23,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=15000, key="faisal_final_no_tooltip")
+st_autorefresh(interval=15000, key="faisal_final_with_footer")
 FILE_NAME = 'trade_history_v2.csv'
 
 # --- ഫംഗ്ഷനുകൾ ---
@@ -85,7 +85,7 @@ if mode == "MARKET":
         c1.metric("ലൈവ് വില", f"₹{live_p:.2f}")
         c2.metric("AI പ്രവചനം", f"₹{ai_p:.2f}")
         
-        # ടൂൾടിപ്പ് പൂർണ്ണമായും ഒഴിവാക്കിയ പുതിയ ഗ്രാഫ്
+        # ഗ്രാഫിലെ വെള്ള ബോക്സ് (Tooltip) ഓഫ് ചെയ്ത ചാർട്ട്
         fig = go.Figure()
         fig.add_trace(go.Scatter(y=[live_p]*10, mode='lines', line=dict(color='#00008B', width=3), hoverinfo='none'))
         fig.update_layout(
@@ -95,14 +95,25 @@ if mode == "MARKET":
             yaxis=dict(showgrid=True, zeroline=False),
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)',
-            hovermode=False # ഇവിടെയാണ് വെള്ള ബോക്സ് ഓഫ് ചെയ്യുന്നത്
+            hovermode=False 
         )
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 elif mode == "JOURNAL":
     st.subheader("📝 ട്രേഡിംഗ് ജേണൽ")
-    # നിന്റെ പഴയ ജേണൽ കോഡുകൾ ഇവിടെ തുടരും...
+    # ജേണൽ ഫീച്ചറുകൾ ഇവിടെ വരും...
 
 elif mode == "DASHBOARD":
     st.subheader("📊 പെർഫോമൻസ്")
-    # നിന്റെ പഴയ ഡാഷ്‌ബോർഡ് കോഡുകൾ ഇവിടെ തുടരും...
+    # ഡാഷ്‌ബോർഡ് ഫീച്ചറുകൾ ഇവിടെ വരും...
+
+# --- FOOTER (PAICHI) ---
+st.markdown("""
+    <hr style="border: 0.5px solid #BF953F;">
+    <div style="text-align: center; color: #FFF; padding: 10px;">
+        <p style="margin: 0; font-size: 14px;">Created by <b>Faisal Arakkal</b></p>
+        <a href="https://my-ai-bot-kj4n8z6nvjusxwpts3kehs.streamlit.app/" target="_blank" style="color: #BF953F; text-decoration: none; font-weight: bold;">
+            Visit My App 🔗
+        </a>
+    </div>
+""", unsafe_allow_html=True)
