@@ -21,7 +21,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=15000, key="faisal_logic_fix_v1")
+st_autorefresh(interval=15000, key="faisal_custom_logic_v1")
 FILE_NAME = 'trade_history_v2.csv'
 
 # --- ഫംഗ്ഷനുകൾ ---
@@ -32,14 +32,14 @@ def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
     if not os.path.isfile(FILE_NAME): df_new.to_csv(FILE_NAME, index=False)
     else: df_new.to_csv(FILE_NAME, mode='a', header=False, index=False)
 
-# --- 1. സൈഡ് ബാർ ---
+# --- സൈഡ് ബാർ ---
 with st.sidebar:
     st.title("🚀 Paichi Pro")
     mode = st.radio("മെനു തിരഞ്ഞെടുക്കുക:", ["MARKET", "JOURNAL", "DASHBOARD"])
 
 if 'sel' not in st.session_state: st.session_state.sel = ("^NSEI", "NIFTY 50", 1)
 
-# --- 2. മെയിൻ കണ്ടന്റ് ---
+# --- മെയിൻ കണ്ടന്റ് ---
 st.markdown('<p class="main-title">🚀 Paichi AI Trader</p>', unsafe_allow_html=True)
 
 if mode == "JOURNAL":
@@ -54,13 +54,8 @@ if mode == "JOURNAL":
     mood = st.selectbox("മൂഡ്", ["Calm", "Happy", "Fear", "Greedy"])
     
     if st.button("Save Trade"):
-        # ലാഭനഷ്ടം കണക്കാക്കുന്ന ശരിയായ രീതി:
-        # BUY: (Exit - Entry) * Qty
-        # SELL: (Entry - Exit) * Qty (വില കുറയുമ്പോൾ ലാഭം)
-        if a == "BUY":
-            pnl = (ex - en) * q
-        else:
-            pnl = (en - ex) * q
+        # നീ ആവശ്യപ്പെട്ട ലോജിക്: എപ്പോഴും (Exit - Entry) ലാഭമായി വരണം
+        pnl = (ex - en) * q
             
         save_trade(s, a, en, ex, q, pnl, mood)
         st.success(f"സേവ് ചെയ്തു! P&L: ₹{pnl}")
@@ -72,10 +67,7 @@ if mode == "JOURNAL":
     if os.path.isfile(FILE_NAME):
         df = pd.read_csv(FILE_NAME)
         st.write("### സേവ് ചെയ്ത ട്രേഡുകൾ")
-        
-        # പുതിയ എൻട്രികൾ മുകളിൽ വരാൻ
-        df_display = df.iloc[::-1]
-        st.table(df_display) # നിനക്ക് ഇഷ്ടപ്പെട്ട അതേ ടേബിൾ സ്റ്റൈൽ
+        st.table(df.iloc[::-1]) # നിനക്ക് വേണ്ട ടേബിൾ രൂപം
         
         # ഡിലീറ്റ് ഓപ്ഷൻ
         st.write("---")
@@ -84,6 +76,3 @@ if mode == "JOURNAL":
             df = df.drop(del_idx)
             df.to_csv(FILE_NAME, index=False)
             st.rerun()
-
-# --- FOOTER ---
-st.markdown(f'<p style="text-align: center; color: #FFF; margin-top: 50px;">Created by <b>Faisal Arakkal</b></p>', unsafe_allow_html=True)
