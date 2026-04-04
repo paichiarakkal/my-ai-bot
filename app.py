@@ -9,41 +9,41 @@ from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
 from mtranslate import translate
 
-# --- 1. പേജ് സെറ്റിംഗ്സ് (സൈഡ് ബാർ എപ്പോഴും കാണാൻ expanded ആക്കി) ---
+# --- 1. പേജ് സെറ്റിംഗ്സ് (സൈഡ് ബാർ നിർബന്ധമായും വരാൻ 'expanded' സെറ്റ് ചെയ്തു) ---
 st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide", initial_sidebar_state="expanded")
 
-# നിനക്ക് താല്പര്യമില്ലാത്ത എല്ലാം നീക്കം ചെയ്യാനുള്ള അൾട്ടിമേറ്റ് CSS
+# അനാവശ്യ ചിഹ്നങ്ങൾ നീക്കാനും സൈഡ് ബാർ ഗ്ലാമർ ആക്കാനുമുള്ള CSS
 st.markdown("""
 <style>
     /* ഗോൾഡൻ ബാക്ക്ഗ്രൗണ്ട് */
     .stApp { background: linear-gradient(135deg, #BF953F, #FCF6BA, #B38728, #AA771C); color: #000; }
     
-    /* സൈഡ് ബാർ തിരികെ കൊണ്ടുവരാൻ */
-    section[data-testid="stSidebar"] { background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; visibility: visible !important; width: 250px !important; }
-    div[data-testid="stSidebar"] button { width: 100%; background-color: #000 !important; color: #BF953F !important; border: 1px solid #FFD700 !important; margin-bottom: 5px; font-weight: bold; }
+    /* സൈഡ് ബാർ ഡിസൈൻ */
+    [data-testid="stSidebar"] { background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; visibility: visible !important; width: 260px !important; }
+    [data-testid="stSidebar"] button { width: 100%; background-color: #000 !important; color: #BF953F !important; border: 1px solid #FFD700 !important; margin-bottom: 5px; font-weight: bold; }
     
-    /* മുകളിലെ Fork, GitHub ഐക്കണുകൾ നീക്കാൻ */
-    header, [data-testid="stHeader"] { display: none !important; }
+    /* മുകളിലെ Fork, GitHub, Menu ബട്ടണുകൾ ഹൈഡ് ചെയ്യാൻ */
+    header, [data-testid="stHeader"] { visibility: hidden !important; height: 0px !important; }
     
-    /* താഴെയുള്ള Created by, Hosted with, ചുവപ്പ് ലോഗോ എന്നിവ നീക്കാൻ */
+    /* താഴെയുള്ള ലോഗോകളും ചുവപ്പ് ഐക്കണുകളും നീക്കാൻ */
     footer { visibility: hidden !important; display: none !important; }
     .stDeployButton { display: none !important; }
     #MainMenu { visibility: hidden !important; }
     
-    /* മൊബൈലിലെ മറ്റ് അനാവശ്യ ചിഹ്നങ്ങൾ (വയലറ്റ്/ചുവപ്പ് ഐക്കണുകൾ) */
-    [data-testid="stDecoration"], [data-testid="stStatusWidget"], .st-emotion-cache-zq5wmm, .st-emotion-cache-15zrgzn {
+    /* മൊബൈലിലെ ഫ്ലോട്ടിംഗ് ചിഹ്നങ്ങൾ ഒഴിവാക്കാൻ */
+    [data-testid="stDecoration"], [data-testid="stStatusWidget"], .st-emotion-cache-zq5wmm {
         display: none !important;
         visibility: hidden !important;
     }
     
-    /* ടൈറ്റിൽ & ന്യൂസ് ബോക്സ് */
-    .main-title { color: #FFF; font-size: 30px; font-weight: 800; text-align: center; text-shadow: 2px 2px 4px #000; margin-top: -50px; }
+    /* ടൈറ്റിൽ സെറ്റിംഗ്സ് */
+    .main-title { color: #FFF; font-size: 32px; font-weight: 800; text-align: center; text-shadow: 2px 2px 4px #000; margin-top: -60px; }
     .news-box { background-color: #000; padding: 10px; border-radius: 5px; border: 1px solid #BF953F; margin-bottom: 20px; }
 </style>
 """, unsafe_allow_html=True)
 
-# ഓട്ടോ റിഫ്രഷ്
-st_autorefresh(interval=15000, key="faisal_sidebar_ultimate_v2")
+# 15 സെക്കൻഡിൽ ഓട്ടോ റിഫ്രഷ്
+st_autorefresh(interval=15000, key="faisal_sidebar_fixed_final")
 
 FILE_NAME = 'trade_history_v2.csv'
 
@@ -61,7 +61,7 @@ def get_live_news_malayalam():
         res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}).json()
         news_list = [item['title'] for item in res['news']]
         return translate("  |  ".join(news_list), "ml", "en")
-    except: return "വാർത്തകൾ അപ്‌ഡേറ്റ് ചെയ്യുന്നു..."
+    except: return "വാർത്തകൾ ലഭ്യമല്ല..."
 
 def get_analysis(symbol):
     try:
@@ -77,7 +77,7 @@ def get_analysis(symbol):
 news_mal = get_live_news_malayalam()
 st.markdown(f'<div class="news-box"><marquee scrollamount="5" style="color:#FFF;font-weight:bold;">📢 {news_mal}</marquee></div>', unsafe_allow_html=True)
 
-# --- 3. സൈഡ് ബാർ (Sidebar Fixed) ---
+# --- 3. സൈഡ് ബാർ (പഴയതുപോലെ എല്ലാം വരാൻ) ---
 with st.sidebar:
     st.title("🚀 Paichi Pro")
     live_aed = get_live_aed_rate()
@@ -85,7 +85,7 @@ with st.sidebar:
     aed_in = st.number_input("AED (Dirham)", value=1.0)
     st.success(f"₹ {aed_in * live_aed:.2f} (INR)") #
     st.divider()
-    mode = st.radio("മെനു:", ["MARKET", "JOURNAL", "DASHBOARD"])
+    mode = st.radio("മെനു തിരഞ്ഞെടുക്കുക:", ["MARKET", "JOURNAL", "DASHBOARD"])
     st.divider()
     if mode == "MARKET":
         if st.button("📈 NIFTY 50"): st.session_state.sel = ("^NSEI", "NIFTY 50", 1)
@@ -107,12 +107,12 @@ if mode == "MARKET":
         c1.metric("ലൈവ് വില", f"₹{data['p']*multi:.2f}") #
         c2.metric("AI പ്രവചനം", f"₹{data['ai']*multi:.2f}")
         st.line_chart(pd.DataFrame({"Price": [data['p']*multi]*10}))
-    else: st.error("ഇന്റർനെറ്റ് കണക്ഷൻ പരിശോധിക്കുക.")
+    else: st.error("ഇന്റർനെറ്റ് ഉണ്ടോ എന്ന് നോക്കൂ.")
 
 elif mode == "JOURNAL":
     st.subheader("📝 ട്രേഡിംഗ് ജേണൽ")
-    # പഴയ ജേണൽ കോഡ് ഇവിടെ വരും...
+    # നിന്റെ പഴയ ജേണൽ കോഡ് ഇവിടെ പേസ്റ്റ് ചെയ്യാം...
 
 elif mode == "DASHBOARD":
     st.subheader("📊 പെർഫോമൻസ്")
-    # പഴയ ഡാഷ്ബോർഡ് കോഡ് ഇവിടെ വരും...
+    # നിന്റെ പഴയ ഡാഷ്ബോർഡ് കോഡ് ഇവിടെ പേസ്റ്റ് ചെയ്യാം...
