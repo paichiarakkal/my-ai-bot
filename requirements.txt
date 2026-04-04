@@ -5,3 +5,4 @@ streamlit-autorefresh
 scikit-learn
 plotly
 mtranslate
+feedparser
