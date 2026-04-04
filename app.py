@@ -23,7 +23,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 15 സെക്കൻഡിൽ ആപ്പ് ഓട്ടോ റിഫ്രഷ് ആകും
-st_autorefresh(interval=15000, key="faisal_ultimate_fixed_v20")
+st_autorefresh(interval=15000, key="faisal_final_ultimate_v25")
 
 FILE_NAME = 'trade_history_v2.csv'
 
@@ -31,21 +31,21 @@ FILE_NAME = 'trade_history_v2.csv'
 
 def get_live_aed_rate():
     try:
-        res = requests.get("https://query1.finance.yahoo.com/v8/finance/chart/AEDINR=X?interval=1m&range=1d", headers={'User-Agent': 'Mozilla/5.0'}).json()
+        res = requests.get("https://query1.finance.yahoo.com/v8/finance/chart/AEDINR=X?interval=1m&range=1d", headers={'User-Agent': 'Mozilla/5.0'}, timeout=5).json()
         return res['chart']['result'][0]['meta']['regularMarketPrice']
-    except: return 22.75
+    except: return 22.75 # നെറ്റ് ഇല്ലെങ്കിൽ പഴയ റേറ്റ് കാണിക്കും
 
 def get_live_news_malayalam():
     try:
         url = "https://query1.finance.yahoo.com/v1/finance/search?q=Nifty,Crude%20Oil,Gold&newsCount=5"
-        res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}).json()
+        res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5).json()
         news_list = [item['title'] for item in res['news']]
         return translate("  |  ".join(news_list), "ml", "en")
-    except: return "വാർത്തകൾ അപ്‌ഡേറ്റ് ചെയ്യുന്നു..."
+    except: return "ഇന്റർനെറ്റ് കണക്ഷൻ പരിശോധിക്കുക..."
 
 def get_analysis(symbol):
     try:
-        res = requests.get(f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1m&range=1d", headers={'User-Agent': 'Mozilla/5.0'}).json()
+        res = requests.get(f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1m&range=1d", headers={'User-Agent': 'Mozilla/5.0'}, timeout=5).json()
         data = res['chart']['result'][0]
         p = data['meta']['regularMarketPrice']
         close = [c for c in data['indicators']['quote'][0]['close'] if c is not None]
@@ -113,6 +113,8 @@ if mode == "MARKET":
         c1.metric("ലൈവ് വില", f"₹{live_p:.2f}")
         c2.metric("AI പ്രവചനം", f"₹{ai_p:.2f}")
         st.line_chart(pd.DataFrame({"Price": [live_p]*10}))
+    else:
+        st.error("ലൈവ് വില ലഭ്യമല്ല. ദയവായി ഇന്റർനെറ്റ് കണക്ഷൻ പരിശോധിക്കുക.")
 
 elif mode == "JOURNAL":
     st.subheader("📝 ട്രേഡിംഗ് ജേണൽ & SL Advisor")
@@ -133,8 +135,12 @@ elif mode == "JOURNAL":
             st.success("സേവ് ചെയ്തു!")
             st.rerun()
     
+    # ഇന്റർനെറ്റ് ഇല്ലെങ്കിലും പഴയ ഡാറ്റ ഇവിടെ കാണിക്കും
     if os.path.isfile(FILE_NAME):
+        st.markdown("### 📜 പഴയ ട്രേഡിംഗ് ഹിസ്റ്ററി")
         st.dataframe(pd.read_csv(FILE_NAME), use_container_width=True)
+    else:
+        st.info("ഹിസ്റ്ററി ലഭ്യമല്ല.")
 
 elif mode == "DASHBOARD":
     st.subheader("📊 പെർഫോമൻസ് & വിൻ റേറ്റ്")
@@ -146,4 +152,4 @@ elif mode == "DASHBOARD":
         st.plotly_chart(px.pie(df, names='Mood', title="Psychology Chart", hole=0.4))
         st.plotly_chart(px.bar(df, x='Date', y='P&L', color='P&L', title="P&L Trend"))
     else:
-        st.info("ഹിസ്റ്ററി ലഭ്യമല്ല.")
+        st.info("ഹിസ്റ്ററി ലഭ്യമല്ല. ആദ്യം ട്രേഡുകൾ സേവ് ചെയ്യുക.")
