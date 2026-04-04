@@ -18,11 +18,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=30000, key="faisal_final_dynamic_v1")
+st_autorefresh(interval=30000, key="faisal_final_dynamic_fix")
 FILE_NAME = 'trade_history_v2.csv'
 
 # --- ഫംഗ്ഷനുകൾ ---
-def get_live_price_data(ticker):
+def get_live_data(ticker):
     try:
         data = yf.Ticker(ticker).history(period='1d', interval='5m')
         return data
@@ -35,16 +35,16 @@ def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
     if not os.path.isfile(FILE_NAME): df_new.to_csv(FILE_NAME, index=False)
     else: df_new.to_csv(FILE_NAME, mode='a', header=False, index=False)
 
-# --- 2. സൈഡ് ബാർ (Dynamic Menu) ---
+# --- 2. സൈഡ് ബാർ (Dynamic Sidebar based on screenshots) ---
 if 'sel_ticker' not in st.session_state:
     st.session_state.sel_ticker = ("^NSEI", "NIFTY 50")
 
 with st.sidebar:
-    st.title("🚀 Paichi Pro")
+    st.markdown("### 🚀 Paichi Pro")
     mode = st.radio("മെനു തിരഞ്ഞെടുക്കുക:", ["MARKET", "JOURNAL"])
     st.divider()
 
-    # MARKET തിരഞ്ഞെടുക്കുമ്പോൾ മാത്രം ബട്ടണുകൾ കാണിക്കുന്നു
+    # MARKET മോഡിൽ മാത്രം ഇൻഡക്സ് ബട്ടണുകൾ കാണിക്കുന്നു
     if mode == "MARKET":
         st.write("### 📊 MARKET INDEX")
         if st.button("📈 NIFTY 50"): st.session_state.sel_ticker = ("^NSEI", "NIFTY 50")
@@ -57,67 +57,61 @@ with st.sidebar:
         if st.button("⛽ CRUDE OIL"): st.session_state.sel_ticker = ("CL=F", "CRUDE OIL")
         
         st.divider()
-        st.write("### 🟡 INDIAN GOLD (8g/1 Pavan)")
-        gold_data = get_live_price_data("GC=F")
-        usd_inr_data = get_live_price_data("USDINR=X")
-        if gold_data is not None and usd_inr_data is not None:
+        # സ്വർണ്ണവില കണക്കാക്കുന്നു
+        gold_data = get_live_data("GC=F")
+        usd_inr_data = get_live_data("USDINR=X")
+        if gold_data is not None and not gold_data.empty and usd_inr_data is not None:
             raw_gold_usd = gold_data['Close'].iloc[-1]
             usd_inr = usd_inr_data['Close'].iloc[-1]
-            base_price_8g = (raw_gold_usd / 31.1035) * 8 * usd_inr
-            shop_price = base_price_8g * 1.15
-            st.markdown(f'<div class="gold-box"><h3>₹ {shop_price:,.0f}</h3><p style="margin:0; font-size:10px;">(Estimated Shop Price)</p></div>', unsafe_allow_html=True)
+            shop_price = ((raw_gold_usd / 31.1035) * 8 * usd_inr) * 1.15
+            st.markdown(f'<div class="gold-box"><h3>₹ {shop_price:,.0f}</h3><p style="margin:0; font-size:10px;">(8g Shop Price)</p></div>', unsafe_allow_html=True)
 
 # --- 3. മെയിൻ കണ്ടന്റ് ---
-st.markdown(f'<p class="main-title">🚀 Paichi AI Trader</p>', unsafe_allow_html=True)
+# സൈഡ്ബാറിൽ ഏത് ബട്ടൺ അമർത്തുന്നുവോ ആ പേര് മെയിൻ ടൈറ്റിലായി വരും
+st.markdown(f'<p class="main-title">🚀 {st.session_state.sel_ticker[1]}</p>', unsafe_allow_html=True)
 
 if mode == "MARKET":
     symbol, name = st.session_state.sel_ticker
-    data = get_live_price_data(symbol)
+    data = get_live_data(symbol)
     
     if data is not None and not data.empty:
         current_p = data['Close'].iloc[-1]
-        st.subheader(f"📍 {name}")
-        st.metric(label="Live Price", value=f"₹ {current_p:,.2f}")
+        c1, c2 = st.columns([1, 2])
+        with c1:
+            st.metric(label="ലൈവ് വില", value=f"₹ {current_p:,.2f}")
         
-        # മാർക്കറ്റ് ചാർട്ട് (Chart)
-        st.write("### 📈 Market Trend")
+        # മാർക്കറ്റ് ചാർട്ട്
+        st.write(f"### {name} Trend")
         st.line_chart(data['Close'])
     else:
-        st.error("Data fetch error. Please check internet.")
+        st.error("ഡാറ്റ ലഭ്യമായില്ല. ദയവായി കാത്തിരിക്കുക.")
 
 elif mode == "JOURNAL":
     st.subheader("📝 ട്രേഡിംഗ് ജേണൽ")
-    
     # ട്രേഡ് എൻട്രി ഫോം
-    with st.container():
-        s = st.text_input("Item", value=st.session_state.sel_ticker[1])
-        col1, col2 = st.columns(2)
-        en = col1.number_input("Entry Price", value=0.0)
-        ex = col2.number_input("Exit Price", value=0.0)
-        q = col1.number_input("Qty", value=1, step=1)
-        a = col2.selectbox("Action", ["BUY", "SELL"])
-        mood = st.selectbox("മൂഡ്", ["Calm", "Happy", "Fear", "Greedy"])
-        
-        if st.button("Save Trade"):
-            pnl = (ex - en) * q
-            save_trade(s, a, en, ex, q, pnl, mood)
-            st.success(f"സേവ് ചെയ്തു! P&L: ₹{pnl}")
-            st.rerun()
+    s = st.text_input("Item", value=st.session_state.sel_ticker[1])
+    col1, col2 = st.columns(2)
+    en = col1.number_input("Entry Price", value=0.0)
+    ex = col2.number_input("Exit Price", value=0.0)
+    q = col1.number_input("Qty", value=1, step=1)
+    a = col2.selectbox("Action", ["BUY", "SELL"])
+    mood = st.selectbox("മൂഡ്", ["Calm", "Happy", "Fear", "Greedy"])
+    
+    if st.button("Save Trade"):
+        pnl = (ex - en) * q
+        save_trade(s, a, en, ex, q, pnl, mood)
+        st.success("സേവ് ചെയ്തു!")
+        st.rerun()
 
     st.divider()
-
-    # ടേബിൾ രൂപത്തിൽ ലിസ്റ്റ് ചെയ്യുന്നു
+    # ജേണൽ ടേബിൾ
     if os.path.isfile(FILE_NAME):
         df = pd.read_csv(FILE_NAME)
-        st.write("### സേവ് ചെയ്ത ട്രേഡുകൾ")
         st.table(df.iloc[::-1])
-        
-        # ഡിലീറ്റ് ഓപ്ഷൻ
         st.write("---")
         del_idx = st.number_input("ഡിലീറ്റ് ചെയ്യേണ്ട ഇൻഡക്സ് (Index) നൽകുക:", min_value=0, max_value=len(df)-1, step=1)
-        if st.button("Delete Selected Entry"):
-            df = df.drop(del_idx)
-            df.to_csv(FILE_NAME, index=False)
+        if st.button("Delete Entry"):
+            df = df.drop(del_idx).to_csv(FILE_NAME, index=False)
             st.rerun()
 
 # --- FOOTER ---
