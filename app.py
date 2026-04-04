@@ -6,7 +6,7 @@ import os
 from streamlit_autorefresh import st_autorefresh
 
 # 1. പേജ് സെറ്റിംഗ്സ് & ഗോൾഡൻ തീം
-st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
+st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
@@ -18,15 +18,15 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=30000, key="faisal_final_dynamic_fix")
+st_autorefresh(interval=30000, key="faisal_final_no_graph")
 FILE_NAME = 'trade_history_v2.csv'
 
 # --- ഫംഗ്ഷനുകൾ ---
-def get_live_data(ticker):
+def get_live_price_only(ticker):
     try:
-        data = yf.Ticker(ticker).history(period='1d', interval='5m')
-        return data
-    except: return None
+        data = yf.Ticker(ticker).history(period='1d', interval='1m')
+        return data['Close'].iloc[-1]
+    except: return 0.0
 
 def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
     date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -35,18 +35,19 @@ def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
     if not os.path.isfile(FILE_NAME): df_new.to_csv(FILE_NAME, index=False)
     else: df_new.to_csv(FILE_NAME, mode='a', header=False, index=False)
 
-# --- 2. സൈഡ് ബാർ (Dynamic Sidebar based on screenshots) ---
+# --- സെഷൻ സ്റ്റേറ്റ് കൺട്രോൾ ---
 if 'sel_ticker' not in st.session_state:
     st.session_state.sel_ticker = ("^NSEI", "NIFTY 50")
 
+# --- 2. സൈഡ് ബാർ (ബട്ടൺ അമർത്തിയാൽ സ്ലൈഡ് ബാർ പോകുന്ന രീതി) ---
 with st.sidebar:
     st.markdown("### 🚀 Paichi Pro")
     mode = st.radio("മെനു തിരഞ്ഞെടുക്കുക:", ["MARKET", "JOURNAL"])
     st.divider()
 
-    # MARKET മോഡിൽ മാത്രം ഇൻഡക്സ് ബട്ടണുകൾ കാണിക്കുന്നു
     if mode == "MARKET":
         st.write("### 📊 MARKET INDEX")
+        # ബട്ടൺ അമർത്തിയാൽ പേജ് റീഫ്രഷ് ആകുമ്പോൾ സ്ലൈഡ് ബാർ തനിയെ അടങ്ങുന്ന രീതിയിലാണ് സ്ട്രീംലിറ്റ് പ്രവർത്തിക്കുക
         if st.button("📈 NIFTY 50"): st.session_state.sel_ticker = ("^NSEI", "NIFTY 50")
         if st.button("🏦 BANK NIFTY"): st.session_state.sel_ticker = ("^NSEBANK", "BANK NIFTY")
         if st.button("💳 FIN NIFTY"): st.session_state.sel_ticker = ("NIFTY_FIN_SERVICE.NS", "FIN NIFTY")
@@ -57,34 +58,27 @@ with st.sidebar:
         if st.button("⛽ CRUDE OIL"): st.session_state.sel_ticker = ("CL=F", "CRUDE OIL")
         
         st.divider()
-        # സ്വർണ്ണവില കണക്കാക്കുന്നു
-        gold_data = get_live_data("GC=F")
-        usd_inr_data = get_live_data("USDINR=X")
-        if gold_data is not None and not gold_data.empty and usd_inr_data is not None:
-            raw_gold_usd = gold_data['Close'].iloc[-1]
-            usd_inr = usd_inr_data['Close'].iloc[-1]
+        # സ്വർണ്ണവില കണക്കാക്കൽ (ചാർട്ട് ഇല്ലാതെ)
+        raw_gold_usd = get_live_price_only("GC=F")
+        usd_inr = get_live_price_only("USDINR=X")
+        if raw_gold_usd > 0:
             shop_price = ((raw_gold_usd / 31.1035) * 8 * usd_inr) * 1.15
             st.markdown(f'<div class="gold-box"><h3>₹ {shop_price:,.0f}</h3><p style="margin:0; font-size:10px;">(8g Shop Price)</p></div>', unsafe_allow_html=True)
 
-# --- 3. മെയിൻ കണ്ടന്റ് ---
-# സൈഡ്ബാറിൽ ഏത് ബട്ടൺ അമർത്തുന്നുവോ ആ പേര് മെയിൻ ടൈറ്റിലായി വരും
+# --- 3. മെയിൻ കണ്ടന്റ് (ഗ്രാഫ് ഒഴിവാക്കി) ---
 st.markdown(f'<p class="main-title">🚀 {st.session_state.sel_ticker[1]}</p>', unsafe_allow_html=True)
 
 if mode == "MARKET":
     symbol, name = st.session_state.sel_ticker
-    data = get_live_data(symbol)
+    current_p = get_live_price_only(symbol)
     
-    if data is not None and not data.empty:
-        current_p = data['Close'].iloc[-1]
-        c1, c2 = st.columns([1, 2])
-        with c1:
-            st.metric(label="ലൈവ് വില", value=f"₹ {current_p:,.2f}")
-        
-        # മാർക്കറ്റ് ചാർട്ട്
-        st.write(f"### {name} Trend")
-        st.line_chart(data['Close'])
+    if current_p > 0:
+        st.write(f"### ലൈവ് വില")
+        st.metric(label=name, value=f"₹ {current_p:,.2f}")
+        # ഗ്രാഫ് നീക്കം ചെയ്തു
+        st.success(f"നിലവിൽ {name} മാർക്കറ്റ് വില കൃത്യമായി അപ്ഡേറ്റ് ആകുന്നുണ്ട്.")
     else:
-        st.error("ഡാറ്റ ലഭ്യമായില്ല. ദയവായി കാത്തിരിക്കുക.")
+        st.error("ഡാറ്റ ലഭ്യമായില്ല.")
 
 elif mode == "JOURNAL":
     st.subheader("📝 ട്രേഡിംഗ് ജേണൽ")
