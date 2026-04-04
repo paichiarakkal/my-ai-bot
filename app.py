@@ -25,11 +25,12 @@ st.markdown("""
     /* പ്രൊഫൈൽ ഫോട്ടോ സ്റ്റൈൽ */
     .profile-container { text-align: center; padding-bottom: 15px; }
     .profile-img {
+        display: block; margin-left: auto; margin-right: auto;
         width: 120px; height: 120px;
         border-radius: 50%; border: 3px solid #000;
         object-fit: cover; box-shadow: 0px 4px 10px rgba(0,0,0,0.5);
     }
-    .profile-name { color: #000; font-size: 20px; font-weight: bold; margin-top: 8px; }
+    .profile-name { color: #000; font-size: 20px; font-weight: bold; margin-top: 8px; text-align: center; }
 
     /* മെയിൻ ടൈറ്റിൽ & ടാർഗെറ്റ് അലേർട്ട് */
     .main-title { color: #FFF; font-size: 38px; font-weight: 800; text-align: center; text-shadow: 2px 2px 4px #000; margin-top: -40px; }
@@ -41,7 +42,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=10000, key="faisal_final_photo_v1")
+st_autorefresh(interval=10000, key="faisal_final_v6")
 
 FILE_NAME = 'trade_history_v2.csv'
 
@@ -69,7 +70,7 @@ st.markdown(f'<div style="background:#000;color:#BF953F;padding:10px;"><marquee 
 
 # 4. സൈഡ് ബാർ (ഫോട്ടോ, കറൻസി & സെറ്റിംഗ്സ്)
 with st.sidebar:
-    # --- ഫോട്ടോ സെറ്റ് ചെയ്യുന്ന ഭാഗം ---
+    # നിന്റെ ഫോട്ടോ ലോഡ് ചെയ്യുന്ന ഭാഗം
     if os.path.exists("image_7.png"):
         img = Image.open("image_7.png")
         st.markdown('<div class="profile-container">', unsafe_allow_html=True)
@@ -77,7 +78,7 @@ with st.sidebar:
         st.markdown('<div class="profile-name">Faisal @Paichi</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
     else:
-        st.warning("image_7.png കണ്ടില്ല!")
+        st.warning("image_7.png കണ്ടില്ല! ഫയൽ അപ്‌ലോഡ് ചെയ്തിട്ടുണ്ടോ എന്ന് നോക്കുക.")
     
     st.divider()
     st.subheader("💰 Currency Converter")
@@ -121,9 +122,8 @@ if cat == "MARKET":
         c1.metric("ലൈവ് വില", f"₹{live_price:.2f}")
         c2.metric("AI പ്രവചനം", f"₹{data['ai']*m:.2f}")
         
-        # ചാർട്ട് കാണിക്കാൻ
-        chart_data = pd.DataFrame({"Price": [live_price]*10})
-        st.line_chart(chart_data)
+        # ലൈവ് ചാർട്ട് കാണിക്കാൻ
+        st.line_chart(pd.DataFrame({"Price": [live_price]*10}))
 
 elif cat == "JOURNAL":
     st.subheader("📝 ട്രേഡിംഗ് ജേണൽ & SL Advisor")
