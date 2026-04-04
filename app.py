@@ -9,10 +9,10 @@ from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
 from mtranslate import translate
 
-# --- 1. പേജ് സെറ്റിംഗ്സ് & അൾട്ടിമേറ്റ് ക്ലീൻ ഡിസൈൻ ---
+# --- 1. പേജ് സെറ്റിംഗ്സ് & ക്ലീൻ ഡിസൈൻ ---
 st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide", initial_sidebar_state="collapsed")
 
-# നിനക്ക് താല്പര്യമില്ലാത്ത എല്ലാ അനാവശ്യ ചിഹ്നങ്ങളും നീക്കാനുള്ള CSS
+# നീ ആവശ്യപ്പെട്ടതുപോലെ മുകളിലെ Fork/Logo ഉം താഴെയുള്ള ഐക്കണുകളും നീക്കാനുള്ള CSS
 st.markdown("""
 <style>
     /* ഗോൾഡൻ ബാക്ക്ഗ്രൗണ്ട് */
@@ -22,29 +22,27 @@ st.markdown("""
     section[data-testid="stSidebar"] { background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; }
     div[data-testid="stSidebar"] button { width: 100%; background-color: #000 !important; color: #BF953F !important; border: 1px solid #FFD700 !important; margin-bottom: 5px; font-weight: bold; }
     
-    /* ഹെഡറിലെ Fork, GitHub, Menu എന്നിവ പൂർണ്ണമായി നീക്കാൻ */
+    /* മുകളിലെ ഹെഡർ (Fork, GitHub) പൂർണ്ണമായി നീക്കാൻ */
     header, [data-testid="stHeader"] { visibility: hidden !important; height: 0px !important; }
     
-    /* താഴെയുള്ള Created by, Hosted with ലോഗോകൾ നീക്കാൻ */
+    /* താഴെയുള്ള ഐക്കണുകൾ (Created by, Hosted with) നീക്കാൻ */
     footer {visibility: hidden !important;}
     .stDeployButton {display:none !important;}
     #MainMenu {visibility: hidden !important;}
+    
+    /* സ്ക്രീനിന്റെ ഏറ്റവും താഴെ കാണുന്ന ആ രണ്ട് ചിഹ്നങ്ങൾ ഒഴിവാക്കാൻ */
     [data-testid="stDecoration"] { display: none !important; }
     [data-testid="stStatusWidget"] { visibility: hidden !important; }
-    
-    /* മൊബൈൽ ആപ്പിലെ അനാവശ്യ ഗ്രാഫിക്സ് ഒഴിവാക്കാൻ */
-    .st-emotion-cache-1wbqy5l, .st-emotion-cache-1dp5vir, .st-emotion-cache-6q9sum, .st-emotion-cache-zq5wmm {
-        display: none !important;
-    }
+    iframe { display: none !important; }
 
-    /* ടൈറ്റിൽ & ന്യൂസ് ബോക്സ് അറേഞ്ച്മെന്റ് */
+    /* ടൈറ്റിൽ & ന്യൂസ് ബോക്സ് */
     .main-title { color: #FFF; font-size: 35px; font-weight: 800; text-align: center; text-shadow: 2px 2px 4px #000; margin-top: -60px; }
     .news-box { background-color: #000; padding: 10px; border-radius: 5px; border: 1px solid #BF953F; margin-bottom: 20px; }
 </style>
 """, unsafe_allow_html=True)
 
 # 15 സെക്കൻഡിൽ ഓട്ടോ റിഫ്രഷ്
-st_autorefresh(interval=15000, key="faisal_full_power_v100")
+st_autorefresh(interval=15000, key="faisal_ultimate_clean_v80")
 
 FILE_NAME = 'trade_history_v2.csv'
 
@@ -81,7 +79,7 @@ def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
     if not os.path.isfile(FILE_NAME): df_new.to_csv(FILE_NAME, index=False)
     else: df_new.to_csv(FILE_NAME, mode='a', header=False, index=False)
 
-# --- 2. മലയാളം ലൈവ് വാർത്തകൾ (TOP) ---
+# --- 2. മലയാളം ലൈവ് വാർത്തകൾ ---
 news_mal = get_live_news_malayalam()
 st.markdown(f'<div class="news-box"><h4 style="color:#BF953F;text-align:center;">📰 മലയാളം ലൈവ് വാർത്തകൾ</h4><marquee scrollamount="5" style="color:#FFF;font-weight:bold;">📢 {news_mal}</marquee></div>', unsafe_allow_html=True)
 
@@ -91,16 +89,15 @@ with st.sidebar:
     live_aed = get_live_aed_rate()
     st.subheader("💰 Live Currency")
     aed_in = st.number_input("AED (Dirham)", value=1.0)
-    st.success(f"₹ {aed_in * live_aed:.2f} (INR)") #
+    st.success(f"₹ {aed_in * live_aed:.2f} (INR)")
     st.divider()
     mode = st.radio("മെനു തിരഞ്ഞെടുക്കുക:", ["MARKET", "JOURNAL", "DASHBOARD"])
     st.divider()
     if mode == "MARKET":
-        st.subheader("🎯 തിരഞ്ഞെടുക്കുക:")
         if st.button("📈 NIFTY 50"): st.session_state.sel = ("^NSEI", "NIFTY 50", 1)
         if st.button("🏦 BANK NIFTY"): st.session_state.sel = ("^NSEBANK", "BANK NIFTY", 1)
         if st.button("🛢️ CRUDE OIL MCX"): st.session_state.sel = ("CL=F", "CRUDE OIL MCX", 93.5)
-        if st.button("💰 GOLD 8G"): st.session_state.sel = ("GC=F", "GOLD 8 GRAM", 84.5 * 8)
+        if st.button("💰 GOLD 8G"): st.session_state.sel = ("GC=F", "GOLD 8G", 84.5 * 8)
 
 if 'sel' not in st.session_state: st.session_state.sel = ("^NSEI", "NIFTY 50", 1)
 
@@ -113,13 +110,13 @@ if mode == "MARKET":
     if data:
         st.subheader(f"📍 {name}")
         c1, c2 = st.columns(2)
-        c1.metric("ലൈവ് വില", f"₹{data['p']*multi:.2f}") #
+        c1.metric("ലൈവ് വില", f"₹{data['p']*multi:.2f}")
         c2.metric("AI പ്രവചനം", f"₹{data['ai']*multi:.2f}")
         st.line_chart(pd.DataFrame({"Price": [data['p']*multi]*10}))
     else: st.error("ഇന്റർനെറ്റ് കണക്ഷൻ പരിശോധിക്കുക.")
 
 elif mode == "JOURNAL":
-    st.subheader("📝 ട്രേഡിംഗ് ജേണൽ & SL Advisor") #
+    st.subheader("📝 ട്രേഡിംഗ് ജേണൽ & SL Advisor")
     with st.expander("പുതിയ ട്രേഡ് ചേർക്കുക", expanded=True):
         col1, col2 = st.columns(2)
         s = col1.text_input("Item", value=st.session_state.sel[1])
@@ -138,10 +135,8 @@ elif mode == "JOURNAL":
         st.dataframe(pd.read_csv(FILE_NAME), use_container_width=True)
 
 elif mode == "DASHBOARD":
-    st.subheader("📊 പെർഫോമൻസ് & വിൻ റേറ്റ്") #
+    st.subheader("📊 പെർഫോമൻസ്")
     if os.path.isfile(FILE_NAME):
         df = pd.read_csv(FILE_NAME)
         st.metric("Win Rate 🎯", f"{(len(df[df['P&L']>0])/len(df)*100) if len(df)>0 else 0:.1f}%")
         st.plotly_chart(px.pie(df, names='Mood', title="Psychology Chart", hole=0.4))
-        st.plotly_chart(px.bar(df, x='Date', y='P&L', color='P&L', title="P&L Trend"))
-    else: st.info("ഹിസ്റ്ററി ലഭ്യമല്ല.")
