@@ -9,10 +9,10 @@ from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
 from mtranslate import translate
 
-# --- 1. പേജ് സെറ്റിംഗ്സ് & ക്ലീൻ ഡിസൈൻ ---
+# --- 1. പേജ് സെറ്റിംഗ്സ് & അൾട്ടിമേറ്റ് ക്ലീൻ ഡിസൈൻ ---
 st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide", initial_sidebar_state="collapsed")
 
-# നീ ആവശ്യപ്പെട്ട എല്ലാ അനാവശ്യ കാര്യങ്ങളും മാറ്റാനുള്ള CSS
+# നിനക്ക് താല്പര്യമില്ലാത്ത എല്ലാ അനാവശ്യ ചിഹ്നങ്ങളും നീക്കാനുള്ള CSS
 st.markdown("""
 <style>
     /* ഗോൾഡൻ ബാക്ക്ഗ്രൗണ്ട് */
@@ -22,24 +22,29 @@ st.markdown("""
     section[data-testid="stSidebar"] { background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; }
     div[data-testid="stSidebar"] button { width: 100%; background-color: #000 !important; color: #BF953F !important; border: 1px solid #FFD700 !important; margin-bottom: 5px; font-weight: bold; }
     
-    /* ഹെഡർ മാറ്റാൻ (Fork, GitHub, Menu എന്നിവ മറയ്ക്കാൻ) */
-    header[data-testid="stHeader"] { visibility: hidden !important; height: 0px !important; }
+    /* ഹെഡറിലെ Fork, GitHub, Menu എന്നിവ പൂർണ്ണമായി നീക്കാൻ */
+    header, [data-testid="stHeader"] { visibility: hidden !important; height: 0px !important; }
     
-    /* ടൈറ്റിൽ & ന്യൂസ് ബോക്സ് */
-    .main-title { color: #FFF; font-size: 35px; font-weight: 800; text-align: center; text-shadow: 2px 2px 4px #000; margin-top: -50px; }
+    /* താഴെയുള്ള Created by, Hosted with ലോഗോകൾ നീക്കാൻ */
+    footer {visibility: hidden !important;}
+    .stDeployButton {display:none !important;}
+    #MainMenu {visibility: hidden !important;}
+    [data-testid="stDecoration"] { display: none !important; }
+    [data-testid="stStatusWidget"] { visibility: hidden !important; }
+    
+    /* മൊബൈൽ ആപ്പിലെ അനാവശ്യ ഗ്രാഫിക്സ് ഒഴിവാക്കാൻ */
+    .st-emotion-cache-1wbqy5l, .st-emotion-cache-1dp5vir, .st-emotion-cache-6q9sum, .st-emotion-cache-zq5wmm {
+        display: none !important;
+    }
+
+    /* ടൈറ്റിൽ & ന്യൂസ് ബോക്സ് അറേഞ്ച്മെന്റ് */
+    .main-title { color: #FFF; font-size: 35px; font-weight: 800; text-align: center; text-shadow: 2px 2px 4px #000; margin-top: -60px; }
     .news-box { background-color: #000; padding: 10px; border-radius: 5px; border: 1px solid #BF953F; margin-bottom: 20px; }
-    
-    /* താഴെയുള്ള ഐക്കണുകൾ (Floating elements) പൂർണ്ണമായി നീക്കാൻ */
-    #MainMenu, footer, .stDeployButton {display: none !important;}
-    div[data-testid="stStatusWidget"] {visibility: hidden !important;}
-    
-    /* നിന്റെ സ്ക്രീൻഷോട്ടിലെ പ്രത്യേക ഐക്കണുകളെ ടാർഗെറ്റ് ചെയ്യുന്നു */
-    .st-emotion-cache-1wbqy5l, .st-emotion-cache-1dp5vir, .st-emotion-cache-6q9sum { display: none !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# ഓട്ടോ റിഫ്രഷ്
-st_autorefresh(interval=15000, key="faisal_clean_ultimate_v50")
+# 15 സെക്കൻഡിൽ ഓട്ടോ റിഫ്രഷ്
+st_autorefresh(interval=15000, key="faisal_full_power_v100")
 
 FILE_NAME = 'trade_history_v2.csv'
 
@@ -57,7 +62,7 @@ def get_live_news_malayalam():
         res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}).json()
         news_list = [item['title'] for item in res['news']]
         return translate("  |  ".join(news_list), "ml", "en")
-    except: return "വാർത്തകൾ ലഭ്യമല്ല..."
+    except: return "വാർത്തകൾ അപ്‌ഡേറ്റ് ചെയ്യുന്നു..."
 
 def get_analysis(symbol):
     try:
@@ -78,14 +83,7 @@ def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
 
 # --- 2. മലയാളം ലൈവ് വാർത്തകൾ (TOP) ---
 news_mal = get_live_news_malayalam()
-st.markdown(f"""
-    <div class="news-box">
-        <h4 style="color: #BF953F; margin: 0; font-size: 16px; text-align: center;">📰 മലയാളം ലൈവ് വാർത്തകൾ</h4>
-        <marquee scrollamount="5" style="color: #FFF; font-size: 18px; font-weight: bold; padding-top: 5px;">
-            📢 {news_mal}
-        </marquee>
-    </div>
-""", unsafe_allow_html=True)
+st.markdown(f'<div class="news-box"><h4 style="color:#BF953F;text-align:center;">📰 മലയാളം ലൈവ് വാർത്തകൾ</h4><marquee scrollamount="5" style="color:#FFF;font-weight:bold;">📢 {news_mal}</marquee></div>', unsafe_allow_html=True)
 
 # --- 3. സൈഡ് ബാർ ---
 with st.sidebar:
@@ -93,19 +91,16 @@ with st.sidebar:
     live_aed = get_live_aed_rate()
     st.subheader("💰 Live Currency")
     aed_in = st.number_input("AED (Dirham)", value=1.0)
-    st.success(f"₹ {aed_in * live_aed:.2f} (INR)")
+    st.success(f"₹ {aed_in * live_aed:.2f} (INR)") #
     st.divider()
-
     mode = st.radio("മെനു തിരഞ്ഞെടുക്കുക:", ["MARKET", "JOURNAL", "DASHBOARD"])
     st.divider()
-
     if mode == "MARKET":
         st.subheader("🎯 തിരഞ്ഞെടുക്കുക:")
         if st.button("📈 NIFTY 50"): st.session_state.sel = ("^NSEI", "NIFTY 50", 1)
         if st.button("🏦 BANK NIFTY"): st.session_state.sel = ("^NSEBANK", "BANK NIFTY", 1)
-        st.divider()
         if st.button("🛢️ CRUDE OIL MCX"): st.session_state.sel = ("CL=F", "CRUDE OIL MCX", 93.5)
-        if st.button("💰 GOLD 8G"): st.session_state.sel = ("GC=F", "GOLD 8G", 84.5 * 8)
+        if st.button("💰 GOLD 8G"): st.session_state.sel = ("GC=F", "GOLD 8 GRAM", 84.5 * 8)
 
 if 'sel' not in st.session_state: st.session_state.sel = ("^NSEI", "NIFTY 50", 1)
 
@@ -117,37 +112,36 @@ if mode == "MARKET":
     data = get_analysis(symbol)
     if data:
         st.subheader(f"📍 {name}")
-        live_p, ai_p = data['p'] * multi, data['ai'] * multi
         c1, c2 = st.columns(2)
-        c1.metric("ലൈവ് വില", f"₹{live_p:.2f}")
-        c2.metric("AI പ്രവചനം", f"₹{ai_p:.2f}")
-        st.line_chart(pd.DataFrame({"Price": [live_p]*10}))
+        c1.metric("ലൈവ് വില", f"₹{data['p']*multi:.2f}") #
+        c2.metric("AI പ്രവചനം", f"₹{data['ai']*multi:.2f}")
+        st.line_chart(pd.DataFrame({"Price": [data['p']*multi]*10}))
     else: st.error("ഇന്റർനെറ്റ് കണക്ഷൻ പരിശോധിക്കുക.")
 
 elif mode == "JOURNAL":
-    st.subheader("📝 ട്രേഡിംഗ് ജേണൽ")
+    st.subheader("📝 ട്രേഡിംഗ് ജേണൽ & SL Advisor") #
     with st.expander("പുതിയ ട്രേഡ് ചേർക്കുക", expanded=True):
         col1, col2 = st.columns(2)
         s = col1.text_input("Item", value=st.session_state.sel[1])
         a = col2.selectbox("Action", ["BUY", "SELL"])
-        en = col1.number_input("Entry Price", value=0.0)
-        ex = col2.number_input("Exit Price", value=0.0)
-        qty = col1.number_input("Quantity", value=1, step=1)
-        mood = col2.selectbox("മൂഡ് (Mood)", ["Calm", "Happy", "Fear", "Greedy"])
+        en, ex = col1.number_input("Entry Price", value=0.0), col2.number_input("Exit Price", value=0.0)
+        if en > 0:
+            sl = en * 0.99 if a == "BUY" else en * 1.01
+            st.warning(f"💡 AI അഡ്വൈസ്: SL ₹{sl:.2f} | Target ₹{en*1.02 if a=='BUY' else en*0.98:.2f}")
+        qty = col1.number_input("Qty", value=1, step=1)
+        mood = col2.selectbox("മൂഡ്", ["Calm", "Happy", "Fear", "Greedy"])
         if st.button("Save Trade"):
             pnl = (ex - en) * qty if a == "BUY" else (en - ex) * qty
             save_trade(s, a, en, ex, qty, pnl, mood)
             st.success("സേവ് ചെയ്തു!"); st.rerun()
-    
     if os.path.isfile(FILE_NAME):
-        st.dataframe(pd.read_csv(FILE_NAME), use_container_width=True) #
+        st.dataframe(pd.read_csv(FILE_NAME), use_container_width=True)
 
 elif mode == "DASHBOARD":
-    st.subheader("📊 പെർഫോമൻസ് & വിൻ റേറ്റ്")
+    st.subheader("📊 പെർഫോമൻസ് & വിൻ റേറ്റ്") #
     if os.path.isfile(FILE_NAME):
         df = pd.read_csv(FILE_NAME)
-        wins = len(df[df['P&L'] > 0]); total = len(df)
-        st.metric("Win Rate 🎯", f"{(wins/total*100) if total > 0 else 0:.1f}%") #
+        st.metric("Win Rate 🎯", f"{(len(df[df['P&L']>0])/len(df)*100) if len(df)>0 else 0:.1f}%")
         st.plotly_chart(px.pie(df, names='Mood', title="Psychology Chart", hole=0.4))
         st.plotly_chart(px.bar(df, x='Date', y='P&L', color='P&L', title="P&L Trend"))
     else: st.info("ഹിസ്റ്ററി ലഭ്യമല്ല.")
