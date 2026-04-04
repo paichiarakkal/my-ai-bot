@@ -8,9 +8,11 @@ import plotly.express as px
 from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
 from mtranslate import translate
+from PIL import Image
 
 # 1. പേജ് സെറ്റിംഗ്സ് & ഗോൾഡൻ തീം
-st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
+# ബ്രൗസർ ടാബിൽ നിന്റെ ഫോട്ടോ വരാൻ page_icon ചേർത്തു
+st.set_page_config(page_title="Paichi AI Trader Pro", page_icon="image_7.png", layout="wide")
 
 st.markdown("""
 <style>
@@ -73,6 +75,11 @@ st.markdown(f"""
 
 # --- 2. സൈഡ് ബാർ ---
 with st.sidebar:
+    # സൈഡ് ബാറിൽ നിന്റെ ഫോട്ടോ വരാൻ താഴെ വരികൾ ചേർത്തു
+    if os.path.exists("image_7.png"):
+        img = Image.open("image_7.png")
+        st.image(img, use_container_width=True)
+    
     st.title("🚀 Paichi Pro")
     
     live_aed = get_live_aed_rate()
