@@ -18,12 +18,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 15 സെക്കൻഡിൽ ആപ്പ് ഓട്ടോ റിഫ്രഷ് ആകും
-st_autorefresh(interval=15000, key="faisal_final_ultimate_v5")
+st_autorefresh(interval=15000, key="faisal_final_ultimate_fixed_v5")
 FILE_NAME = 'trade_history_v2.csv'
 
 # --- 2. CORE FUNCTIONS ---
 def get_live_data(symbol):
     try:
+        # Yahoo Finance API
         res = requests.get(f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1m&range=1d", headers={'User-Agent': 'Mozilla/5.0'}).json()
         data = res['chart']['result'][0]
         p = data['meta']['regularMarketPrice']
@@ -70,7 +71,7 @@ with st.sidebar:
         st.subheader("📊 Watchlist")
         if st.button("📈 NIFTY 50"): st.session_state.sel = ("^NSEI", "NIFTY 50", 1)
         if st.button("🏦 BANK NIFTY"): st.session_state.sel = ("^NSEBANK", "BANK NIFTY", 1)
-        # Crude Oil & Gold - Symbols Updated
+        # Crude Oil & Gold - Symbols Fixed
         if st.button("🛢️ CRUDE OIL"): st.session_state.sel = ("CL=F", "CRUDE OIL", 84.5) 
         if st.button("💰 GOLD 8G"): st.session_state.sel = ("GC=F", "GOLD 8G", 8.45 * 8) 
 
@@ -93,12 +94,12 @@ if mode == "MARKET":
     if data:
         st.subheader(f"📍 {name}")
         lp, ap = data['p'] * multi, data['ai'] * multi
-        st.session_state.last_price = lp # Store price for Journal
+        st.session_state.last_price = lp # Price stored for automatic journal entry
         
         c1, c2 = st.columns(2)
         c1.metric("ലൈവ് വില", f"₹{lp:,.2f}")
         c2.metric("AI പ്രവചനം", f"₹{ap:,.2f}")
-        # NO WHITE CHART HERE (Removed)
+        # NO WHITE CHART HERE (Completely Removed)
 
 elif mode == "JOURNAL":
     st.subheader("📝 ട്രേഡിംഗ് ജേണൽ")
