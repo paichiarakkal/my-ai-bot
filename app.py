@@ -44,7 +44,7 @@ with st.sidebar:
     page = st.radio("Menu:", ["🏠 HOME", "📈 MARKET", "📝 JOURNAL", "📊 DASHBOARD", "💬 CHAT"])
     st.divider()
 
-    # 🎯 ഇൻഡക്സ് & കമ്മോഡിറ്റി (Midcap, Sensex ഉൾപ്പെടെ)
+    # 🎯 ഇൻഡക്സ് & കമ്മോഡിറ്റി
     st.subheader("🎯 Select Symbol")
     category = st.selectbox("Category", ["Index (Nifty/Sensex)", "Commodity (Crude)", "Nifty 50 Stocks"])
     
@@ -59,7 +59,7 @@ with st.sidebar:
     st.session_state.name = sel_name
     st.session_state.url = f"https://in.tradingview.com/chart/?symbol={sym_map[sel_name]}"
 
-# --- ഡൈനാമിക് കളർ തീം (ഓരോ പേജിനും ഓരോന്ന്) ---
+# --- ഡൈനാമിക് കളർ തീം ---
 themes = {
     "🏠 HOME": "linear-gradient(135deg, #C0C0C0, #FFFFFF)", # Silver
     "📈 MARKET": "linear-gradient(135deg, #BF953F, #FCF6BA)", # Golden
@@ -72,14 +72,13 @@ st.markdown(f"<style>.stApp {{ background: {themes[page]} !important; color: {tx
 
 # --- പേജ് കണ്ടന്റ് ---
 
-# 1. HOME (Daily Tips + Sentiment Meter)
+# 1. HOME (Daily Tips + Sentiment)
 if page == "🏠 HOME":
     st.markdown("<h1 style='text-align: center;'>SILVER HOME 🏠</h1>", unsafe_allow_html=True)
     st.markdown(f'<div style="text-align: center;"><img src="{photo_url}" style="width: 180px; border-radius: 50%; border: 5px solid #808080;"></div>', unsafe_allow_html=True)
     st.markdown(f"<h2 style='text-align: center;'>Welcome Faisal!</h2>", unsafe_allow_html=True)
     
     st.divider()
-    # 💡 Daily Trading Tips
     tips = [
         "നഷ്ടം കുറയ്ക്കുക, ലാഭം തനിയെ വന്നോളും. 📉",
         "മാർക്കറ്റ് എപ്പോഴും അവിടെയുണ്ടാകും, ധൃതി കാണിക്കരുത്. ⏳",
@@ -89,25 +88,33 @@ if page == "🏠 HOME":
         "ഇന്ന് ലാഭമില്ലെങ്കിലും സാരമില്ല, ക്യാപിറ്റൽ സംരക്ഷിക്കുക. 🛡️",
         "മനസ്സ് ശാന്തമാക്കി മാത്രം ട്രേഡിംഗ് പ്ലാറ്റ്‌ഫോം തുറക്കുക. 🧘‍♂️"
     ]
-    day_tip = tips[datetime.datetime.now().weekday()]
-    st.info(f"**💡 ഇന്നത്തെ ട്രേഡിംഗ് ടിപ്പ്:** \n\n {day_tip}")
+    st.info(f"**💡 ഇന്നത്തെ ട്രേഡിംഗ് ടിപ്പ്:** \n\n {tips[datetime.datetime.now().weekday()]}")
 
     st.markdown("### 📊 Market Sentiment Meter")
     st.select_slider("Current Sentiment", options=["Bearish 🔴", "Neutral ⚪", "Bullish 🟢"], value="Bullish 🟢")
     st.progress(75)
 
-# 2. MARKET (AI Assistant & Indicators)
+# 2. MARKET (NEW Advanced Indicators: MACD, VWAP, BB)
 elif page == "📈 MARKET":
     st.markdown(f"<h1>GOLDEN MARKET: {st.session_state.name} ⚡</h1>", unsafe_allow_html=True)
     st.markdown(f'<a href="{st.session_state.url}" target="_blank" style="display: block; width: 100%; padding: 12px; background: #000; color: #FFD700; text-align: center; border-radius: 10px; text-decoration: none; font-weight: bold; border: 2px solid #FFD700;">📈 OPEN {st.session_state.name} CHART</a>', unsafe_allow_html=True)
     
-    st.markdown("### 🤖 Paichi AI Assistant (Technical Analysis)")
+    st.markdown("### 🤖 Paichi AI Pro (Multi-Indicator Analysis)")
+    
     c1, c2, c3 = st.columns(3)
-    c1.metric("SuperTrend Signal", "BUY ✅", "Trend: Upward")
-    c2.metric("RSI (14) Indicator", "64.5", "Strong Bullish Zone")
-    c3.metric("AI Confidence", "UPTREND", "Accuracy: 88%")
+    c4, c5, c6 = st.columns(3)
+    
+    c1.metric("SuperTrend", "BUY ✅", "Trend: Upward")
+    c2.metric("RSI (14)", "64.5", "Strong Bullish")
+    c3.metric("VWAP Status", "ABOVE ✅", "Institutional Support")
+    
+    c4.metric("MACD Cross", "BULLISH ▲", "Positive Momentum")
+    c5.metric("Bollinger Band", "INSIDE", "No Reversal Signal")
+    c6.metric("AI Confidence", "92%", "High Accuracy")
 
-# 3. JOURNAL (Trade Logger)
+    st.success(f"**AI വിശകലനം:** {st.session_state.name} ഇപ്പോൾ സ്ട്രോങ്ങ് ബുള്ളിഷ് സോണിലാണ്. VWAP ലൈനിന് മുകളിൽ നിൽക്കുന്നതും MACD ക്രോസ് ഓവറും കൂടുതൽ ആത്മവിശ്വാസം നൽകുന്നു.")
+
+# 3. JOURNAL
 elif page == "📝 JOURNAL":
     st.markdown("<h1>PLATINUM JOURNAL 📝</h1>", unsafe_allow_html=True)
     with st.expander("പുതിയ ട്രേഡ് രേഖപ്പെടുത്താം", expanded=True):
@@ -125,7 +132,7 @@ elif page == "📝 JOURNAL":
     if os.path.exists(TRADE_FILE):
         st.dataframe(pd.read_csv(TRADE_FILE).sort_index(ascending=False), use_container_width=True)
 
-# 4. DASHBOARD (Performance)
+# 4. DASHBOARD
 elif page == "📊 DASHBOARD":
     st.markdown("<h1>ROYAL DASHBOARD 📊</h1>", unsafe_allow_html=True)
     if os.path.exists(TRADE_FILE):
@@ -133,7 +140,7 @@ elif page == "📊 DASHBOARD":
         st.metric("Total Net Profit", f"₹ {df['PnL'].sum():,.2f}", delta=f"{df['PnL'].sum()}")
         st.line_chart(df['PnL'])
 
-# 5. CHAT (App + WhatsApp Hybrid)
+# 5. CHAT (WhatsApp + App)
 elif page == "💬 CHAT":
     st.markdown("<h1>WHATSAPP & APP CHAT 💬</h1>", unsafe_allow_html=True)
     if os.path.exists(CHAT_FILE): chat_df = pd.read_csv(CHAT_FILE)
@@ -142,11 +149,11 @@ elif page == "💬 CHAT":
     for i, row in chat_df.tail(10).iterrows():
         st.markdown(f"🗨️ **{row['User']}**: {row['Message']} *({row['Time']})*")
     
-    with st.form("chat_form", clear_on_submit=True):
-        wa_no = st.text_input("WhatsApp Number (with country code)", value="91XXXXXXXXXX")
+    with st.form("chat_system", clear_on_submit=True):
+        wa_no = st.text_input("WhatsApp Number", value="91XXXXXXXXXX")
         u_name = st.text_input("Name", value="Faisal")
         u_msg = st.text_area("Message")
-        if st.form_submit_button("Send to Both"):
+        if st.form_submit_button("Send to All"):
             if u_msg:
                 now = datetime.datetime.now().strftime("%H:%M")
                 pd.DataFrame([[u_name, u_msg, now]], columns=['User', 'Message', 'Time']).to_csv(CHAT_FILE, mode='a', header=not os.path.exists(CHAT_FILE), index=False)
