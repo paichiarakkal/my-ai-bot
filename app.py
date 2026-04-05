@@ -25,7 +25,7 @@ FILE_NAME = 'trade_history_v2.csv'
 def get_live_data(symbol):
     try:
         res = requests.get(f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1m&range=1d", headers={'User-Agent': 'Mozilla/5.0'}).json()
-        data = res['']['result'][0]
+        data = res['chart']['result'][0]
         p = data['meta']['regularMarketPrice']
         close = [c for c in data['indicators']['quote'][0]['close'] if c is not None]
         ai_p = float(LinearRegression().fit(np.arange(5).reshape(-1, 1), np.array(close[-5:]).reshape(-1,1)).predict([[5]])[0][0]) if len(close)>5 else p
