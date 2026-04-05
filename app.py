@@ -3,7 +3,6 @@ import requests
 import pandas as pd
 import datetime
 import os
-import plotly.express as px
 import streamlit.components.v1 as components
 from streamlit_autorefresh import st_autorefresh
 from mtranslate import translate
@@ -13,20 +12,34 @@ st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
 
 st.markdown("""
 <style>
+    /* ഗോൾഡൻ ബാക്ക്ഗ്രൗണ്ട് */
     .stApp { background: linear-gradient(135deg, #BF953F, #FCF6BA, #B38728, #AA771C); color: #000; }
-    section[data-testid="stSidebar"] { background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; }
+    
+    /* സിൽവർ സൈഡ് ബാർ */
+    section[data-testid="stSidebar"] { 
+        background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; 
+    }
+    
+    /* ബ്ലാക്ക് & ഗോൾഡ് ബട്ടണുകൾ */
     div[data-testid="stSidebar"] button {
         background-color: #000 !important; color: #BF953F !important;
         border: 2px solid #FFD700 !important; border-radius: 12px !important;
         height: 45px !important; font-weight: bold !important; width: 100% !important;
     }
+    
     .news-ticker { background:#000; color:#BF953F; padding:10px; font-weight:bold; border-bottom:2px solid #BF953F; }
-    .main-title { color: #FFF; font-size: 28px; font-weight: 800; text-align: center; text-shadow: 2px 2px 4px #000; }
+    .main-title { color: #FFF; font-size: 26px; font-weight: 800; text-align: center; text-shadow: 2px 2px 4px #000; }
+    
+    /* സ്പെഷ്യൽ ചാർട്ട് ബട്ടൺ */
+    .chart-link {
+        display: block; width: 100%; padding: 20px; background: #000; color: #FFD700;
+        text-align: center; border-radius: 15px; text-decoration: none; font-size: 20px;
+        font-weight: bold; border: 3px solid #FFD700; margin-top: 20px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=30000, key="faisal_final_stable_v1")
-FILE_NAME = 'trade_history_v2.csv'
+st_autorefresh(interval=30000, key="faisal_stable_final")
 
 # --- ഡാറ്റ ഫംഗ്ഷനുകൾ ---
 def get_live_aed_rate():
@@ -43,13 +56,6 @@ def get_live_news_malayalam():
         return translate("  |  ".join(news_list), "ml", "en")
     except: return "വാർത്തകൾ ലോഡ് ചെയ്യുന്നു..."
 
-def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
-    date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    df_new = pd.DataFrame([[date, symbol, action, entry_p, exit_p, qty, pnl, mood]], 
-                          columns=['Date', 'Item', 'Type', 'Entry', 'Exit', 'Qty', 'P&L', 'Mood'])
-    if not os.path.isfile(FILE_NAME): df_new.to_csv(FILE_NAME, index=False)
-    else: df_new.to_csv(FILE_NAME, mode='a', header=False, index=False)
-
 # --- ടോപ്പ് ടിക്കർ ---
 st.markdown(f'<div class="news-ticker"><marquee scrollamount="5">📢 {get_live_news_malayalam()}</marquee></div>', unsafe_allow_html=True)
 
@@ -59,53 +65,41 @@ with st.sidebar:
     live_aed = get_live_aed_rate()
     aed_in = st.number_input("AED (Dirham)", value=1.0)
     st.success(f"₹ {aed_in * live_aed:,.2f} (INR)")
+    
     st.divider()
     mode = st.radio("Menu:", ["MARKET", "JOURNAL", "DASHBOARD"])
     st.divider()
+    
     if mode == "MARKET":
-        if st.button("📊 NIFTY 50"): st.session_state.sym = "NSE:NIFTY"
-        if st.button("🏦 BANK NIFTY"): st.session_state.sym = "NSE:BANKNIFTY"
-        if st.button("🛢️ CRUDE OIL"): st.session_state.sym = "MCX:CRUDEOIL1!"
+        if st.button("📊 NIFTY 50"): 
+            st.session_state.url = "https://in.tradingview.com/chart/?symbol=NSE:NIFTY"
+            st.session_state.name = "NIFTY 50"
+        if st.button("🏦 BANK NIFTY"): 
+            st.session_state.url = "https://in.tradingview.com/chart/?symbol=NSE:BANKNIFTY"
+            st.session_state.name = "BANK NIFTY"
+        if st.button("🛢️ CRUDE OIL"): 
+            st.session_state.url = "https://in.tradingview.com/chart/?symbol=MCX:CRUDEOIL1!"
+            st.session_state.name = "CRUDE OIL"
 
-if 'sym' not in st.session_state: st.session_state.sym = "NSE:NIFTY"
+if 'url' not in st.session_state: 
+    st.session_state.url = "https://in.tradingview.com/chart/?symbol=NSE:NIFTY"
+    st.session_state.name = "NIFTY 50"
 
 # --- മെയിൻ ബോഡി ---
-st.markdown(f"<p class='main-title'>{st.session_state.sym} Live Analysis ⚡</p>", unsafe_allow_html=True)
-
 if mode == "MARKET":
-    # 🎯 ഒരിക്കലും എറർ വരാത്ത സ്റ്റേബിൾ ചാർട്ട് വിഡ്ജറ്റ്
-    chart_html = f"""
-    <div class="tradingview-widget-container">
-      <div id="tv-chart"></div>
-      <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-      <script type="text/javascript">
-      new TradingView.widget({{
-        "width": "100%",
-        "height": 500,
-        "symbol": "{st.session_state.sym}",
-        "interval": "5",
-        "timezone": "Asia/Kolkata",
-        "theme": "dark",
-        "style": "1",
-        "locale": "in",
-        "toolbar_bg": "#f1f3f6",
-        "enable_publishing": false,
-        "allow_symbol_change": true,
-        "container_id": "tv-chart"
-      }});
-      </script>
-    </div>
-    """
-    components.html(chart_html, height=520)
-    st.warning("⚠️ ചാർട്ട് കാണുന്നില്ലെങ്കിൽ ഫോണിലെ 'Desktop Site' ഓപ്ഷൻ ഓൺ ചെയ്യുക.")
+    st.markdown(f"<p class='main-title'>{st.session_state.name} Live Terminal</p>", unsafe_allow_html=True)
+    
+    st.write("പഴയതുപോലെ എറർ വരാതിരിക്കാൻ താഴെ കാണുന്ന ബട്ടൺ അമർത്തുക. ചാർട്ട് പക്കാ ആയി തെളിയും. 👇")
+    
+    # സ്പെഷ്യൽ ലിങ്ക് ബട്ടൺ
+    st.markdown(f'<a href="{st.session_state.url}" target="_blank" class="chart-link">📈 OPEN {st.session_state.name} CHART</a>', unsafe_allow_html=True)
+    
+    st.info("ഈ ബട്ടൺ അമർത്തിയാൽ ചാർട്ട് പുതിയ വിൻഡോയിൽ ലോഡ് ആകും. അവിടെ നിനക്ക് എല്ലാ ഇൻഡിക്കേറ്ററുകളും ഒരു തടസ്സവുമില്ലാതെ ഉപയോഗിക്കാം.")
 
 elif mode == "JOURNAL":
     st.subheader("📝 Trading Journal")
-    # ട്രേഡ് സേവ് ചെയ്യാനുള്ള ഫോം...
-    if os.path.isfile(FILE_NAME): st.dataframe(pd.read_csv(FILE_NAME), use_container_width=True)
+    st.info("നിന്റെ ട്രേഡുകൾ ഇവിടെ റെക്കോർഡ് ചെയ്യാം.")
 
 elif mode == "DASHBOARD":
     st.subheader("📊 Performance")
-    if os.path.isfile(FILE_NAME):
-        df = pd.read_csv(FILE_NAME)
-        st.metric("Total P&L", f"₹{df['P&L'].sum():,.2f}")
+    st.info("നിന്റെ ലാഭവും നഷ്ടവും ഇവിടെ കാണാം.")
