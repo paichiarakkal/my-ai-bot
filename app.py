@@ -9,25 +9,33 @@ import streamlit.components.v1 as components
 from streamlit_autorefresh import st_autorefresh
 from mtranslate import translate
 
-# 1. പേജ് സെറ്റിംഗ്സ് & ഗോൾഡൻ + സിൽവർ തീം
+# 1. പേജ് സെറ്റിംഗ്സ് & തീം
 st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
 
 st.markdown("""
 <style>
+    /* മെയിൻ ഗോൾഡൻ തീം */
     .stApp { background: linear-gradient(135deg, #BF953F, #FCF6BA, #B38728, #AA771C); color: #000; }
-    section[data-testid="stSidebar"] { background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; }
+    
+    /* സിൽവർ സൈഡ് ബാർ */
+    section[data-testid="stSidebar"] { 
+        background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; 
+    }
+    
+    /* ബ്ലാക്ക് & ഗോൾഡ് ബട്ടണുകൾ */
     div[data-testid="stSidebar"] button {
         background-color: #000 !important; color: #BF953F !important;
         border: 2px solid #FFD700 !important; border-radius: 12px !important;
         height: 45px !important; font-weight: bold !important;
         margin-bottom: 10px !important; width: 100% !important;
     }
+    
     .main-title { color: #FFF; font-size: 30px; font-weight: 800; text-align: center; text-shadow: 2px 2px 4px #000; }
     .news-ticker { background:#000; color:#BF953F; padding:10px; font-weight:bold; border-bottom:2px solid #BF953F; }
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=30000, key="faisal_final_tradingview_v1")
+st_autorefresh(interval=30000, key="faisal_pro_tradingview_v2")
 FILE_NAME = 'trade_history_v2.csv'
 
 # --- ഫംഗ്ഷനുകൾ ---
@@ -44,7 +52,7 @@ def get_live_news_malayalam():
         res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}).json()
         news_list = [item['title'] for item in res['news']]
         return translate("  |  ".join(news_list), "ml", "en")
-    except: return "വാർത്തകൾ ലോഡ് ചെയ്യുന്നു..."
+    except: return "വാർത്തകൾ അപ്‌ഡേറ്റ് ചെയ്യുന്നു..."
 
 def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
     date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -53,18 +61,22 @@ def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
     if not os.path.isfile(FILE_NAME): df_new.to_csv(FILE_NAME, index=False)
     else: df_new.to_csv(FILE_NAME, mode='a', header=False, index=False)
 
-# --- ന്യൂസ് ടിക്കർ (TOP) ---
+# --- ന്യൂസ് ടിക്കർ ---
 st.markdown(f'<div class="news-ticker"><marquee scrollamount="5">📢 വാർത്തകൾ: {get_live_news_malayalam()}</marquee></div>', unsafe_allow_html=True)
 
 # --- സൈഡ് ബാർ ---
 with st.sidebar:
     st.markdown("<h1 style='text-align: center; color: #000;'>🚀 Paichi Pro</h1>", unsafe_allow_html=True)
+    
+    # AED Converter
     live_aed = get_live_aed_rate()
     aed_in = st.number_input("AED (Dirham)", value=1.0)
     st.success(f"₹ {aed_in * live_aed:,.2f} (INR)")
+    
     st.divider()
     mode = st.radio("Menu:", ["MARKET", "JOURNAL", "DASHBOARD"])
     st.divider()
+    
     if mode == "MARKET":
         if st.button("📊 NIFTY 50"): st.session_state.tv_sym = "NSE:NIFTY"
         if st.button("🏦 BANK NIFTY"): st.session_state.tv_sym = "NSE:BANKNIFTY"
@@ -77,14 +89,15 @@ if 'tv_sym' not in st.session_state: st.session_state.tv_sym = "NSE:NIFTY"
 st.markdown("<p class='main-title'>Paichi AI Pro Terminal ⚡</p>", unsafe_allow_html=True)
 
 if mode == "MARKET":
-    # TradingView Widget
+    # Advanced TradingView Widget (Full Features)
     tradingview_html = f"""
-    <div class="tradingview-widget-container" style="height:500px;">
-      <div id="tradingview_chart"></div>
+    <div class="tradingview-widget-container" style="height:600px;">
+      <div id="tradingview_pro"></div>
       <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
       <script type="text/javascript">
       new TradingView.widget({{
-        "autosize": true,
+        "width": "100%",
+        "height": 600,
         "symbol": "{st.session_state.tv_sym}",
         "interval": "5",
         "timezone": "Asia/Kolkata",
@@ -93,18 +106,25 @@ if mode == "MARKET":
         "locale": "in",
         "toolbar_bg": "#f1f3f6",
         "enable_publishing": false,
+        "withdateranges": true,
         "hide_side_toolbar": false,
         "allow_symbol_change": true,
-        "container_id": "tradingview_chart"
+        "details": true,
+        "hotlist": true,
+        "calendar": true,
+        "show_popup_button": true,
+        "popup_width": "1000",
+        "popup_height": "650",
+        "container_id": "tradingview_pro"
       }});
       </script>
     </div>
     """
-    components.html(tradingview_html, height=520)
+    components.html(tradingview_html, height=620)
 
 elif mode == "JOURNAL":
     st.subheader("📝 Trading Journal")
-    with st.expander("പുതിയ ട്രേഡ് ചേർക്കുക", expanded=True):
+    with st.expander("Add New Trade", expanded=True):
         col1, col2 = st.columns(2)
         item = col1.text_input("Item", value=st.session_state.tv_sym)
         act = col2.selectbox("Action", ["BUY", "SELL"])
@@ -115,7 +135,7 @@ elif mode == "JOURNAL":
         if st.button("Save Trade"):
             pnl = (ex - en) * q if act == "BUY" else (en - ex) * q
             save_trade(item, act, en, ex, q, pnl, mood)
-            st.success(f"സേവ് ചെയ്തു! P&L: ₹{pnl}")
+            st.success(f"സേവ് ചെയ്തു! ലാഭം: ₹{pnl}")
             st.rerun()
     if os.path.isfile(FILE_NAME): st.dataframe(pd.read_csv(FILE_NAME), use_container_width=True)
 
