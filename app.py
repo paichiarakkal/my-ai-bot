@@ -63,7 +63,7 @@ with st.sidebar:
     st.metric("1 AED to INR", f"₹{live_aed:.2f}")
     st.divider()
 
-    mode = st.radio("മെനു തിരഞ്ഞെടുക്കുക:", ["MARKET", "JOURNAL", "DASHBOARD"])
+    mode = st.radio("മെനു തിരഞ്ഞെടുക്കുക:", ["MARKET", "nifty","JOURNAL", "DASHBOARD"])
     st.divider()
 
     if mode == "MARKET":
