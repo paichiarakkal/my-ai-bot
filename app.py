@@ -11,44 +11,31 @@ st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
 
 st.markdown("""
 <style>
-    /* ഗോൾഡൻ ബാക്ക്ഗ്രൗണ്ട് */
     .stApp { background: linear-gradient(135deg, #BF953F, #FCF6BA, #B38728, #AA771C); color: #000; }
-    
-    /* സിൽവർ സൈഡ് ബാർ */
-    section[data-testid="stSidebar"] { 
-        background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; 
-    }
-    
-    /* ബ്ലാക്ക് & ഗോൾഡ് ബട്ടണുകൾ */
+    section[data-testid="stSidebar"] { background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; }
     div[data-testid="stSidebar"] button {
         background-color: #000 !important; color: #BF953F !important;
         border: 2px solid #FFD700 !important; border-radius: 12px !important;
         height: 45px !important; font-weight: bold !important; width: 100% !important;
-        margin-bottom: 5px !important;
     }
-    
-    /* സൈഡ് ബാറിലെ സ്പെഷ്യൽ ഓപ്പൺ ചാർട്ട് ബട്ടൺ */
     .sidebar-chart-link {
         display: block; width: 100%; padding: 12px; background: #000; color: #FFD700 !important;
         text-align: center; border-radius: 10px; text-decoration: none; font-size: 16px;
         font-weight: bold; border: 2px solid #FFD700; margin-top: 10px;
     }
-    
     .news-ticker { background:#000; color:#BF953F; padding:10px; font-weight:bold; border-bottom:2px solid #BF953F; }
     .main-title { color: #FFF; font-size: 32px; font-weight: 800; text-align: center; text-shadow: 2px 2px 4px #000; }
     
-    /* Emblem (ചിഹ്നം) ശരിയാക്കാനുള്ള സ്റ്റൈൽ */
-    .emblem-style {
-        font-size: 80px; 
-        text-align: center; 
-        margin-top: 50px; 
-        color: #000;
-        text-shadow: 2px 2px 10px #FFD700;
+    /* ഫോട്ടോ സെറ്റ് ചെയ്യാനുള്ള സ്റ്റൈൽ */
+    .profile-pic {
+        width: 150px; height: 150px; border-radius: 50%; 
+        border: 5px solid #FFD700; box-shadow: 0px 4px 15px rgba(0,0,0,0.5);
+        object-fit: cover; display: block; margin-left: auto; margin-right: auto;
     }
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=30000, key="faisal_terminal_vfinal")
+st_autorefresh(interval=30000, key="faisal_final_photo_v1")
 FILE_NAME = 'trade_history_v2.csv'
 
 # --- ഡാറ്റ ഫംഗ്ഷനുകൾ ---
@@ -73,50 +60,43 @@ def save_trade(symbol, action, entry, exit_p, qty, pnl):
     if not os.path.isfile(FILE_NAME): df_new.to_csv(FILE_NAME, index=False)
     else: df_new.to_csv(FILE_NAME, mode='a', header=False, index=False)
 
-# --- ടോപ്പ് ന്യൂസ് ടിക്കർ ---
+# --- ന്യൂസ് ടിക്കർ ---
 st.markdown(f'<div class="news-ticker"><marquee scrollamount="5">📢 {get_live_news_malayalam()}</marquee></div>', unsafe_allow_html=True)
 
 # --- സൈഡ് ബാർ (SLIDE BAR) ---
 with st.sidebar:
     st.markdown("<h1 style='text-align: center; color: #000;'>🚀 Paichi Pro</h1>", unsafe_allow_html=True)
-    
-    # 💰 AED Converter
     live_aed = get_live_aed_rate()
     aed_in = st.number_input("AED (Dirham)", value=1.0)
     st.success(f"₹ {aed_in * live_aed:,.2f} (INR)")
     st.divider()
-    
-    # 📱 Navigation
     mode = st.radio("Menu:", ["MARKET", "JOURNAL", "DASHBOARD"])
     st.divider()
     
     if mode == "MARKET":
-        st.subheader("🎯 Select Symbol")
         if st.button("📊 NIFTY 50"): 
-            st.session_state.url = "https://in.tradingview.com/chart/?symbol=NSE:NIFTY"
-            st.session_state.name = "NIFTY 50"
+            st.session_state.url, st.session_state.name = "https://in.tradingview.com/chart/?symbol=NSE:NIFTY", "NIFTY 50"
         if st.button("🏦 BANK NIFTY"): 
-            st.session_state.url = "https://in.tradingview.com/chart/?symbol=NSE:BANKNIFTY"
-            st.session_state.name = "BANK NIFTY"
+            st.session_state.url, st.session_state.name = "https://in.tradingview.com/chart/?symbol=NSE:BANKNIFTY", "BANK NIFTY"
         if st.button("🛢️ CRUDE OIL"): 
-            st.session_state.url = "https://in.tradingview.com/chart/?symbol=MCX:CRUDEOIL1!"
-            st.session_state.name = "CRUDE OIL"
+            st.session_state.url, st.session_state.name = "https://in.tradingview.com/chart/?symbol=MCX:CRUDEOIL1!", "CRUDE OIL"
 
-        # ✨ സൈഡ് ബാറിലെ ചാർട്ട് ലിങ്ക്
         if 'url' in st.session_state:
             st.markdown(f'<a href="{st.session_state.url}" target="_blank" class="sidebar-chart-link">📈 OPEN {st.session_state.name}</a>', unsafe_allow_html=True)
 
-# ഡിഫോൾട്ട് വാല്യൂസ്
-if 'url' not in st.session_state: 
-    st.session_state.url = "https://in.tradingview.com/chart/?symbol=NSE:NIFTY"
-    st.session_state.name = "NIFTY 50"
+if 'url' not in st.session_state: st.session_state.url, st.session_state.name = "https://in.tradingview.com/chart/?symbol=NSE:NIFTY", "NIFTY 50"
 
 # --- മെയിൻ ബോഡി ---
 if mode == "MARKET":
     st.markdown(f"<p class='main-title'>{st.session_state.name} Live Analysis ⚡</p>", unsafe_allow_html=True)
     
-    # ✨ നീ ചോദിച്ച ചിഹ്നം (Emblem)
-    st.markdown("<div class='emblem-style'>🦾✨📉📈</div>", unsafe_allow_html=True)
+    # 🎯 ഇവിടെയാണ് നിന്റെ ഫോട്ടോ വരുന്നത്
+    # നിന്റെ ഫോട്ടോയുടെ ഓൺലൈൻ ലിങ്ക് താഴെ നൽകുക. 
+    # ഉദാഹരണത്തിന് imgur-ൽ അപ്‌ലോഡ് ചെയ്ത ലിങ്ക്.
+    my_photo = "https://via.placeholder.com/150" # ഇതിന് പകരം നിന്റെ ലിങ്ക് ഇടുക
+    
+    st.markdown(f'<img src="{my_photo}" class="profile-pic">', unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center;'>Happy Trading, Faisal!</h3>", unsafe_allow_html=True)
 
 elif mode == "JOURNAL":
     st.markdown("<p class='main-title'>📝 Trading Journal</p>", unsafe_allow_html=True)
@@ -124,28 +104,19 @@ elif mode == "JOURNAL":
         c1, c2 = st.columns(2)
         sym = c1.text_input("Symbol", value=st.session_state.name)
         act = c2.selectbox("Action", ["BUY", "SELL"])
-        en = c1.number_input("Entry Price", min_value=0.0)
-        ex = c2.number_input("Exit Price", min_value=0.0)
-        q = st.number_input("Quantity", value=1, min_value=1)
-        if st.button("SAVE TRADE"):
+        en = c1.number_input("Entry Price")
+        ex = c2.number_input("Exit Price")
+        q = st.number_input("Quantity", value=1)
+        if st.button("SAVE"):
             pnl = round((ex - en) * q if act == "BUY" else (en - ex) * q, 2)
             save_trade(sym, act, en, ex, q, pnl)
-            st.success(f"ട്രേഡ് സേവ് ചെയ്തു! ലാഭം/നഷ്ടം: ₹{pnl}")
+            st.success(f"സേവ് ചെയ്തു! ₹{pnl}")
             st.rerun()
-    
-    if os.path.isfile(FILE_NAME):
-        df = pd.read_csv(FILE_NAME)
-        st.dataframe(df.sort_index(ascending=False), use_container_width=True)
+    if os.path.isfile(FILE_NAME): st.dataframe(pd.read_csv(FILE_NAME).sort_index(ascending=False), use_container_width=True)
 
 elif mode == "DASHBOARD":
-    st.markdown("<p class='main-title'>📊 Performance Dashboard</p>", unsafe_allow_html=True)
+    st.markdown("<p class='main-title'>📊 Dashboard</p>", unsafe_allow_html=True)
     if os.path.isfile(FILE_NAME):
         df = pd.read_csv(FILE_NAME)
-        total_pnl = df['P&L'].sum()
-        col_metric, _ = st.columns([1, 2])
-        col_metric.metric("Total Net P&L", f"₹{total_pnl:,.2f}")
-        
-        st.subheader("P&L Chart")
+        st.metric("Total P&L", f"₹{df['P&L'].sum():,.2f}")
         st.bar_chart(df.set_index('Date')['P&L'])
-    else:
-        st.info("നിങ്ങൾ ഇതുവരെ ട്രേഡുകളൊന്നും രേഖപ്പെടുത്തിയിട്ടില്ല.")
