@@ -23,7 +23,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 15 സെക്കൻഡിൽ ആപ്പ് ഓട്ടോ റിഫ്രഷ് ആകും
-st_autorefresh(interval=15000, key="faisal_final_fixed_v15")
+st_autorefresh(interval=15000, key="faisal_final_no_chart_v1")
 
 FILE_NAME = 'trade_history_v2.csv'
 
@@ -87,8 +87,9 @@ with st.sidebar:
         if st.button("📊 SENSEX"): st.session_state.sel = ("^BSESN", "SENSEX", 1)
         if st.button("📉 MIDCAP 50"): st.session_state.sel = ("^NSEMDCP50", "MIDCAP 50", 1)
         st.divider()
-        if st.button("🛢️ CRUDE OIL MCX"): st.session_state.sel = ("CL=F", "CRUDE OIL MCX", 93.5)
-        if st.button("💰 GOLD 8G (INDIAN)"): st.session_state.sel = ("GC=F", "GOLD 8 GRAM (1 PAVAN)", 84.5 * 8)
+        # Crude & Gold Symbols Updated for Live Price
+        if st.button("🛢️ CRUDE OIL"): st.session_state.sel = ("CL=F", "CRUDE OIL", 84.5)
+        if st.button("💰 GOLD 8G"): st.session_state.sel = ("GC=F", "GOLD 8G", 8.45 * 8)
 
 if 'sel' not in st.session_state:
     st.session_state.sel = ("^NSEI", "NIFTY 50", 1)
@@ -103,9 +104,9 @@ if mode == "MARKET":
         st.subheader(f"📍 {name}")
         live_p, ai_p = data['p'] * multi, data['ai'] * multi
         c1, c2 = st.columns(2)
-        c1.metric("ലൈവ് വില", f"₹{live_p:.2f}")
-        c2.metric("AI പ്രവചനം", f"₹{ai_p:.2f}")
-        st.line_chart(pd.DataFrame({"Price": [live_p]*10}))
+        c1.metric("ലൈവ് വില", f"₹{live_p:,.2f}")
+        c2.metric("AI പ്രവചനം", f"₹{ai_p:,.2f}")
+        # വെള്ള ഗ്രാഫ് ഇവിടെ നിന്ന് ഒഴിവാക്കി
 
 elif mode == "JOURNAL":
     st.subheader("📝 ട്രേഡിംഗ് ജേണൽ & SL Advisor")
@@ -127,7 +128,7 @@ elif mode == "JOURNAL":
             st.rerun()
     
     if os.path.isfile(FILE_NAME):
-        st.dataframe(pd.read_csv(FILE_NAME), use_container_width=True) #
+        st.dataframe(pd.read_csv(FILE_NAME), use_container_width=True)
 
 elif mode == "DASHBOARD":
     st.subheader("📊 പെർഫോമൻസ് & വിൻ റേറ്റ്")
@@ -136,7 +137,7 @@ elif mode == "DASHBOARD":
         wins = len(df[df['P&L'] > 0])
         total = len(df)
         st.metric("Win Rate 🎯", f"{(wins/total*100) if total > 0 else 0:.1f}%")
-        st.plotly_chart(px.pie(df, names='Mood', title="സൈക്കോളജി ചാർട്ട്", hole=0.4)) #
+        st.plotly_chart(px.pie(df, names='Mood', title="സൈക്കോളജി ചാർട്ട്", hole=0.4))
         st.plotly_chart(px.bar(df, x='Date', y='P&L', color='P&L', title="P&L Trend"))
     else:
         st.info("ഹിസ്റ്ററി ലഭ്യമല്ല. ട്രേഡുകൾ സേവ് ചെയ്യുക.")
