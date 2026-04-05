@@ -9,23 +9,23 @@ from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
 from mtranslate import translate
 
-# 1. പേജ് സെറ്റിംഗ്സ് & ഗോൾഡൻ + സിൽവർ തീം
+# 1. പേജ് സെറ്റിംഗ്സ് & തീം (ഗോൾഡൻ + സിൽവർ)
 st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
 
 st.markdown("""
 <style>
-    /* മെയിൻ ബോഡി ഗോൾഡൻ ഗ്രേഡിയന്റ് */
+    /* മെയിൻ ബോഡി */
     .stApp { 
         background: linear-gradient(135deg, #BF953F, #FCF6BA, #B38728, #AA771C); 
         color: #000; 
     }
     
-    /* സൈഡ് ബാർ സിൽവർ കളർ (തിരിച്ചു കൊണ്ടുവന്നു) */
+    /* സൈഡ് ബാർ സിൽവർ കളർ */
     section[data-testid="stSidebar"] { 
         background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; 
     }
     
-    /* സൈഡ് ബാറിലെ ബട്ടണുകൾ - പുതിയ മോഡേൺ സ്റ്റൈൽ */
+    /* പുതിയ മോഡേൺ ബട്ടണുകൾ */
     div[data-testid="stSidebar"] button {
         background-color: #000 !important;
         color: #BF953F !important;
@@ -56,7 +56,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 15 സെക്കൻഡിൽ ആപ്പ് ഓട്ടോ റിഫ്രഷ് ആകും
-st_autorefresh(interval=15000, key="faisal_ultimate_silver_v1")
+st_autorefresh(interval=15000, key="faisal_final_aed_fix")
 
 FILE_NAME = 'trade_history_v2.csv'
 
@@ -64,6 +64,7 @@ FILE_NAME = 'trade_history_v2.csv'
 
 def get_live_aed_rate():
     try:
+        # Yahoo Finance-ൽ നിന്ന് ലൈവ് ദിർഹം റേറ്റ് എടുക്കുന്നു
         res = requests.get("https://query1.finance.yahoo.com/v8/finance/chart/AEDINR=X?interval=1m&range=1d", headers={'User-Agent': 'Mozilla/5.0'}).json()
         return res['chart']['result'][0]['meta']['regularMarketPrice']
     except: return 22.75
@@ -97,12 +98,18 @@ def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
 news_mal = get_live_news_malayalam()
 st.markdown(f'<div class="news-ticker"><marquee scrollamount="5">📢 വാർത്തകൾ: {news_mal}</marquee></div>', unsafe_allow_html=True)
 
-# --- സൈഡ് ബാർ (SILVER + MODERN BUTTONS) ---
+# --- സൈഡ് ബാർ (SILVER + CONVERTER + BUTTONS) ---
 with st.sidebar:
     st.markdown("<h1 style='color: #000; text-align: center;'>🚀 Paichi Pro</h1>", unsafe_allow_html=True)
     
+    # 💰 ലൈവ് ദിർഹം കൺവെർട്ടർ
+    st.subheader("💰 Live Currency")
     live_aed = get_live_aed_rate()
-    st.metric("1 AED to INR", f"₹{live_aed:.2f}")
+    aed_input = st.number_input("AED (Dirham) നൽകുക", value=1.0)
+    inr_val = aed_input * live_aed
+    st.success(f"₹ {inr_val:,.2f} (INR)")
+    st.caption(f"നിലവിലെ റേറ്റ്: 1 AED = ₹{live_aed:.2f}")
+    
     st.divider()
 
     mode = st.radio("മെനു തിരഞ്ഞെടുക്കുക:", ["MARKET", "JOURNAL", "DASHBOARD"])
@@ -112,7 +119,6 @@ with st.sidebar:
         st.subheader("🎯 Market Watch")
         if st.button("📊 NIFTY 50"): st.session_state.sel = ("^NSEI", "NIFTY 50", 1)
         if st.button("🏦 BANK NIFTY"): st.session_state.sel = ("^NSEBANK", "BANK NIFTY", 1)
-        if st.button("💳 FIN NIFTY"): st.session_state.sel = ("NIFTY_FIN_SERVICE.NS", "FIN NIFTY", 1)
         st.divider()
         if st.button("🛢️ CRUDE OIL"): st.session_state.sel = ("CL=F", "CRUDE OIL", 84.5)
         if st.button("💰 GOLD 8G"): st.session_state.sel = ("GC=F", "GOLD 8G", 8.45 * 8)
@@ -132,7 +138,6 @@ if mode == "MARKET":
         c1, c2 = st.columns(2)
         c1.metric("ലൈവ് വില", f"₹{live_p:,.2f}")
         c2.metric("AI പ്രവചനം", f"₹{ai_p:,.2f}")
-        # വെള്ള ഗ്രാഫ് ഒഴിവാക്കി
 
 elif mode == "JOURNAL":
     st.subheader("📝 ട്രേഡിംഗ് ജേണൽ")
