@@ -17,8 +17,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 15 സെക്കൻഡിൽ ഓട്ടോ റിഫ്രഷ്
-st_autorefresh(interval=15000, key="faisal_final_no_chart")
+st_autorefresh(interval=15000, key="faisal_final_no_chart_fixed")
 FILE_NAME = 'trade_history_v2.csv'
 
 # --- 2. CORE FUNCTIONS ---
@@ -56,23 +55,20 @@ def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
 # --- 3. TOP NEWS BAR ---
 st.markdown(f'<div class="news-box"><marquee scrollamount="5" style="color: #FFF; font-size: 18px; font-weight: bold;">📢 {get_malayalam_news()}</marquee></div>', unsafe_allow_html=True)
 
-# --- 4. SIDEBAR (With Live Prices) ---
+# --- 4. SIDEBAR ---
 with st.sidebar:
     st.title("🚀 Paichi Pro")
     live_aed = get_live_aed_rate()
     st.metric("1 AED to INR", f"₹{live_aed:.2f}")
     st.divider()
-
     mode = st.radio("മെനു തിരഞ്ഞെടുക്കുക:", ["MARKET", "JOURNAL", "DASHBOARD"])
     st.divider()
-
     if mode == "MARKET":
         st.subheader("📊 Watchlist")
         def sb_btn(sym, lbl, mult=1):
             d = get_live_data(sym)
             p_str = f": ₹{(d['p']*mult):,.0f}" if d else ""
             if st.button(f"{lbl}{p_str}"): st.session_state.sel = (sym, lbl, mult)
-        
         sb_btn("^NSEI", "📈 NIFTY 50")
         sb_btn("^NSEBANK", "🏦 BANK NIFTY")
         sb_btn("CL=F", "🛢️ CRUDE OIL", 93.5)
@@ -84,10 +80,9 @@ if 'sel' not in st.session_state: st.session_state.sel = ("^NSEI", "NIFTY 50", 1
 st.markdown('<p class="main-title">🚀 Paichi AI Trader</p>', unsafe_allow_html=True)
 
 if mode == "MARKET":
-    # Rocket Animation (Slower & Longer)
     p_holder = st.empty()
     for i in range(1, 25):
-        p_holder.markdown(f"### {'&nbsp;' * i} 🚀 *AI Analyzing {st.session_state.sel[1]}...*")
+        p_holder.markdown(f"### {'&nbsp;' * i} 🚀 *AI Analyzing Market...*")
         time.sleep(0.08)
     p_holder.empty()
 
@@ -96,8 +91,6 @@ if mode == "MARKET":
     if data:
         st.subheader(f"📍 {name}")
         lp, ap = data['p'] * multi, data['ai'] * multi
-        
-        # ഗ്രാഫ് ഒഴിവാക്കി വിലകൾ മാത്രം കാണിക്കുന്നു
         c1, c2 = st.columns(2)
         c1.metric("ലൈവ് വില", f"₹{lp:,.2f}")
         c2.metric("AI പ്രവചനം", f"₹{ap:,.2f}")
