@@ -58,11 +58,12 @@ if 'sel' not in st.session_state: st.session_state.sel = ("^NSEI", "NIFTY 50", 1
 st.markdown('<p class="main-title">🚀 Paichi AI Trader</p>', unsafe_allow_html=True)
 
 if mode == "MARKET":
-    # Rocket Animation
+        # Rocket Animation (Slower & Longer)
     p_holder = st.empty()
-    for i in range(1, 15):
-        p_holder.markdown(f"### {'&nbsp;' * i} 🚀 *AI Analyzing...*")
-        time.sleep(0.04)
+    for i in range(1, 30):
+        # '&nbsp;' ഓരോ ലൂപ്പിലും കൂടുമ്പോൾ റോക്കറ്റ് നീങ്ങും
+        p_holder.markdown(f"### {'&nbsp;' * i} 🚀 *AI Analyzing Market...*")
+        time.sleep(0.1) # വേഗത കുറച്ചു (0.1 സെക്കൻഡ് ഗ്യാപ്പ്)
     p_holder.empty()
 
     symbol, name, multi = st.session_state.sel
