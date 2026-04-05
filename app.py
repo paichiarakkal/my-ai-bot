@@ -17,7 +17,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=15000, key="faisal_final_no_chart_fixed")
+st_autorefresh(interval=15000, key="faisal_pro_final_v3")
 FILE_NAME = 'trade_history_v2.csv'
 
 # --- 2. CORE FUNCTIONS ---
@@ -37,14 +37,6 @@ def get_live_aed_rate():
         return res['chart']['result'][0]['meta']['regularMarketPrice']
     except: return 22.75
 
-def get_malayalam_news():
-    try:
-        url = "https://query1.finance.yahoo.com/v1/finance/search?q=Nifty,Gold,Crude&newsCount=5"
-        res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}).json()
-        news_titles = "  |  ".join([item['title'] for item in res['news']])
-        return translate(news_titles, "ml", "en")
-    except: return "വാർത്തകൾ അപ്‌ഡേറ്റ് ചെയ്യുന്നു..."
-
 def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
     date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     df_new = pd.DataFrame([[date, symbol, action, entry_p, exit_p, qty, pnl, mood]], 
@@ -52,10 +44,7 @@ def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
     if not os.path.isfile(FILE_NAME): df_new.to_csv(FILE_NAME, index=False)
     else: df_new.to_csv(FILE_NAME, mode='a', header=False, index=False)
 
-# --- 3. TOP NEWS BAR ---
-st.markdown(f'<div class="news-box"><marquee scrollamount="5" style="color: #FFF; font-size: 18px; font-weight: bold;">📢 {get_malayalam_news()}</marquee></div>', unsafe_allow_html=True)
-
-# --- 4. SIDEBAR ---
+# --- 3. SIDEBAR ---
 with st.sidebar:
     st.title("🚀 Paichi Pro")
     live_aed = get_live_aed_rate()
@@ -63,53 +52,68 @@ with st.sidebar:
     st.divider()
     mode = st.radio("മെനു തിരഞ്ഞെടുക്കുക:", ["MARKET", "JOURNAL", "DASHBOARD"])
     st.divider()
+    
     if mode == "MARKET":
         st.subheader("📊 Watchlist")
         def sb_btn(sym, lbl, mult=1):
             d = get_live_data(sym)
-            p_str = f": ₹{(d['p']*mult):,.0f}" if d else ""
-            if st.button(f"{lbl}{p_str}"): st.session_state.sel = (sym, lbl, mult)
+            p_val = (d['p'] * mult) if d else 0
+            p_str = f": ₹{p_val:,.0f}" if p_val > 0 else ""
+            if st.button(f"{lbl}{p_str}"): 
+                st.session_state.sel = (sym, lbl, mult, p_val)
+        
         sb_btn("^NSEI", "📈 NIFTY 50")
         sb_btn("^NSEBANK", "🏦 BANK NIFTY")
-        sb_btn("CL=F", "🛢️ CRUDE OIL", 93.5)
-        sb_btn("GC=F", "💰 GOLD 8G", 84.5 * 8)
+        # Crude Oil & Gold symbols updated for better accuracy
+        sb_btn("CL=F", "🛢️ CRUDE OIL", 84.5) # USD to INR conversion
+        sb_btn("GC=F", "💰 GOLD 8G", 8.45 * 8) 
 
-if 'sel' not in st.session_state: st.session_state.sel = ("^NSEI", "NIFTY 50", 1)
+if 'sel' not in st.session_state: 
+    st.session_state.sel = ("^NSEI", "NIFTY 50", 1, 0.0)
 
-# --- 5. MAIN CONTENT ---
+# --- 4. MAIN CONTENT ---
 st.markdown('<p class="main-title">🚀 Paichi AI Trader</p>', unsafe_allow_html=True)
 
 if mode == "MARKET":
     p_holder = st.empty()
-    for i in range(1, 25):
+    for i in range(1, 15):
         p_holder.markdown(f"### {'&nbsp;' * i} 🚀 *AI Analyzing Market...*")
-        time.sleep(0.08)
+        time.sleep(0.05)
     p_holder.empty()
 
-    sym, name, multi = st.session_state.sel
+    sym, name, multi, _ = st.session_state.sel
     data = get_live_data(sym)
     if data:
         st.subheader(f"📍 {name}")
         lp, ap = data['p'] * multi, data['ai'] * multi
+        st.session_state.last_price = lp # വില ഇവിടെ സ്റ്റോർ ചെയ്യുന്നു
+        
         c1, c2 = st.columns(2)
         c1.metric("ലൈവ് വില", f"₹{lp:,.2f}")
         c2.metric("AI പ്രവചനം", f"₹{ap:,.2f}")
 
 elif mode == "JOURNAL":
     st.subheader("📝 ട്രേഡിംഗ് ജേണൽ")
+    
+    # ലൈവ് വില ഓട്ടോമാറ്റിക് ആയി വരാൻ ഇത് സഹായിക്കും
+    current_val = st.session_state.get('last_price', 0.0)
+    
     with st.expander("പുതിയ ട്രേഡ് ചേർക്കുക", expanded=True):
         col1, col2 = st.columns(2)
         s = col1.text_input("Item", value=st.session_state.sel[1])
         a = col2.selectbox("Action", ["BUY", "SELL"])
-        en = col1.number_input("Entry Price", value=0.0)
+        # ഇവിടെ Entry Price-ൽ ലൈവ് വില ഓട്ടോമാറ്റിക് ആയി വരും
+        en = col1.number_input("Entry Price", value=float(current_val))
         ex = col2.number_input("Exit Price", value=0.0)
         q = col1.number_input("Qty", value=1, step=1)
         mood = col2.selectbox("മൂഡ്", ["Calm", "Happy", "Fear", "Greedy"])
+        
         if st.button("Save Trade"):
             pnl = (ex - en) * q if a == "BUY" else (en - ex) * q
             save_trade(s, a, en, ex, q, pnl, mood)
-            st.success("സേവ് ചെയ്തു!")
+            st.success(f"സേവ് ചെയ്തു! P&L: ₹{pnl}")
             st.rerun()
+
     if os.path.isfile(FILE_NAME):
         st.dataframe(pd.read_csv(FILE_NAME), use_container_width=True)
 
@@ -117,9 +121,6 @@ elif mode == "DASHBOARD":
     st.subheader("📊 പെർഫോമൻസ്")
     if os.path.isfile(FILE_NAME):
         df = pd.read_csv(FILE_NAME)
-        wins = len(df[df['P&L'] > 0])
-        st.metric("Win Rate 🎯", f"{(wins/len(df)*100) if len(df)>0 else 0:.1f}%")
-        st.plotly_chart(px.pie(df, names='Mood', title="Psychology Chart", hole=0.4))
         st.plotly_chart(px.bar(df, x='Date', y='P&L', color='P&L', title="P&L Trend"))
 
-st.markdown('<p style="text-align: center; color: #FFF; margin-top: 50px;">Created by <b>Faisal Arakkal</b></p>', unsafe_allow_html=True)
+st.markdown(f'<p style="text-align: center; color: #FFF; margin-top: 50px;">Created by <b>Faisal Arakkal</b></p>', unsafe_allow_html=True)
