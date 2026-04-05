@@ -24,7 +24,7 @@ FILE_NAME = 'trade_history_v2.csv'
 # --- 2. CORE FUNCTIONS ---
 def get_live_data(symbol):
     try:
-        res = requests.get(f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1m&range=1d", headers={'User-Agent': 'Mozilla/5.0'}).json()
+        res = requests.get(f"https://query1.finance.yahoo.com/v8/finance//{symbol}?interval=1m&range=1d", headers={'User-Agent': 'Mozilla/5.0'}).json()
         data = res['chart']['result'][0]
         p = data['meta']['regularMarketPrice']
         close = [c for c in data['indicators']['quote'][0]['close'] if c is not None]
