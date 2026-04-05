@@ -87,15 +87,21 @@ with st.sidebar:
     st.divider()
 
     if mode == "MARKET":
+            if mode == "MARKET":
         st.subheader("🎯 തിരഞ്ഞെടുക്കുക:")
         if st.button("📈 NIFTY 50"): st.session_state.sel = ("^NSEI", "NIFTY 50", 1)
         if st.button("🏦 BANK NIFTY"): st.session_state.sel = ("^NSEBANK", "BANK NIFTY", 1)
         if st.button("💳 FIN NIFTY"): st.session_state.sel = ("NIFTY_FIN_SERVICE.NS", "FIN NIFTY", 1)
-        if st.button("📊 SENSEX"): st.session_state.sel = ("^BSESN", "SENSEX", 1)
-        if st.button("📉 MIDCAP 50"): st.session_state.sel = ("^NSEMDCP50", "MIDCAP 50", 1)
+        
         st.divider()
-        if st.button("🛢️ CRUDE OIL MCX"): st.session_state.sel = ("CL=F", "CRUDE OIL MCX", 93.5)
-        if st.button("💰 GOLD 8G (INDIAN)"): st.session_state.sel = ("GC=F", "GOLD 8 GRAM (1 PAVAN)", 84.5 * 8)
+        
+        # ക്രൂഡ് ഓയിൽ വില വരാൻ ഈ മാറ്റം വരുത്തുക (International price * 84 approx)
+        if st.button("🛢️ CRUDE OIL"): 
+            st.session_state.sel = ("CL=F", "CRUDE OIL", 84.5)
+            
+        # ഗോൾഡ് വില വരാൻ ഈ മാറ്റം വരുത്തുക
+        if st.button("💰 GOLD 8G"): 
+            st.session_state.sel = ("GC=F", "GOLD 8G", 8.45 * 8)
 
 if 'sel' not in st.session_state:
     st.session_state.sel = ("^NSEI", "NIFTY 50", 1)
