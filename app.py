@@ -14,8 +14,43 @@ st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
 
 st.markdown("""
 <style>
-    .stApp { background: linear-gradient(135deg, #BF953F, #FCF6BA, #B38728, #AA771C); color: #000; }
-    section[data-testid="stSidebar"] { background: linear-gradient(180deg, #1a1a1a, #333, #000) !important; }
+    /* മെയിൻ ബോഡി ഗോൾഡൻ ഗ്രേഡിയന്റ് */
+    .stApp { 
+        background: linear-gradient(135deg, #BF953F, #FCF6BA, #B38728, #AA771C); 
+        color: #000; 
+    }
+    
+    /* സൈഡ് ബാർ സിൽവർ കളർ (തിരിച്ചു കൊണ്ടുവന്നു) */
+    section[data-testid="stSidebar"] { 
+        background: linear-gradient(180deg, #A9A9A9, #C0C0C0, #808080) !important; 
+    }
+    
+    /* സൈഡ് ബാറിലെ ബട്ടണുകൾ - നല്ല മോഡേൺ ലുക്കിൽ */
+    div[data-testid="stSidebar"] button {
+        background-color: #000 !important;
+        color: #BF953F !important;
+        border: 2px solid #FFD700 !important;
+        border-radius: 10px !important;
+        font-weight: bold !important;
+        margin-bottom: 8px !important;
+        transition: 0.3s;
+    }
+    
+    div[data-testid="stSidebar"] button:hover {
+        background-color: #BF953F !important;
+        color: #000 !important;
+        transform: scale(1.05);
+    }
+
+    .main-title { 
+        color: #FFF; 
+        font-size: 35px; 
+        font-weight: 800; 
+        text-align: center; 
+        text-shadow: 2px 2px 4px #000; 
+    }
+</style>
+""", unsafe_allow_html=True)
     
     /* പുതിയ മോഡേൺ ബട്ടൺ സ്റ്റൈൽ */
     div[data-testid="stSidebar"] button {
