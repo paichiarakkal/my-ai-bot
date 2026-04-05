@@ -1,4 +1,4 @@
-st.set_page_config(page_title="Paichi AI", page_icon=photo_url, layout="wide")import streamlit as st
+
 import requests
 import pandas as pd
 import datetime
