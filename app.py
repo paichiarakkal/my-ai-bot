@@ -11,6 +11,7 @@ st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
 
 st.markdown("""
 <style>
+    /* ഗോൾഡൻ ബാക്ക്ഗ്രൗണ്ട് */
     .stApp { background: linear-gradient(135deg, #BF953F, #FCF6BA, #B38728, #AA771C); color: #000; }
     
     /* സിൽവർ സൈഡ് ബാർ */
@@ -35,10 +36,19 @@ st.markdown("""
     
     .news-ticker { background:#000; color:#BF953F; padding:10px; font-weight:bold; border-bottom:2px solid #BF953F; }
     .main-title { color: #FFF; font-size: 32px; font-weight: 800; text-align: center; text-shadow: 2px 2px 4px #000; }
+    
+    /* Emblem (ചിഹ്നം) ശരിയാക്കാനുള്ള സ്റ്റൈൽ */
+    .emblem-style {
+        font-size: 80px; 
+        text-align: center; 
+        margin-top: 50px; 
+        color: #000;
+        text-shadow: 2px 2px 10px #FFD700;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=30000, key="faisal_pro_terminal_final")
+st_autorefresh(interval=30000, key="faisal_terminal_vfinal")
 FILE_NAME = 'trade_history_v2.csv'
 
 # --- ഡാറ്റ ഫംഗ്ഷനുകൾ ---
@@ -46,7 +56,7 @@ def get_live_aed_rate():
     try:
         res = requests.get("https://query1.finance.yahoo.com/v8/finance/chart/AEDINR=X?interval=1m&range=1d", headers={'User-Agent': 'Mozilla/5.0'}).json()
         return res['chart']['result'][0]['meta']['regularMarketPrice']
-    except: return 25.24
+    except: return 22.75
 
 def get_live_news_malayalam():
     try:
@@ -104,8 +114,9 @@ if 'url' not in st.session_state:
 # --- മെയിൻ ബോഡി ---
 if mode == "MARKET":
     st.markdown(f"<p class='main-title'>{st.session_state.name} Live Analysis ⚡</p>", unsafe_allow_html=True)
-    st.markdown("<div style='text-align: center; font-size: 60px; margin-top: 50px;'>📈</div>", unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align: center;'>വിശകലനത്തിനായി സൈഡ് ബാറിലെ ബട്ടൺ ഉപയോഗിക്കുക.</h3>", unsafe_allow_html=True)
+    
+    # ✨ നീ ചോദിച്ച ചിഹ്നം (Emblem)
+    st.markdown("<div class='emblem-style'>🦾✨📉📈</div>", unsafe_allow_html=True)
 
 elif mode == "JOURNAL":
     st.markdown("<p class='main-title'>📝 Trading Journal</p>", unsafe_allow_html=True)
