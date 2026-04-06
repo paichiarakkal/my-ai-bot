@@ -1,9 +1,9 @@
 streamlit
-yfinance
-pandas
-streamlit-autorefresh
-scikit-learn
-plotly
-mtranslate
-feedparser
 requests
+numpy
+pandas
+plotly
+scikit-learn
+streamlit-autorefresh
+yfinance
+deep-translator
