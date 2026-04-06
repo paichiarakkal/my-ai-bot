@@ -8,10 +8,12 @@ import plotly.express as px
 from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
 import yfinance as yf
+from deep_translator import GoogleTranslator
 
-# 1. പേജ് സെറ്റിംഗ്സ് & ഗോൾഡൻ തീം
+# ---------- Page Config ----------
 st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
 
+# ---------- Golden Theme ----------
 st.markdown("""
 <style>
     .stApp { background: linear-gradient(135deg, #BF953F, #FCF6BA, #B38728, #AA771C); color: #000; }
@@ -22,41 +24,37 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 30 സെക്കൻഡിൽ ആപ്പ് ഓട്ടോ റിഫ്രഷ് (API calls കുറയ്ക്കാൻ)
-st_autorefresh(interval=30000, key="paichi_trader_fixed")
+# ---------- Auto Refresh (60 seconds) ----------
+st_autorefresh(interval=60000, key="paichi_trader")
 
 FILE_NAME = 'trade_history_v2.csv'
 
-# --- ഫംഗ്ഷനുകൾ ---
-
+# ---------- Helper Functions ----------
+@st.cache_data(ttl=300)
 def get_live_aed_rate():
     try:
         ticker = yf.Ticker("AEDINR=X")
         data = ticker.history(period="1d", interval="1m")
         if not data.empty:
             return data['Close'].iloc[-1]
-        else:
-            return 22.75
+        return 22.75
     except:
         return 22.75
 
+@st.cache_data(ttl=300)
 def get_live_news_malayalam():
     try:
-        # Yahoo Finance news API (free, no key)
         url = "https://query1.finance.yahoo.com/v1/finance/search?q=Nifty,Crude%20Oil,Gold&newsCount=5"
         res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
         data = res.json()
         news_titles = [item['title'] for item in data.get('news', [])]
         if not news_titles:
             return "വാർത്തകൾ ലഭ്യമല്ല."
-        # ഇംഗ്ലീഷ് വാർത്തകൾ മലയാളത്തിലേക്ക് translate ചെയ്യാൻ ശ്രമിക്കുക
         try:
-            from deep_translator import GoogleTranslator
             translator = GoogleTranslator(source='en', target='ml')
             translated = " | ".join([translator.translate(title) for title in news_titles[:3]])
             return translated
         except:
-            # translate ലൈബ്രറി ഇല്ലെങ്കിൽ ഇംഗ്ലീഷിൽ തന്നെ കാണിക്കുക
             return " | ".join(news_titles[:3])
     except Exception as e:
         return f"വാർത്തകൾ ലഭ്യമല്ല: {str(e)}"
@@ -64,12 +62,10 @@ def get_live_news_malayalam():
 def get_analysis(symbol):
     try:
         ticker = yf.Ticker(symbol)
-        # 1 മിനിറ്റ് ഇടവിട്ടുള്ള 10 ഡാറ്റ പോയിൻ്റുകൾ
         data = ticker.history(period="5m", interval="1m")
         if data.empty:
             return None
         last_price = data['Close'].iloc[-1]
-        # ലളിതമായ Linear Regression പ്രവചനം (അവസാന 5 വിലകൾ ഉപയോഗിച്ച്)
         close_prices = data['Close'].values[-5:]
         if len(close_prices) < 5:
             return {"p": last_price, "ai": last_price}
@@ -93,35 +89,27 @@ def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
     else:
         df_new.to_csv(FILE_NAME, mode='a', header=False, index=False)
 
-# --- 1. മലയാളം ലൈവ് വാർത്തകൾ (TOP) ---
-news_mal = get_live_news_malayalam()
-st.markdown(f"""
-    <div class="news-box">
-        <h4 style="color: #BF953F; margin: 0; font-size: 16px; text-align: center;">📰 മലയാളം ലൈവ് വാർത്തകൾ</h4>
-        <marquee scrollamount="5" style="color: #FFF; font-size: 18px; font-weight: bold; padding-top: 5px;">
-            📢 {news_mal}
-        </marquee>
-    </div>
-""", unsafe_allow_html=True)
-
-# --- 2. സൈഡ് ബാർ ---
+# ---------- Sidebar Controls ----------
 with st.sidebar:
     st.title("🚀 Paichi Pro")
     
-    # ലൈവ് ദിർഹം കൺവെർട്ടർ
+    # Live AED to INR
     live_aed = get_live_aed_rate()
     st.subheader("💰 Live Currency")
     aed_in = st.number_input("AED (Dirham)", value=1.0, step=0.1)
     st.success(f"₹ {aed_in * live_aed:.2f} (INR)")
     st.caption(f"Current Rate: 1 AED = ₹{live_aed:.2f}")
     st.divider()
-
+    
+    # News Speed Slider (new feature)
+    news_speed = st.slider("📰 വാർത്ത വേഗത", min_value=1, max_value=20, value=3, help="കൂടിയ നമ്പർ = വേഗത്തിൽ")
+    st.divider()
+    
     mode = st.radio("മെനു തിരഞ്ഞെടുക്കുക:", ["MARKET", "JOURNAL", "DASHBOARD"])
     st.divider()
-
+    
     if mode == "MARKET":
         st.subheader("🎯 തിരഞ്ഞെടുക്കുക:")
-        # Stock/Index buttons
         if st.button("📈 NIFTY 50"): st.session_state.sel = ("^NSEI", "NIFTY 50", 1)
         if st.button("🏦 BANK NIFTY"): st.session_state.sel = ("^NSEBANK", "BANK NIFTY", 1)
         if st.button("💳 FIN NIFTY"): st.session_state.sel = ("NIFTY_FIN_SERVICE.NS", "FIN NIFTY", 1)
@@ -134,9 +122,21 @@ with st.sidebar:
 if 'sel' not in st.session_state:
     st.session_state.sel = ("^NSEI", "NIFTY 50", 1)
 
-# --- 3. മെയിൻ കണ്ടന്റ് ---
+# ---------- Live News (with adjustable speed) ----------
+news_mal = get_live_news_malayalam()
+st.markdown(f"""
+    <div class="news-box">
+        <h4 style="color: #BF953F; margin: 0; font-size: 16px; text-align: center;">📰 മലയാളം ലൈവ് വാർത്തകൾ</h4>
+        <marquee scrollamount="{news_speed}" style="color: #FFF; font-size: 18px; font-weight: bold; padding-top: 5px;">
+            📢 {news_mal}
+        </marquee>
+    </div>
+""", unsafe_allow_html=True)
+
+# ---------- Main Title ----------
 st.markdown(f'<p class="main-title">🚀 Paichi AI Trader</p>', unsafe_allow_html=True)
 
+# ---------- MODE: MARKET ----------
 if mode == "MARKET":
     symbol, name, multi = st.session_state.sel
     data = get_analysis(symbol)
@@ -144,10 +144,10 @@ if mode == "MARKET":
         st.subheader(f"📍 {name}")
         live_p = data['p'] * multi
         ai_p = data['ai'] * multi
-        c1, c2 = st.columns(2)
-        c1.metric("ലൈവ് വില", f"₹{live_p:.2f}")
-        c2.metric("AI പ്രവചനം (1 min)", f"₹{ai_p:.2f}")
-        # ഒരു ചെറിയ line chart (കഴിഞ്ഞ 10 മിനിറ്റ്)
+        col1, col2 = st.columns(2)
+        col1.metric("ലൈവ് വില", f"₹{live_p:.2f}")
+        col2.metric("AI പ്രവചനം (1 min)", f"₹{ai_p:.2f}")
+        # Mini chart (last 10 mins)
         ticker = yf.Ticker(symbol)
         hist = ticker.history(period="10m", interval="1m")
         if not hist.empty:
@@ -155,6 +155,7 @@ if mode == "MARKET":
     else:
         st.error("ഡാറ്റ ലഭ്യമല്ല. ഇൻ്റർനെറ്റ് കണക്ഷൻ പരിശോധിക്കുക.")
 
+# ---------- MODE: JOURNAL ----------
 elif mode == "JOURNAL":
     st.subheader("📝 ട്രേഡിംഗ് ജേണൽ & SL Advisor")
     with st.expander("പുതിയ ട്രേഡ് ചേർക്കുക", expanded=True):
@@ -184,6 +185,7 @@ elif mode == "JOURNAL":
     else:
         st.info("ഇതുവരെ ട്രേഡുകളൊന്നുമില്ല.")
 
+# ---------- MODE: DASHBOARD ----------
 elif mode == "DASHBOARD":
     st.subheader("📊 പെർഫോമൻസ് & വിൻ റേറ്റ്")
     if os.path.isfile(FILE_NAME):
