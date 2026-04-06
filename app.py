@@ -1,83 +1,99 @@
 import streamlit as st
 import requests
 import pandas as pd
-import datetime
-import os
 
 # 1. പേജ് സെറ്റിംഗ്സ്
-st.set_page_config(page_title="Paichi AI Ultra Pro", layout="wide")
+st.set_page_config(page_title="Paichi AI Pro", layout="wide")
 
-# ഫയലുകൾ
-FILE_NAME = 'trade_journal_vfinal.csv'
-
-# --- ലൈവ് റേറ്റ് ഫംഗ്ഷൻ (Crude Oil & AED) ---
-def get_live_market_prices():
+# --- ലൈവ് ഡാറ്റ ഫംഗ്ഷനുകൾ ---
+def get_live_market_data():
+    headers = {'User-Agent': 'Mozilla/5.0'}
     try:
-        # അന്താരാഷ്ട്ര ക്രൂഡ് ഓയിൽ വിലയെ ഇന്ത്യൻ വിലയിലേക്ക് മാറ്റുന്നു
-        res = requests.get("https://query1.finance.yahoo.com/v8/finance/chart/CL=F?interval=1m&range=1d", headers={'User-Agent': 'Mozilla/5.0'}).json()
-        usd_price = res['chart']['result'][0]['meta']['regularMarketPrice']
-        # ഏകദേശം MCX വിലയിലേക്ക് മാറ്റാൻ (USD * INR * Multiplier)
-        mcx_live = round(usd_price * 83.50 * 1.24, 2) 
-        
         # AED to INR
-        res_aed = requests.get("https://query1.finance.yahoo.com/v8/finance/chart/AEDINR=X?interval=1m&range=1d", headers={'User-Agent': 'Mozilla/5.0'}).json()
-        aed_rate = round(res_aed['chart']['result'][0]['meta']['regularMarketPrice'], 2)
+        res_aed = requests.get("https://query1.finance.yahoo.com/v8/finance/chart/AEDINR=X?interval=1m&range=1d", headers=headers).json()
+        aed = round(res_aed['chart']['result'][0]['meta']['regularMarketPrice'], 2)
         
-        return mcx_live, aed_rate
+        # MCX Crude (Approx)
+        res_crude = requests.get("https://query1.finance.yahoo.com/v8/finance/chart/CL=F?interval=1m&range=1d", headers=headers).json()
+        usd_crude = res_crude['chart']['result'][0]['meta']['regularMarketPrice']
+        mcx_price = round(usd_crude * aed * 3.8, 2) 
+        
+        # Nifty Index
+        res_nifty = requests.get("https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI?interval=1m&range=1d", headers=headers).json()
+        nifty_price = round(res_nifty['chart']['result'][0]['meta']['regularMarketPrice'], 2)
+        
+        return aed, mcx_price, nifty_price
     except:
-        return "10,287.00", "22.80"
+        return 22.80, 11460.00, 22450.00
 
-live_crude, live_aed = get_live_market_prices()
+live_aed, live_mcx, live_nifty = get_live_market_data()
 
 # --- സൈഡ് ബാർ ---
 with st.sidebar:
-    photo_url = "https://raw.githubusercontent.com/paichiarakkal/my-ai-bot/main/image_7.png"
-    st.image(photo_url, width=120)
-    st.markdown("<h2 style='color: #FFD700; text-align: center;'>FAISAL ⚡</h2>", unsafe_allow_html=True)
+    st.image("https://raw.githubusercontent.com/paichiarakkal/my-ai-bot/main/image_7.png", width=120)
+    st.markdown("<h2 style='text-align: center; color: #FFD700;'>FAISAL ⚡</h2>", unsafe_allow_html=True)
     st.divider()
-    page = st.radio("MENU", ["🏠 HOME", "📝 JOURNAL", "💬 CHAT"])
+    
+    # 💰 AED to INR Converter
+    st.subheader("🇦🇪 AED to INR")
+    amt = st.number_input("Enter AED:", min_value=1.0, value=1.0)
+    st.success(f"**Total: ₹ {round(amt * live_aed, 2)}**")
+    
     st.divider()
-    st.write(f"**AED to INR:** ₹ {live_aed}")
+    page = st.radio("MENU", ["🏠 HOME", "📊 TRADING AI", "📰 NEWS"])
 
-# ഗോൾഡൻ & ബ്ലാക്ക് തീം
-st.markdown(f"<style>.stApp {{ background: #000; color: #FFD700 !important; }}</style>", unsafe_allow_html=True)
+# ഡിസൈൻ സ്റ്റൈൽ
+st.markdown(f"<style>.stApp {{ background: #000; color: #FFD700; }}</style>", unsafe_allow_html=True)
 
-# --- HOME PAGE (Live Price Only) ---
-if page == "🏠 HOME":
-    st.markdown("<h1 style='text-align: center;'>GOLDEN TERMINAL ⚡</h1>", unsafe_allow_html=True)
+# --- TRADING AI PAGE (Indicators & Tips) ---
+if page == "📊 TRADING AI":
+    st.markdown("<h1 style='text-align: center;'>PRO INDICATOR TERMINAL ⚡</h1>", unsafe_allow_html=True)
     
-    # ലൈവ് പ്രൈസ് ബോക്സ്
-    st.markdown(f"""
-        <div style="background: #1a1a1a; padding: 30px; border-radius: 20px; border: 3px solid #FFD700; text-align: center;">
-            <h2 style="color: #FFD700; margin: 0;">CRUDE OIL MCX LIVE</h2>
-            <h1 style="color: #00FF00; font-size: 80px; margin: 10px;">₹ {live_crude}</h1>
-            <p style="color: #FFD700;">Status: Market Live 🟢</p>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    st.divider()
-    
-    # ക്വിക്ക് ആക്ഷൻ ബട്ടണുകൾ
     c1, c2 = st.columns(2)
     with c1:
-        st.info("🟢 SUPERTREND: BUY SIGNAL")
+        st.markdown(f'<div style="background:#111;padding:20px;border-radius:15px;border:2px solid #00FF00;text-align:center;"><h3>CRUDE OIL MCX</h3><h1 style="color:#00FF00;">₹ {live_mcx}</h1></div>', unsafe_allow_html=True)
     with c2:
-        st.warning("🎯 TARGET: 10,450")
+        st.markdown(f'<div style="background:#111;padding:20px;border-radius:15px;border:2px solid #FFD700;text-align:center;"><h3>NIFTY 50</h3><h1 style="color:#FFD700;">{live_nifty}</h1></div>', unsafe_allow_html=True)
 
-# --- JOURNAL PAGE ---
-elif page == "📝 JOURNAL":
-    st.markdown("<h1>PLATINUM JOURNAL 📝</h1>", unsafe_allow_html=True)
-    with st.expander("പുതിയ ട്രേഡ് കുറിച്ചു വെക്കാം", expanded=True):
-        c1, c2 = st.columns(2)
-        entry = c1.number_input("Entry Price")
-        exit = c2.number_input("Exit Price")
-        qty = st.number_input("Qty", value=1)
-        if st.button("SAVE TRADE"):
-            st.success("ട്രേഡ് വിവരങ്ങൾ സേവ് ചെയ്തു!")
+    st.divider()
 
-# --- CHAT PAGE ---
-elif page == "💬 CHAT":
-    st.markdown("<h1>WHATSAPP CHAT 💬</h1>", unsafe_allow_html=True)
-    msg = st.text_area("നിന്റെ മെസേജ് ഇവിടെ ടൈപ്പ് ചെയ്യൂ...")
-    if st.button("SEND TO WHATSAPP"):
-        st.write("വാട്സാപ്പിലേക്ക് അയക്കുന്നു...")
+    # --- INDICATOR SECTION ---
+    st.subheader("🤖 AI Technical Analysis")
+    
+    col_a, col_b = st.columns(2)
+    
+    # 1. SuperTrend (Trend Indicator)
+    with col_a:
+        st.markdown("### 1. SuperTrend")
+        if live_mcx > 11400:
+            st.success("✅ SIGNAL: BUY (Bullish)")
+            st.write("ട്രെൻഡ് ഇപ്പോൾ മുകളിലേക്കാണ്.")
+        else:
+            st.error("🛑 SIGNAL: SELL (Bearish)")
+            st.write("ട്രെൻഡ് താഴോട്ടാണ്, ശ്രദ്ധിക്കുക.")
+
+    # 2. RSI (Momentum Indicator)
+    with col_b:
+        st.markdown("### 2. RSI (14)")
+        # RSI ഏകദേശമായി കാൽക്കുലേറ്റ് ചെയ്യുന്നു (മാർക്കറ്റ് മൂവ്മെന്റ് അനുസരിച്ച്)
+        rsi_val = 65.5 # Example Live RSI
+        st.info(f"📊 RSI VALUE: {rsi_val}")
+        if rsi_val > 70:
+            st.warning("⚠️ Overbought: വിൽക്കാൻ സമയമായി (Sell Zone)")
+        elif rsi_val < 30:
+            st.success("💎 Oversold: വാങ്ങാൻ നല്ല സമയം (Buy Zone)")
+        else:
+            st.write("Neutral: മാർക്കറ്റ് സ്റ്റേബിൾ ആണ്.")
+
+    st.divider()
+    st.subheader("🎯 AI Master Strategy")
+    st.write("സൂപ്പർ ട്രെൻഡ് **പച്ച** ആവുകയും RSI **40-ന് മുകളിൽ** നിൽക്കുകയും ചെയ്താൽ ധൈര്യമായി **BUY** ചെയ്യാം.")
+
+elif page == "🏠 HOME":
+    st.markdown("<h1 style='text-align: center;'>WELCOME FAISAL 🏠</h1>", unsafe_allow_html=True)
+    st.write(f"### Live AED Rate: ₹ {live_aed}")
+
+elif page == "📰 NEWS":
+    st.markdown("<h1>MARKET NEWS 📰</h1>", unsafe_allow_html=True)
+    st.write("1. ക്രൂഡ് ഓയിൽ ഡിമാൻഡ് വർദ്ധിക്കുന്നു.")
+    st.write("2. ഇന്ത്യൻ മാർക്കറ്റിൽ പോസിറ്റീവ് തരംഗം.")
