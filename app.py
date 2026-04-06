@@ -3,82 +3,62 @@ import requests
 import pandas as pd
 import datetime
 import os
-import urllib.parse
 
 # 1. പേജ് സെറ്റിംഗ്സ്
 st.set_page_config(page_title="Paichi AI Ultra Pro", layout="wide")
 
-# ഫയലുകൾ
-FILE_NAME = 'trade_journal_vfinal.csv'
-CHAT_FILE = 'community_chat.csv'
-
-# --- ലൈവ് റേറ്റ് (AED to INR) ---
-def get_live_data():
-    try:
-        res = requests.get("https://query1.finance.yahoo.com/v8/finance/chart/AEDINR=X?interval=1m&range=1d", headers={'User-Agent': 'Mozilla/5.0'}).json()
-        aed = res['chart']['result'][0]['meta']['regularMarketPrice']
-        return round(aed, 2), "₹ 7,680/gm"
-    except:
-        return 22.80, "₹ 7,680/gm"
-
-live_aed, live_gold = get_live_data()
-
-# --- സൈഡ് ബാർ (Side Bar Selection) ---
+# സൈഡ് ബാറിൽ നിന്റെ ഫോട്ടോയും റേയ്റ്റും
 with st.sidebar:
     photo_url = "https://raw.githubusercontent.com/paichiarakkal/my-ai-bot/main/image_7.png"
-    st.image(photo_url, width=100)
-    st.markdown("<h2 style='color: #FFD700;'>Faisal's Terminal</h2>", unsafe_allow_html=True)
+    st.image(photo_url, width=120)
+    st.markdown("<h2 style='color: #FFD700; text-align: center;'>FAISAL ⚡</h2>", unsafe_allow_html=True)
     
-    st.write(f"**AED/INR:** ₹ {live_aed}")
-    st.write(f"**Gold:** {live_gold}")
     st.divider()
-
-    page = st.radio("Menu:", ["🏠 HOME", "📈 MARKET", "📝 JOURNAL", "📊 DASHBOARD", "💬 CHAT"])
+    page = st.radio("MENU", ["📈 MARKET", "📝 JOURNAL", "💬 CHAT"])
     st.divider()
 
     # 🎯 ഇൻഡക്സ് സെലക്ഷൻ
     st.subheader("🎯 Select Symbol")
-    category = st.selectbox("Category", ["Index (Nifty/Sensex)", "Commodity (Crude)"])
+    category = st.selectbox("Category", ["Commodity (Crude)", "Index (Nifty/Sensex)"])
     
-    if category == "Index (Nifty/Sensex)":
-        sym_map = {"NIFTY 50": "NSE:NIFTY", "BANK NIFTY": "NSE:BANKNIFTY", "SENSEX": "BSE:SENSEX"}
+    if category == "Commodity (Crude)":
+        sym_map = {"CRUDE OIL": "MCX:CRUDEOIL1!", "SILVER": "MCX:SILVER1!"}
+        default_interval = "5"
     else:
-        sym_map = {"CRUDE OIL": "MCX:CRUDEOIL1!", "SILVER": "MCX:SILVER1!", "NATURAL GAS": "MCX:NATURALGAS1!"}
+        sym_map = {"NIFTY 50": "NSE:NIFTY", "BANK NIFTY": "NSE:BANKNIFTY", "SENSEX": "BSE:SENSEX"}
+        # സെൻസെക്സിന് ചിലപ്പോൾ ചെറിയ ടൈംഫ്രെയിം കിട്ടില്ല, അതുകൊണ്ട് 'D' (Daily) വെക്കുന്നു
+        default_interval = "D" 
 
     sel_name = st.selectbox("Choose Symbol", list(sym_map.keys()))
     selected_symbol = sym_map[sel_name]
 
-# --- ഗോൾഡൻ & ബ്ലാക്ക് തീം ---
+# ഗോൾഡൻ & ബ്ലാക്ക് തീം
 st.markdown(f"<style>.stApp {{ background: #000; color: #FFD700 !important; }}</style>", unsafe_allow_html=True)
 
-# --- MARKET PAGE (Live Original Price) ---
+# --- MARKET PAGE ---
 if page == "📈 MARKET":
-    st.markdown(f"<h1>LIVE MARKET: {sel_name} ⚡</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h1 style='text-align: center;'>LIVE: {sel_name} ⚡</h1>", unsafe_allow_html=True)
     
-    # ലൈവ് ചാർട്ട് വിഡ്ജറ്റ് (ഇതിലാണ് 10,287 പോലുള്ള ലൈവ് വില വരുന്നത്)
+    # ലൈവ് ചാർട്ട് വിഡ്ജറ്റ് (നിനക്ക് വേണ്ട ആ ഒറിജിനൽ വില ഇവിടെ വരും)
     chart_html = f"""
-    <div style="height:600px; border: 2px solid #FFD700; border-radius: 10px; overflow: hidden;">
-        <iframe src="https://s.tradingview.com/widgetembed/?symbol={selected_symbol}&interval=5&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=f1f3f6&theme=dark&style=1&timezone=Asia%2FKolkata" width="100%" height="600" frameborder="0"></iframe>
+    <div style="height:620px; border: 2px solid #FFD700; border-radius: 10px; overflow: hidden;">
+        <iframe src="https://s.tradingview.com/widgetembed/?symbol={selected_symbol}&interval={default_interval}&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=f1f3f6&theme=dark&style=1&timezone=Asia%2FKolkata&studies=SuperTrend%40tv-basicstudies" width="100%" height="620" frameborder="0"></iframe>
     </div>
     """
-    st.components.v1.html(chart_html, height=610)
+    st.components.v1.html(chart_html, height=630)
     
-    # AI അനാലിസിസ് ടിപ്‌സ്
+    # സിഗ്നൽ ടിപ്‌സ്
+    st.markdown("---")
     c1, c2 = st.columns(2)
-    with c1:
-        st.success("✅ SUPERTREND പച്ചയാണെങ്കിൽ BUY നോക്കുക.")
-    with c2:
-        st.error("🛑 SUPERTREND ചുവപ്പാണെങ്കിൽ SELL നോക്കുക.")
+    c1.success("✅ SUPERTREND പച്ചയാണെങ്കിൽ BUY നോക്കുക.")
+    c2.error("🛑 SUPERTREND ചുവപ്പാണെങ്കിൽ SELL നോക്കുക.")
 
-# --- മറ്റ് പേജുകൾ (പഴയതുപോലെ തന്നെ) ---
-elif page == "🏠 HOME":
-    st.markdown("<h1 style='text-align: center;'>WELCOME FAISAL 🏠</h1>", unsafe_allow_html=True)
-    st.markdown(f'<div style="text-align: center;"><img src="{photo_url}" style="width: 200px; border-radius: 50%; border: 6px solid #FFD700;"></div>', unsafe_allow_html=True)
-
+# --- JOURNAL ---
 elif page == "📝 JOURNAL":
-    st.markdown("<h1>TRADE JOURNAL 📝</h1>", unsafe_allow_html=True)
-    # നീ അയച്ച ജേണൽ കോഡ് ഇവിടെ ചേർക്കാം
+    st.markdown("<h1 style='text-align: center;'>TRADE JOURNAL 📝</h1>", unsafe_allow_html=True)
+    st.write("നിന്റെ ട്രേഡുകൾ ഇവിടെ രേഖപ്പെടുത്താം ഫൈസൽ.")
 
+# --- CHAT ---
 elif page == "💬 CHAT":
-    st.markdown("<h1>WHATSAPP CHAT 💬</h1>", unsafe_allow_html=True)
-    # നീ അയച്ച ചാറ്റ് കോഡ് ഇവിടെ ചേർക്കാം
+    st.markdown("<h1 style='text-align: center;'>WHATSAPP CHAT 💬</h1>", unsafe_allow_html=True)
+    st.write("വാട്സാപ്പിലേക്ക് മെസേജ് അയക്കാൻ ഇവിടെ സൗകര്യമുണ്ട്.")
