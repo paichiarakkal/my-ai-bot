@@ -1,49 +1,47 @@
 import streamlit as st
-import pandas as pd
-import requests
 
-# 1. സെറ്റിംഗ്‌സും ഗോൾഡൻ തീമും
+# 1. സെറ്റിംഗ്‌സും ഗോൾഡൻ തീമും (നിന്റെ ഫോട്ടോ ലോഗോ ആയി വരാൻ)
 st.set_page_config(
     page_title="Paichi AI Ultra",
     page_icon="https://raw.githubusercontent.com/paichiarakkal/my-ai-bot/main/image_7.png",
     layout="wide"
 )
 
-# ഗോൾഡൻ സ്റ്റൈൽ CSS
+# ഗോൾഡൻ സ്റ്റൈൽ CSS (നിനക്ക് ഇഷ്ടപ്പെട്ട കറുപ്പും സ്വർണ്ണനിറവും)
 st.markdown("""
     <style>
     .main { background-color: #000000; color: #FFD700; }
+    [data-testid="stSidebar"] { background-color: #111111; border-right: 2px solid #FFD700; }
     .stMetric { background-color: #1a1a1a; padding: 15px; border-radius: 10px; border: 1px solid #FFD700; }
-    h1, h2, h3 { color: #FFD700 !important; text-align: center; }
+    h1, h2, h3, p, span { color: #FFD700 !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. സൈഡ് ബാർ
-st.sidebar.image("https://raw.githubusercontent.com/paichiarakkal/my-ai-bot/main/image_7.png", width=120)
+# 2. സൈഡ് ബാർ (നിന്റെ ഫോട്ടോ ഇവിടെ വരും)
+st.sidebar.image("https://raw.githubusercontent.com/paichiarakkal/my-ai-bot/main/image_7.png", caption="FAISAL - TRADER", width=150)
 st.sidebar.title("PAICHI AI ⚡")
 menu = st.sidebar.radio("MENU", ["📈 LIVE MARKET", "💰 MY TRADES", "⚙️ PROFILE"])
 symbol = st.sidebar.selectbox("SELECT INDEX", ["MCX:CRUDEOIL1!", "NSE:NIFTY", "NSE:BANKNIFTY"])
 
-# 3. ലൈവ് മാർക്കറ്റ് പേജ്
+# 3. ലൈവ് മാർക്കറ്റ് പേജ് (Original Price & Supertrend)
 if menu == "📈 LIVE MARKET":
     st.markdown(f"<h1>GOLDEN DASHBOARD: FAISAL ⚡</h1>", unsafe_allow_html=True)
     
-    # മെട്രിക്സ് സെക്ഷൻ (Original Price & Status)
+    # മെട്രിക്സ് സെക്ഷൻ
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("CURRENT INDEX", symbol)
+        st.metric("INDEX", symbol)
     with col2:
-        st.metric("MARKET STATUS", "LIVE 🟢")
+        st.metric("STATUS", "ORIGINAL LIVE 🟢")
     with col3:
-        st.metric("STRATEGY", "SUPERTREND + VWAP")
+        st.metric("TIPS", "CHECK SUPERTREND")
 
     st.divider()
 
-    # --- ORIGINAL MCX & NIFTY CHART (TradingView Widget) ---
-    # ഇത് നിന്റെ ചാർട്ടിലെ അതേ ഒറിജിനൽ വിലയും ഇൻഡിക്കേറ്ററുകളും കാണിക്കും
+    # --- ORIGINAL TRADINGVIEW CHART ---
+    # ഇത് നിന്റെ ചാർട്ടിലെ അതേ 10,287 വിലയും ഇൻഡിക്കേറ്ററുകളും കാണിക്കും
     chart_html = f"""
-    <div class="tradingview-widget-container" style="height:500px;">
-      <div id="tradingview_chart"></div>
+    <div style="height:550px;">
       <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
       <script type="text/javascript">
       new TradingView.widget({{
@@ -56,35 +54,38 @@ if menu == "📈 LIVE MARKET":
         "locale": "en",
         "toolbar_bg": "#f1f3f6",
         "enable_publishing": false,
-        "hide_top_toolbar": false,
         "withdateranges": true,
-        "save_image": false,
+        "hide_side_toolbar": false,
+        "allow_symbol_change": true,
+        "details": true,
+        "hotlist": true,
+        "calendar": true,
+        "show_popup_button": true,
+        "popup_width": "1000",
+        "popup_height": "650",
         "container_id": "tradingview_chart"
       }});
       </script>
+      <div id="tradingview_chart"></div>
     </div>
     """
-    st.components.v1.html(chart_html, height=520)
+    st.components.v1.html(chart_html, height=560)
 
-    # 4. ട്രേഡിംഗ് ടിപ്‌സ് & ഇൻഡിക്കേറ്റർ മെസേജ്
-    st.markdown("### 🔔 AI TRADING SIGNALS")
-    t1, t2 = st.columns(2)
-    with t1:
-        st.success("✅ SUPERTREND: Buy Above Green Line")
-    with t2:
-        st.error("🛑 SUPERTREND: Sell Below Red Line")
-    
-    st.info("💡 Tip: ക്രൂഡ് ഓയിലിൽ 10,280 ലെവൽ ശ്രദ്ധിക്കുക. വോളിയം കൂടുന്നുണ്ട്.")
+    # ടിപ്‌സ് മെസേജുകൾ
+    st.markdown("### 🔔 AI TRADING TIPS")
+    st.success("✅ SUPERTREND പച്ചയാണെങ്കിൽ (Buy) നോക്കുക.")
+    st.error("🛑 SUPERTREND ചുവപ്പാണെങ്കിൽ (Sell) ശ്രദ്ധിക്കുക.")
 
-# --- പഴയ പേജുകൾ നിലനിർത്തിയിട്ടുണ്ട് ---
+# --- ബാക്കി പേജുകൾ ---
 elif menu == "💰 MY TRADES":
     st.header("MY TRADING LOG 📝")
-    profit = st.number_input("ഇന്നത്തെ ലാഭം/നഷ്ടം നൽകുക", value=0)
-    if st.button("Save Entry"):
-        st.success(f"സേവ് ചെയ്തു! ഇന്നത്തെ ലാഭം: ₹{profit}")
+    st.write("ഇന്ന് എത്ര ലാഭം കിട്ടി ഫൈസൽ?")
+    p_l = st.number_input("Profit/Loss Amount", value=0)
+    if st.button("Save Trade"):
+        st.success(f"സേവ് ചെയ്തു: ₹{p_l}")
 
 elif menu == "⚙️ PROFILE":
-    st.header("USER SETTINGS ⚙️")
+    st.header("USER PROFILE ⚙️")
     st.write("**Name:** Faisal")
-    st.write("**Role:** Intraday Trader (MCX & Options)")
-    st.write("**Base:** Dubai, Al Barsha")
+    st.write("**Job:** Intraday Trader")
+    st.write("**Location:** Al Barsha, Dubai")
