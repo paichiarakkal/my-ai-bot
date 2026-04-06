@@ -1,37 +1,14 @@
-import streamlit as st
-
-# പേജ് സെറ്റിംഗ്സ്
-st.set_page_config(page_title="Paichi AI Ultra", layout="wide")
-
-# സൈഡ് ബാറിൽ നിന്റെ ഫോട്ടോ വരാൻ (ലിങ്ക് ചെക്ക് ചെയ്യുക)
-st.sidebar.image("https://raw.githubusercontent.com/paichiarakkal/my-ai-bot/main/image_7.png", width=150)
-st.sidebar.title("PAICHI AI ⚡")
-
-st.markdown("<h1 style='text-align: center; color: #FFD700;'>GOLDEN MARKET: CRUDE OIL ⚡</h1>", unsafe_allow_html=True)
-
-# ഇതാണ് ആ ഒറിജിനൽ ചാർട്ട് വരാനുള്ള കോഡ്
-chart_html = """
-<div style="height:600px;">
-  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-  <script type="text/javascript">
-  new TradingView.widget({
-    "autosize": true,
-    "symbol": "MCX:CRUDEOIL1!", 
-    "interval": "5",
-    "timezone": "Asia/Kolkata",
-    "theme": "dark",
-    "style": "1",
-    "locale": "en",
-    "enable_publishing": false,
-    "hide_side_toolbar": false,
-    "allow_symbol_change": true,
-    "details": true,
-    "show_popup_button": true,
-    "container_id": "tv_faisal_final"
-  });
-  </script>
-  <div id="tv_faisal_final" style="height:100%;"></div>
-</div>
-"""
-
-st.components.v1.html(chart_html, height=620)
+if menu == "📈 LIVE MARKET":
+    st.markdown("<h1>MCX CRUDE OIL: LIVE CHART ⚡</h1>", unsafe_allow_html=True)
+    
+    # Investing.com MCX Crude Oil (Symbol ID: 8849)
+    # ഇത് നിന്റെ ആപ്പിനുള്ളിൽ നേരിട്ട് ലോഡ് ആകും
+    investing_chart = """
+    <div style="height:550px;">
+        <iframe src="https://it.widgets.investing.com/live-charts-widget?force_lang=1&s=8849" width="100%" height="500" frameborder="0" allowtransparency="true" marginwidth="0" marginheight="0"></iframe>
+        <div style="width:100%;text-align:center;font-size:12px;color:#FFD700;padding-top:5px;">
+            <a href="https://www.investing.com/" target="_blank" style="color:#FFD700;text-decoration:none;">Live Charts provided by Investing.com</a>
+        </div>
+    </div>
+    """
+    st.components.v1.html(investing_chart, height=550)
