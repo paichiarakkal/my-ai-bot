@@ -78,7 +78,7 @@ with st.sidebar:
         if st.button("📊 SENSEX"): st.session_state.sel_ticker = ("^BSESN", "SENSEX"); st.rerun()
         if st.button("📉 MIDCAP"): st.session_state.sel_ticker = ("^NSEMDCP50", "MIDCAP 50"); st.rerun()
         if st.button("⛽ CRUDE OIL"): st.session_state.sel_ticker = ("CL=F", "CRUDE OIL"); st.rerun()
-if st.button("WhatsApp"):# നിന്റെ വാട്സ്ആപ്പ് ലിങ്ക്
+# നിന്റെ വാട്സ്ആപ്പ് ലിങ്ക്
 st.sidebar.markdown("[💬 Contact on WhatsApp](https://wa.me/918714752210)")  
 # --- 3. മെയിൻ കണ്ടന്റ് ---
 if mode == "MARKET":
