@@ -8,7 +8,7 @@ from streamlit_autorefresh import st_autorefresh
 # 1. പേജ് സെറ്റിംഗ്‌സ് & ഗോൾഡൻ തീം
 st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
 # നിന്റെ വാട്സ്ആപ്പ് ലിങ്ക്
-st.sidebar.markdown("[💬 Contact on WhatsApp](https://wa.me/91XXXXXXXXXX)")
+st.sidebar.markdown("[💬 Contact on WhatsApp](https://wa.me/918714752210)")
 st.markdown("""
 <style>
     .stApp { background: linear-gradient(135deg, #BF953F, #FCF6BA, #B38728, #AA771C); color: #000; }
