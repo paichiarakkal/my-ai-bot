@@ -119,4 +119,4 @@ elif mode == "DASHBOARD":
         st.dataframe(df.iloc[::-1], use_container_width=True)
 
 st.markdown(f'<p style="text-align: center; color: #FFF; margin-top: 50px;">Created by <b>Faisal Arakkal</b></p>', unsafe_allow_html=True)
-New
+
