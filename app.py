@@ -7,8 +7,7 @@ from streamlit_autorefresh import st_autorefresh
 
 # 1. പേജ് സെറ്റിംഗ്‌സ് & ഗോൾഡൻ തീം
 st.set_page_config(page_title="Paichi AI Trader Pro", layout="wide")
-# നിന്റെ വാട്സ്ആപ്പ് ലിങ്ക്
-st.sidebar.markdown("[💬 Contact on WhatsApp](https://wa.me/918714752210)")
+
 st.markdown("""
 <style>
     .stApp { background: linear-gradient(135deg, #BF953F, #FCF6BA, #B38728, #AA771C); color: #000; }
@@ -19,7 +18,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=30000, key="faisal_full_app_v2")
+st_autorefresh(interval=30000, key="faisal_full_app_v3")
 FILE_NAME = 'trade_history_v2.csv'
 
 # --- ഫംഗ്ഷനുകൾ ---
@@ -40,30 +39,22 @@ def save_trade(symbol, action, entry_p, exit_p, qty, pnl, mood):
 if 'sel_ticker' not in st.session_state:
     st.session_state.sel_ticker = ("^NSEI", "NIFTY 50")
 
-# --- 2. സൈഡ് ബാർ (All Tools & Rates) ---
+# --- 2. സൈഡ് ബാർ ---
 with st.sidebar:
     st.markdown("### 🚀 Paichi Pro")
+    st.markdown("[💬 Contact on WhatsApp](https://wa.me/918714752210)")
     
-    # Currency Converter (AED to INR)
+    # Alert System
+    st.divider()
+    st.write("🔔 **Premium Alert**")
+    alert_val = st.number_input("Alert Price Set ചെയ്യുക", value=0.0)
+    
+    # Currency
     st.write("💰 **AED to INR**")
-    aed_val = st.number_input("Dirham Amount", min_value=0.0, value=1.0, step=1.0)
+    aed_val = st.number_input("Dirham Amount", min_value=0.0, value=1.0)
     ex_rate = get_live_price("AEDINR=X")
     if ex_rate > 0:
         st.markdown(f'<div class="info-box" style="color:green;">₹ {aed_val * ex_rate:,.2f} INR</div>', unsafe_allow_html=True)
-    
-    st.divider()
-    
-    # Gold Price (8 Gram / 1 Pawan)
-    st.write("🟡 **Gold Price (8g/1 Pawan)**")
-    gold_price_per_gram = get_live_price("GC=F") # അന്താരാഷ്ട്ര വില (USD)
-    # ഏകദേശ ഇന്ത്യൻ വില കണക്കാക്കുന്നു (Currency + Tax + Premium)
-    gold_8g_inr = (gold_price_per_gram / 31.1035) * 8 * ex_rate * 1.15 
-    st.markdown(f'<div class="info-box" style="color:#B8860B;">₹ {gold_8g_inr:,.0f} (Approx)</div>', unsafe_allow_html=True)
-    
-    # Shop Rate (നിനക്ക് മാറ്റം വരുത്താം)
-    st.write("🏪 **Shop Rate**")
-    shop_rate = st.number_input("Today's Rate", value=gold_8g_inr, step=10.0)
-    st.markdown(f'<div class="info-box">Shop: ₹ {shop_rate:,.0f}</div>', unsafe_allow_html=True)
     
     st.divider()
     mode = st.radio("മെനു:", ["MARKET", "JOURNAL", "DASHBOARD"])
@@ -71,45 +62,46 @@ with st.sidebar:
 
     if mode == "MARKET":
         st.write("🎯 **Indices:**")
-        # ഇൻഡക്സ് ബട്ടണുകൾ
         if st.button("📈 NIFTY 50"): st.session_state.sel_ticker = ("^NSEI", "NIFTY 50"); st.rerun()
         if st.button("🏦 BANK NIFTY"): st.session_state.sel_ticker = ("^NSEBANK", "BANK NIFTY"); st.rerun()
-        if st.button("💳 FIN NIFTY"): st.session_state.sel_ticker = ("NIFTY_FIN_SERVICE.NS", "FIN NIFTY"); st.rerun()
-        if st.button("📊 SENSEX"): st.session_state.sel_ticker = ("^BSESN", "SENSEX"); st.rerun()
-        if st.button("📉 MIDCAP"): st.session_state.sel_ticker = ("^NSEMDCP50", "MIDCAP 50"); st.rerun()
         if st.button("⛽ CRUDE OIL"): st.session_state.sel_ticker = ("CL=F", "CRUDE OIL"); st.rerun()
-# നിന്റെ വാട്സ്ആപ്പ് ലിങ്ക്
-st.sidebar.markdown("[💬 Contact on WhatsApp](https://wa.me/918714752210)")  
+
 # --- 3. മെയിൻ കണ്ടന്റ് ---
 if mode == "MARKET":
-    st.markdown(f'<p class="main-title">🚀 {st.session_state.sel_ticker[1]}</p>', unsafe_allow_html=True)
     symbol, name = st.session_state.sel_ticker
     price = get_live_price(symbol)
+    
+    # Alert Logic
+    if alert_val > 0 and price >= alert_val:
+        st.error(f"🚨 ALERT: {name} വില {alert_val} കടന്നു! ഇപ്പോഴത്തെ വില: {price:,.2f}")
+        st.toast("Price Alert Hit!", icon='🚨')
+
+    st.markdown(f'<p class="main-title">🚀 {name}</p>', unsafe_allow_html=True)
     st.metric(label=name, value=f"₹ {price:,.2f}")
+    
+    # Live Chart for Crude Oil
+    if name == "CRUDE OIL":
+        st.write("### 📈 Crude Oil 5-Min Trend")
+        c_data = yf.download(symbol, period='1d', interval='5m')
+        if not c_data.empty:
+            st.line_chart(c_data['Close'])
 
 elif mode == "JOURNAL":
     st.markdown('<p class="main-title">📝 OPTION JOURNAL</p>', unsafe_allow_html=True)
-    # ജേണൽ ബോക്സുകൾ കാലിയായി വരാൻ
-    underlying = st.selectbox("Index", ["NIFTY", "BANKNIFTY", "FINNIFTY", "CRUDE OIL"])
-    strike = st.text_input("Strike & Type", placeholder="Ex: 22400 CE")
-    st.divider()
-    col1, col2 = st.columns(2)
-    entry_raw = col1.text_input("Entry Premium", value="", placeholder="0.00")
-    exit_raw = col2.text_input("Exit Premium", value="", placeholder="0.00")
-    qty_raw = col1.text_input("Total Qty", value="", placeholder="0")
-    t_type = col2.selectbox("Order Type", ["BUY (Long)", "SELL (Short)"])
-    mood = st.selectbox("Mood", ["Calm", "Disciplined", "Fear", "Greedy"])
+    underlying = st.selectbox("Index", ["NIFTY", "BANKNIFTY", "CRUDE OIL"])
+    strike = st.text_input("Strike", placeholder="Ex: 22400 CE")
+    entry_raw = st.text_input("Entry Premium")
+    exit_raw = st.text_input("Exit Premium")
+    qty_raw = st.text_input("Qty")
+    t_type = st.selectbox("Type", ["BUY", "SELL"])
+    mood = st.selectbox("Mood", ["Calm", "Fear", "Greedy"])
 
-    if st.button("SAVE OPTION TRADE"):
+    if st.button("SAVE TRADE"):
         try:
-            entry = float(entry_raw) if entry_raw else 0.0
-            exit_p = float(exit_raw) if exit_raw else 0.0
-            qty = int(qty_raw) if qty_raw else 0
-            pnl = (exit_p - entry) * qty if "BUY" in t_type else (entry - exit_p) * qty
-            save_trade(f"{underlying} {strike}", t_type, entry, exit_p, qty, pnl, mood)
-            st.success(f"സേവ് ചെയ്തു! P&L: ₹{pnl:,.2f}")
-            st.rerun()
-        except: st.error("Numbers only please!")
+            pnl = (float(exit_raw) - float(entry_raw)) * int(qty_raw)
+            save_trade(f"{underlying} {strike}", t_type, entry_raw, exit_raw, qty_raw, pnl, mood)
+            st.success(f"സേവ് ചെയ്തു! P&L: ₹{pnl}")
+        except: st.error("വിവരങ്ങൾ കൃത്യമായി നൽകുക")
 
 elif mode == "DASHBOARD":
     st.markdown('<p class="main-title">📊 DASHBOARD</p>', unsafe_allow_html=True)
@@ -119,4 +111,3 @@ elif mode == "DASHBOARD":
         st.dataframe(df.iloc[::-1], use_container_width=True)
 
 st.markdown(f'<p style="text-align: center; color: #FFF; margin-top: 50px;">Created by <b>Faisal Arakkal</b></p>', unsafe_allow_html=True)
-
