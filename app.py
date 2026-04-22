@@ -18,20 +18,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st_autorefresh(interval=30000, key="faisal_final_v2")
+st_autorefresh(interval=30000, key="faisal_fix_v3")
 
-# --- Optimized Supertrend Function ---
+# --- Optimized Functions ---
 def get_supertrend_simple(df, period=10, multiplier=3):
     df = df.copy()
     hl2 = (df['High'] + df['Low']) / 2
-    # Simple ATR calculation
     df['tr'] = (df['High'] - df['Low'])
     df['atr'] = df['tr'].rolling(period).mean()
-    
     df['upper'] = hl2 + (multiplier * df['atr'])
     df['lower'] = hl2 - (multiplier * df['atr'])
-    
-    # Trend Logic
     df['trend'] = True
     for i in range(1, len(df)):
         if df['Close'].iloc[i] > df['upper'].iloc[i-1]:
@@ -46,7 +42,9 @@ def get_data(ticker):
     try:
         d = yf.download(ticker, period='1d', interval='5m')
         if d.empty: return None, 0.0
-        return d, d['Close'].iloc[-1]
+        # price ഫ്ലോട്ട് ആയി തന്നെ എടുക്കുന്നു
+        price = float(d['Close'].iloc[-1])
+        return d, price
     except: return None, 0.0
 
 # --- Sidebar ---
@@ -55,7 +53,7 @@ if 'sel_ticker' not in st.session_state:
 
 with st.sidebar:
     st.markdown("### 🚀 Paichi Pro")
-    st.markdown("[💬 WhatsApp](https://wa.me/918714752210)")
+    st.markdown("[💬 Contact](https://wa.me/918714752210)")
     st.divider()
     mode = st.radio("മെനു:", ["MARKET", "JOURNAL"])
     if mode == "MARKET":
@@ -70,11 +68,13 @@ if mode == "MARKET":
     hist, price = get_data(symbol)
     
     st.markdown(f'<p class="main-title">🚀 {name}</p>', unsafe_allow_html=True)
-    st.metric(label="Current Price", value=f"₹ {float(price):,.2f}")
-
+    
+    # Error പരിഹരിച്ച ഭാഗം
+    if price > 0:
+        st.metric(label="Current Price", value=f"₹ {price:,.2f}")
+    
     if hist is not None and len(hist) > 10:
         trend, full_df = get_supertrend_simple(hist)
-        
         if trend:
             st.markdown('<div class="signal-box" style="background-color: #28a745;">🟢 SUPERTREND: BUY</div>', unsafe_allow_html=True)
         else:
@@ -83,8 +83,4 @@ if mode == "MARKET":
         st.write("### 📈 Live Chart")
         st.area_chart(full_df['Close'])
     else:
-        st.error("Data loading error. Please wait...")
-
-elif mode == "JOURNAL":
-    st.markdown('<p class="main-title">📝 JOURNAL</p>', unsafe_allow_html=True)
-    st.write("ഈ സെക്ഷനിൽ നിന്റെ ട്രേഡുകൾ റെക്കോർഡ് ചെയ്യാം.")
+        st.info("Loading market data...")
