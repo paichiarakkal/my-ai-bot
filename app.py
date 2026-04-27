@@ -22,7 +22,7 @@ WA_API_KEY = "7463030"
 
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
-st.set_page_config(page_title="PAICHI PREMIUM v4.5", layout="wide")
+st.set_page_config(page_title="PAICHI PREMIUM v4.6", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 # --- 2. 🎨 PREMIUM DESIGN ---
@@ -138,12 +138,16 @@ else:
         <span style="font-size:32px; color:#FFD700;">₹{balance:,.2f}</span>
     </div>""", unsafe_allow_html=True)
 
-    if curr_user == "shabana": page = "💰 Add Entry"
-    else: page = st.sidebar.radio("Menu", ["📊 Advisor", "🏠 Dashboard", "💰 Add Entry", "📊 Report", "🔍 History", "🤝 Debt Tracker"])
+    # --- ഷബാനയ്ക്ക്Debt Tracker കൂടി കാണാൻ വേണ്ടിയുള്ള മാറ്റം ---
+    if curr_user == "shabana":
+        page = st.sidebar.radio("Menu", ["💰 Add Entry", "🤝 Debt Tracker"])
+    else:
+        page = st.sidebar.radio("Menu", ["📊 Advisor", "🏠 Dashboard", "💰 Add Entry", "📊 Report", "🔍 History", "🤝 Debt Tracker"])
 
     if st.sidebar.button("Logout"):
         st.session_state.auth = False; st.rerun()
 
+    # --- PAGES ---
     if page == "📊 Advisor":
         st.title("🚀 Smart Trading Advisor")
         markets = get_triple_advisor()
@@ -167,23 +171,19 @@ else:
                 <h3 style="color:#00FF00 !important;">Total Credit: ₹{ti:,.2f}</h3>
                 <h3 style="color:#FF3131 !important;">Total Debit: ₹{te:,.2f}</h3>
             </div>""", unsafe_allow_html=True)
-            # ലളിതമായ ഒരു ഗ്രാഫ് കൂടി ചേർക്കാം
             fig = px.bar(df.tail(10), x=df.columns[0], y='Debit', color_discrete_sequence=['#FFD700'], template="plotly_dark")
             st.plotly_chart(fig, use_container_width=True)
         except: st.error("Data error")
 
     elif page == "💰 Add Entry":
         st.title("Voice & Manual Entry 🎙️")
-        v_raw = speech_to_text(language='ml', key='voice_v45')
+        v_raw = speech_to_text(language='ml', key='voice_v46')
         v_cat, v_amt, v_desc = process_voice(v_raw)
         
         with st.form("entry_form", clear_on_submit=True):
             it = st.text_input("Description", value=v_desc if v_desc else "")
-            cat = st.text_input("Category (ഷബാനയ്ക്ക് ടൈപ്പ് ചെയ്യാം)", value=v_cat if v_cat else "")
-            
-            # ഇവിടെയാണ് മാറ്റം: text_input ഉപയോഗിച്ചതുകൊണ്ട് .00 വരില്ല
+            cat = st.text_input("Category", value=v_cat if v_cat else "")
             am_str = st.text_input("Amount", value=str(int(v_amt)) if v_amt else "")
-            
             ty = st.radio("Type", ["Debit", "Credit"], horizontal=True)
             
             if st.form_submit_button("SAVE DATA"):
@@ -195,13 +195,11 @@ else:
                         full_desc = f"[{curr_user.capitalize()}] {final_cat}: {it}"
                         requests.post(FORM_API, data={"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": full_desc, "entry.1460982454": d, "entry.1221658767": c})
                         
-                        # വാട്സാപ്പ് അയക്കുന്നു
                         wa_msg = f"✅ *Paichi Entry*\n👤 User: {curr_user.capitalize()}\n💰 Amt: ₹{am}\n📝 {final_cat}: {it}"
                         threading.Thread(target=send_wa, args=(wa_msg,)).start()
                         
-                        st.success("സേവ് ആയി! വാട്സാപ്പ് നോട്ടിഫിക്കേഷൻ അയച്ചു. ✅"); st.rerun()
-                except:
-                    st.error("Amount കൃത്യമായി നൽകുക!")
+                        st.success("സേവ് ആയി! ✅"); st.rerun()
+                except: st.error("Amount കൃത്യമായി നൽകുക!")
 
     elif page == "📊 Report":
         st.title("Expense Analysis")
@@ -211,7 +209,7 @@ else:
             df['Debit'] = pd.to_numeric(df['Debit'], errors='coerce').fillna(0)
             df['Category'] = df['Item'].apply(lambda x: str(x).split('] ')[1].split(':')[0].strip() if ']' in str(x) else 'Other')
             report_df = df[df['Debit'] > 0].groupby('Category')['Debit'].sum().reset_index()
-            fig = px.pie(report_df, values='Debit', names='Category', hole=0.4, template="plotly_dark", color_discrete_sequence=px.colors.sequential.RdBu)
+            fig = px.pie(report_df, values='Debit', names='Category', hole=0.4, template="plotly_dark")
             st.plotly_chart(fig, use_container_width=True)
         except: st.error("Report failed")
 
@@ -220,14 +218,13 @@ else:
         try:
             df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
             df.columns = df.columns.str.strip()
-            # PDF ഡൗൺലോഡ് ബട്ടൺ
             pdf_bytes = create_pdf(df)
-            if pdf_bytes: st.download_button("📥 Download PDF Report", pdf_bytes, "Paichi_Report.pdf", "application/pdf")
+            if pdf_bytes: st.download_button("📥 Download PDF", pdf_bytes, "Report.pdf", "application/pdf")
             st.dataframe(df.iloc[::-1], use_container_width=True)
         except: st.write("No history found.")
 
     elif page == "🤝 Debt Tracker":
-        st.title("Debt Tracker")
+        st.title("Debt Management")
         with st.form("debt_form"):
             n = st.text_input("Name")
             a = st.number_input("Amount", min_value=0.0)
