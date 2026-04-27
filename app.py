@@ -7,134 +7,223 @@ import random
 import plotly.express as px
 from streamlit_mic_recorder import speech_to_text
 from streamlit_autorefresh import st_autorefresh
+from fpdf import FPDF
+import io
+import re
 import urllib.parse
 import threading
 
 # --- 1. CONFIG & SETTINGS ---
 CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
 FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSfLySolQSiRXV0wELNPhUBlKJh77RnJKWc2-uqAM0TPNG3Q5A/formResponse"
+
 WA_PHONE = "971551347989"
 WA_API_KEY = "7463030"
+
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
-st.set_page_config(page_title="PAICHI DASHBOARD v8.0", layout="wide")
+st.set_page_config(page_title="PAICHI PURPLE GOLD v4.3", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
-# --- 2. 🎨 CLEAN MODERN CSS ---
+# --- 2. 🎨 PREMIUM DESIGN ---
 st.markdown("""
     <style>
-    .stApp { background-color: #f4f7f6; }
-    [data-testid="stMetricValue"] { color: #2c3e50 !important; font-size: 28px !important; }
-    .main-card {
-        background: white;
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        margin-bottom: 20px;
+    .stApp {
+        background: linear-gradient(135deg, #2D0844, #4B0082, #1A0521);
+        color: #fff;
     }
+    [data-testid="stSidebar"] { background: rgba(0,0,0,0.85) !important; }
     .stButton>button {
-        background: #3498db;
-        color: white;
-        border-radius: 8px;
-        height: 50px;
-        font-weight: bold;
+        background-color: #FFD700; color: #000; border-radius: 10px; font-weight: bold;
     }
-    h1, h2, h3 { color: #2c3e50 !important; }
+    .balance-banner {
+        background: rgba(255, 215, 0, 0.1);
+        padding: 15px; border-radius: 15px; border-left: 5px solid #FFD700;
+        margin-bottom: 25px; text-align: center;
+    }
+    .purple-box {
+        background: rgba(255, 255, 255, 0.05);
+        padding: 20px; border-radius: 25px; border: 2px solid rgba(255, 215, 0, 0.3);
+        text-align: center; margin-bottom: 20px;
+    }
+    h1, h2, h3, p, label { color: white !important; font-weight: bold !important; }
+    .stDataFrame { background: white; border-radius: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. FUNCTIONS ---
+if 'auth' not in st.session_state: st.session_state.auth = False
+if 'user' not in st.session_state: st.session_state.user = ""
+
+# --- 3. 📊 SMART ENGINES ---
+
 def send_wa(msg):
     url = f"https://api.callmebot.com/whatsapp.php?phone={WA_PHONE}&text={urllib.parse.quote(msg)}&apikey={WA_API_KEY}"
     try: requests.get(url, timeout=10)
     except: pass
 
-def get_data():
+def get_total_balance():
     try:
         df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
         df.columns = df.columns.str.strip()
-        df['Debit'] = pd.to_numeric(df['Debit'], errors='coerce').fillna(0)
-        df['Credit'] = pd.to_numeric(df['Credit'], errors='coerce').fillna(0)
-        return df
-    except: return pd.DataFrame()
+        total_in = pd.to_numeric(df['Credit'], errors='coerce').fillna(0).sum()
+        total_out = pd.to_numeric(df['Debit'], errors='coerce').fillna(0).sum()
+        return total_in - total_out
+    except: return 0.0
 
-# --- 4. AUTHENTICATION ---
-if 'auth' not in st.session_state: st.session_state.auth = False
-
-if not st.session_state.auth:
-    col1, col2, col3 = st.columns([1, 1.5, 1])
-    with col2:
-        st.markdown("<div style='text-align:center; padding:50px;'><h1>🏦 PAICHI LOGIN</h1></div>", unsafe_allow_html=True)
-        u = st.text_input("Username").lower()
-        p = st.text_input("Password", type="password")
-        if st.button("LOGIN"):
-            if USERS.get(u) == p:
-                st.session_state.auth, st.session_state.user = True, u
-                st.rerun()
-            else: st.error("Invalid Credentials!")
-else:
-    # --- 5. MAIN DASHBOARD ---
-    df = get_data()
+def process_voice(text):
+    if not text: return "", None, ""
+    raw_text = text.lower()
+    nums = re.findall(r'\d+', raw_text)
+    amount = float(nums[0]) if nums else None
+    clean_desc = re.sub(r'\d+', '', raw_text).strip()
     
-    with st.sidebar:
-        st.title(f"Hi, {st.session_state.user.capitalize()}")
-        menu = st.radio("Navigation", ["📊 Dashboard", "➕ Add Entry", "📜 History"])
-        if st.button("Logout"):
-            st.session_state.auth = False
+    category = ""
+    if any(x in raw_text for x in ["food", "ഭക്ഷണം", "ഹോട്ടൽ", "ചായ"]): category = "Food"
+    elif any(x in raw_text for x in ["shop", "കട", "സാധനം"]): category = "Shop"
+    return category, amount, clean_desc
+
+def create_pdf(df):
+    try:
+        pdf = FPDF()
+        pdf.add_page(); pdf.set_font("Arial", 'B', 16)
+        pdf.cell(190, 10, txt="PAICHI FINANCE REPORT", ln=True, align='C'); pdf.ln(10)
+        cols = df.columns.tolist()
+        pdf.set_font("Arial", 'B', 10)
+        for col in cols: pdf.cell(38, 10, txt=str(col), border=1)
+        pdf.ln(); pdf.set_font("Arial", size=9)
+        for i, row in df.iterrows():
+            for col in cols:
+                val = str(row[col]).encode('ascii', 'ignore').decode('ascii')
+                pdf.cell(38, 10, txt=val, border=1)
+            pdf.ln()
+        return pdf.output(dest='S').encode('latin-1')
+    except: return None
+
+def get_triple_advisor():
+    try:
+        symbols = {"Nifty 50": "^NSEI", "Bank Nifty": "^NSEBANK", "Crude Fut": "CL=F"}
+        results = []
+        for name, sym in symbols.items():
+            df = yf.Ticker(sym).history(period="5d", interval="5m")
+            if df.empty: continue
+            last_p = df['Close'].iloc[-1]
+            h, l, c = df['High'].iloc[-2], df['Low'].iloc[-2], df['Close'].iloc[-2]
+            pivot = (h + l + c) / 3
+            delta = df['Close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+            rsi = 100 - (100 / (1 + (gain / loss).iloc[-1]))
+            if last_p > pivot and rsi > 55: signal, color = "🚀 BUY", "#00FF00"
+            elif last_p < pivot and rsi < 45: signal, color = "📉 SELL", "#FF3131"
+            else: signal, color = "⚖️ WAIT", "#FFFF00"
+            if name == "Crude Fut": last_p = last_p * 83.5 * 1.15
+            results.append({"name": name, "price": last_p, "signal": signal, "rsi": rsi, "color": color})
+        return results
+    except: return None
+
+# --- 4. APP LOGIC ---
+if not st.session_state.auth:
+    st.title("🔐 PAICHI FINANCE LOGIN")
+    u = st.text_input("Username").lower()
+    p = st.text_input("Password", type="password")
+    if st.button("LOGIN"):
+        if USERS.get(u) == p:
+            st.session_state.auth, st.session_state.user = True, u
             st.rerun()
+        else: st.error("Access Denied!")
+else:
+    curr_user = st.session_state.user
+    balance = get_total_balance()
+    
+    st.markdown(f"""<div class="balance-banner">
+        <span style="font-size:18px; color:#E0B0FF;">Available Balance</span><br>
+        <span style="font-size:32px; color:#FFD700;">₹{balance:,.2f}</span>
+    </div>""", unsafe_allow_html=True)
 
-    if menu == "📊 Dashboard":
-        st.markdown("## 📈 Financial Overview")
+    if curr_user == "shabana": page = "💰 Add Entry"
+    else: page = st.sidebar.radio("Menu", ["📊 Advisor", "🏠 Dashboard", "💰 Add Entry", "📊 Report", "🔍 History", "🤝 Debt Tracker"])
+
+    if st.sidebar.button("Logout"):
+        st.session_state.auth = False; st.rerun()
+
+    if page == "📊 Advisor":
+        st.title("🚀 Smart Trading Terminal")
+        markets = get_triple_advisor()
+        if markets:
+            for m in markets:
+                st.markdown(f"""<div class="purple-box" style="border-color: {m['color']} !important;">
+                    <h2 style="color:#E0B0FF !important;">{m["name"]}</h2>
+                    <h1 style="color:{m["color"]} !important; font-size:55px;">{m["signal"]}</h1>
+                    <h1 style="color:#FFD700 !important; font-size:50px;">₹{m["price"]:,.0f}</h1>
+                    <p>RSI: {m["rsi"]:.1f}</p>
+                </div>""", unsafe_allow_html=True)
+
+    elif page == "🏠 Dashboard":
+        st.title("Financial Overview")
+        try:
+            df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
+            df.columns = df.columns.str.strip()
+            total_in = pd.to_numeric(df['Credit'], errors='coerce').fillna(0).sum()
+            total_out = pd.to_numeric(df['Debit'], errors='coerce').fillna(0).sum()
+            st.markdown(f"""<div class="purple-box">
+                <h3>Total Credit: ₹{total_in:,.2f}</h3>
+                <h3>Total Debit: ₹{total_out:,.2f}</h3>
+            </div>""", unsafe_allow_html=True)
+        except: st.error("Data loading error")
+
+    elif page == "💰 Add Entry":
+        st.title("Smart Voice Entry 🎙️")
+        v_raw = speech_to_text(language='ml', key='voice_final_v5')
+        v_cat, v_amt, v_desc = process_voice(v_raw)
         
-        if not df.empty:
-            ti = df['Credit'].sum()
-            te = df['Debit'].sum()
-            bal = ti - te
+        with st.form("entry_form", clear_on_submit=True):
+            it = st.text_input("Description", value=v_desc if v_desc else "")
+            # ടൈപ്പ് ചെയ്യാവുന്ന കാറ്റഗറി ബോക്സ്
+            cat = st.text_input("Category", value=v_cat if v_cat else "")
+            am = st.number_input("Amount", min_value=0.0, value=v_amt if v_amt else 0.0)
+            ty = st.radio("Type", ["Debit", "Credit"], horizontal=True)
             
-            # ടോപ്പ് മെട്രിക്സ്
-            c1, c2, c3 = st.columns(3)
-            with c1: st.metric("Total Income", f"₹{ti:,.2f}")
-            with c2: st.metric("Total Expense", f"₹{te:,.2f}", delta=f"-₹{te:,.2f}", delta_color="inverse")
-            with c3: st.metric("Current Balance", f"₹{bal:,.2f}")
+            if st.form_submit_button("SAVE DATA"):
+                if it and am > 0:
+                    d, c = (am, 0) if ty == "Debit" else (0, am)
+                    final_cat = cat if cat else "Others"
+                    full_desc = f"[{curr_user.capitalize()}] {final_cat}: {it}"
+                    requests.post(FORM_API, data={"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": full_desc, "entry.1460982454": d, "entry.1221658767": c})
+                    
+                    # വാട്സാപ്പ് അയക്കുന്നു
+                    wa_msg = f"✅ *New Entry*\n👤 User: {curr_user.capitalize()}\n💰 Amt: ₹{am}\n📝 {final_cat}: {it}"
+                    threading.Thread(target=send_wa, args=(wa_msg,)).start()
+                    
+                    st.success("Saved & Notified! ✅"); st.rerun()
 
-            # ഗ്രാഫുകൾ
-            st.markdown("---")
-            col_left, col_right = st.columns(2)
-            
-            with col_left:
-                st.subheader("Daily Spending")
-                fig_bar = px.bar(df.tail(10), x=df.columns[0], y='Debit', color_discrete_sequence=['#3498db'])
-                st.plotly_chart(fig_bar, use_container_width=True)
-                
-            with col_right:
-                st.subheader("Income vs Expense")
-                fig_pie = px.pie(values=[ti, te], names=['Income', 'Expense'], color_discrete_sequence=['#2ecc71', '#e74c3c'])
-                st.plotly_chart(fig_pie, use_container_width=True)
-        else:
-            st.info("ഷീറ്റിൽ ഡാറ്റയൊന്നുമില്ല. ഒരു എൻട്രി ചേർക്കൂ!")
+    elif page == "📊 Report":
+        st.title("Expense Analysis")
+        try:
+            df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
+            df.columns = df.columns.str.strip()
+            df['Debit'] = pd.to_numeric(df['Debit'], errors='coerce').fillna(0)
+            df['Category'] = df['Item'].apply(lambda x: str(x).split(':')[1].split(':')[0].strip() if ':' in str(x) else 'Other')
+            report_df = df[df['Debit'] > 0].groupby('Category')['Debit'].sum().reset_index()
+            fig = px.pie(report_df, values='Debit', names='Category', hole=0.4, template="plotly_dark")
+            st.plotly_chart(fig, use_container_width=True)
+        except: st.error("Report failed")
 
-    elif menu == "➕ Add Entry":
-        st.markdown("## ➕ New Transaction")
-        with st.form("new_entry", clear_on_submit=True):
-            desc = st.text_input("Description")
-            cat = st.text_input("Category")
-            amt = st.number_input("Amount", min_value=0.0, step=1.0)
-            kind = st.selectbox("Type", ["Debit", "Credit"])
-            
+    elif page == "🔍 History":
+        st.title("Transaction History")
+        try:
+            df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
+            df.columns = df.columns.str.strip()
+            pdf_bytes = create_pdf(df)
+            if pdf_bytes: st.download_button("📥 Download PDF", pdf_bytes, "Report.pdf", "application/pdf")
+            st.dataframe(df.iloc[::-1], use_container_width=True)
+        except: st.write("No history found.")
+
+    elif page == "🤝 Debt Tracker":
+        st.title("Debt Management")
+        with st.form("debt_form"):
+            n, a = st.text_input("Name"), st.number_input("Amount", min_value=0.0)
+            t = st.selectbox("Category", ["Borrowed", "Lent"])
             if st.form_submit_button("SAVE"):
-                d, c = (amt, 0) if kind == "Debit" else (0, amt)
-                full_desc = f"[{st.session_state.user}] {cat}: {desc}"
-                requests.post(FORM_API, data={
-                    "entry.1044099436": datetime.now().strftime("%Y-%m-%d"),
-                    "entry.2013476337": full_desc,
-                    "entry.1460982454": d,
-                    "entry.1221658767": c
-                })
-                st.success("സേവ് ആയി!")
-                # വാട്സാപ്പ് അയക്കുന്നു
-                wa_msg = f"✅ *New Entry*\n👤 User: {st.session_state.user}\n💰 Amount: ₹{amt}\n📝 {cat}: {desc}"
-                threading.Thread(target=send_wa, args=(wa_msg,)).start()
-
-    elif menu == "📜 History":
-        st.markdown("## 📜 Transaction History")
-        st.dataframe(df.iloc[::-1], use_container_width=True)
+                d, c = (0, a) if "Borrowed" in t else (a, 0)
+                requests.post(FORM_API, data={"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": f"[{curr_user.capitalize()}] DEBT: {t} - {n}", "entry.1460982454": d, "entry.1221658767": c})
+                st.success("Debt Saved! ✅")
