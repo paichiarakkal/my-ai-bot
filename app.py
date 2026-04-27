@@ -22,7 +22,7 @@ WA_API_KEY = "7463030"
 
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
-st.set_page_config(page_title="PAICHI PURPLE GOLD v4.3", layout="wide")
+st.set_page_config(page_title="PAICHI PREMIUM v4.5", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 # --- 2. 🎨 PREMIUM DESIGN ---
@@ -34,7 +34,7 @@ st.markdown("""
     }
     [data-testid="stSidebar"] { background: rgba(0,0,0,0.85) !important; }
     .stButton>button {
-        background-color: #FFD700; color: #000; border-radius: 10px; font-weight: bold;
+        background-color: #FFD700; color: #000; border-radius: 10px; font-weight: bold; width: 100%;
     }
     .balance-banner {
         background: rgba(255, 215, 0, 0.1);
@@ -52,7 +52,6 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 if 'auth' not in st.session_state: st.session_state.auth = False
-if 'user' not in st.session_state: st.session_state.user = ""
 
 # --- 3. 📊 SMART ENGINES ---
 
@@ -76,7 +75,6 @@ def process_voice(text):
     nums = re.findall(r'\d+', raw_text)
     amount = float(nums[0]) if nums else None
     clean_desc = re.sub(r'\d+', '', raw_text).strip()
-    
     category = ""
     if any(x in raw_text for x in ["food", "ഭക്ഷണം", "ഹോട്ടൽ", "ചായ"]): category = "Food"
     elif any(x in raw_text for x in ["shop", "കട", "സാധനം"]): category = "Shop"
@@ -123,7 +121,7 @@ def get_triple_advisor():
 
 # --- 4. APP LOGIC ---
 if not st.session_state.auth:
-    st.title("🔐 PAICHI FINANCE LOGIN")
+    st.markdown("<h2 style='text-align:center;'>🔐 PAICHI LOGIN</h2>", unsafe_allow_html=True)
     u = st.text_input("Username").lower()
     p = st.text_input("Password", type="password")
     if st.button("LOGIN"):
@@ -136,7 +134,7 @@ else:
     balance = get_total_balance()
     
     st.markdown(f"""<div class="balance-banner">
-        <span style="font-size:18px; color:#E0B0FF;">Available Balance</span><br>
+        <span style="font-size:16px; color:#E0B0FF;">AVAILABLE BALANCE</span><br>
         <span style="font-size:32px; color:#FFD700;">₹{balance:,.2f}</span>
     </div>""", unsafe_allow_html=True)
 
@@ -147,14 +145,14 @@ else:
         st.session_state.auth = False; st.rerun()
 
     if page == "📊 Advisor":
-        st.title("🚀 Smart Trading Terminal")
+        st.title("🚀 Smart Trading Advisor")
         markets = get_triple_advisor()
         if markets:
             for m in markets:
                 st.markdown(f"""<div class="purple-box" style="border-color: {m['color']} !important;">
                     <h2 style="color:#E0B0FF !important;">{m["name"]}</h2>
-                    <h1 style="color:{m["color"]} !important; font-size:55px;">{m["signal"]}</h1>
-                    <h1 style="color:#FFD700 !important; font-size:50px;">₹{m["price"]:,.0f}</h1>
+                    <h1 style="color:{m["color"]} !important; font-size:50px;">{m["signal"]}</h1>
+                    <h1 style="color:#FFD700 !important; font-size:45px;">₹{m["price"]:,.0f}</h1>
                     <p>RSI: {m["rsi"]:.1f}</p>
                 </div>""", unsafe_allow_html=True)
 
@@ -163,38 +161,47 @@ else:
         try:
             df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
             df.columns = df.columns.str.strip()
-            total_in = pd.to_numeric(df['Credit'], errors='coerce').fillna(0).sum()
-            total_out = pd.to_numeric(df['Debit'], errors='coerce').fillna(0).sum()
+            ti = pd.to_numeric(df['Credit'], errors='coerce').fillna(0).sum()
+            te = pd.to_numeric(df['Debit'], errors='coerce').fillna(0).sum()
             st.markdown(f"""<div class="purple-box">
-                <h3>Total Credit: ₹{total_in:,.2f}</h3>
-                <h3>Total Debit: ₹{total_out:,.2f}</h3>
+                <h3 style="color:#00FF00 !important;">Total Credit: ₹{ti:,.2f}</h3>
+                <h3 style="color:#FF3131 !important;">Total Debit: ₹{te:,.2f}</h3>
             </div>""", unsafe_allow_html=True)
-        except: st.error("Data loading error")
+            # ലളിതമായ ഒരു ഗ്രാഫ് കൂടി ചേർക്കാം
+            fig = px.bar(df.tail(10), x=df.columns[0], y='Debit', color_discrete_sequence=['#FFD700'], template="plotly_dark")
+            st.plotly_chart(fig, use_container_width=True)
+        except: st.error("Data error")
 
     elif page == "💰 Add Entry":
-        st.title("Smart Voice Entry 🎙️")
-        v_raw = speech_to_text(language='ml', key='voice_final_v5')
+        st.title("Voice & Manual Entry 🎙️")
+        v_raw = speech_to_text(language='ml', key='voice_v45')
         v_cat, v_amt, v_desc = process_voice(v_raw)
         
         with st.form("entry_form", clear_on_submit=True):
             it = st.text_input("Description", value=v_desc if v_desc else "")
-            # ടൈപ്പ് ചെയ്യാവുന്ന കാറ്റഗറി ബോക്സ്
-            cat = st.text_input("Category", value=v_cat if v_cat else "")
-            am = st.number_input("Amount", min_value=0.0, value=v_amt if v_amt else 0.0)
+            cat = st.text_input("Category (ഷബാനയ്ക്ക് ടൈപ്പ് ചെയ്യാം)", value=v_cat if v_cat else "")
+            
+            # ഇവിടെയാണ് മാറ്റം: text_input ഉപയോഗിച്ചതുകൊണ്ട് .00 വരില്ല
+            am_str = st.text_input("Amount", value=str(int(v_amt)) if v_amt else "")
+            
             ty = st.radio("Type", ["Debit", "Credit"], horizontal=True)
             
             if st.form_submit_button("SAVE DATA"):
-                if it and am > 0:
-                    d, c = (am, 0) if ty == "Debit" else (0, am)
-                    final_cat = cat if cat else "Others"
-                    full_desc = f"[{curr_user.capitalize()}] {final_cat}: {it}"
-                    requests.post(FORM_API, data={"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": full_desc, "entry.1460982454": d, "entry.1221658767": c})
-                    
-                    # വാട്സാപ്പ് അയക്കുന്നു
-                    wa_msg = f"✅ *New Entry*\n👤 User: {curr_user.capitalize()}\n💰 Amt: ₹{am}\n📝 {final_cat}: {it}"
-                    threading.Thread(target=send_wa, args=(wa_msg,)).start()
-                    
-                    st.success("Saved & Notified! ✅"); st.rerun()
+                try:
+                    am = float(am_str)
+                    if it and am > 0:
+                        d, c = (am, 0) if ty == "Debit" else (0, am)
+                        final_cat = cat if cat else "Others"
+                        full_desc = f"[{curr_user.capitalize()}] {final_cat}: {it}"
+                        requests.post(FORM_API, data={"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": full_desc, "entry.1460982454": d, "entry.1221658767": c})
+                        
+                        # വാട്സാപ്പ് അയക്കുന്നു
+                        wa_msg = f"✅ *Paichi Entry*\n👤 User: {curr_user.capitalize()}\n💰 Amt: ₹{am}\n📝 {final_cat}: {it}"
+                        threading.Thread(target=send_wa, args=(wa_msg,)).start()
+                        
+                        st.success("സേവ് ആയി! വാട്സാപ്പ് നോട്ടിഫിക്കേഷൻ അയച്ചു. ✅"); st.rerun()
+                except:
+                    st.error("Amount കൃത്യമായി നൽകുക!")
 
     elif page == "📊 Report":
         st.title("Expense Analysis")
@@ -202,9 +209,9 @@ else:
             df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
             df.columns = df.columns.str.strip()
             df['Debit'] = pd.to_numeric(df['Debit'], errors='coerce').fillna(0)
-            df['Category'] = df['Item'].apply(lambda x: str(x).split(':')[1].split(':')[0].strip() if ':' in str(x) else 'Other')
+            df['Category'] = df['Item'].apply(lambda x: str(x).split('] ')[1].split(':')[0].strip() if ']' in str(x) else 'Other')
             report_df = df[df['Debit'] > 0].groupby('Category')['Debit'].sum().reset_index()
-            fig = px.pie(report_df, values='Debit', names='Category', hole=0.4, template="plotly_dark")
+            fig = px.pie(report_df, values='Debit', names='Category', hole=0.4, template="plotly_dark", color_discrete_sequence=px.colors.sequential.RdBu)
             st.plotly_chart(fig, use_container_width=True)
         except: st.error("Report failed")
 
@@ -213,17 +220,19 @@ else:
         try:
             df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
             df.columns = df.columns.str.strip()
+            # PDF ഡൗൺലോഡ് ബട്ടൺ
             pdf_bytes = create_pdf(df)
-            if pdf_bytes: st.download_button("📥 Download PDF", pdf_bytes, "Report.pdf", "application/pdf")
+            if pdf_bytes: st.download_button("📥 Download PDF Report", pdf_bytes, "Paichi_Report.pdf", "application/pdf")
             st.dataframe(df.iloc[::-1], use_container_width=True)
         except: st.write("No history found.")
 
     elif page == "🤝 Debt Tracker":
-        st.title("Debt Management")
+        st.title("Debt Tracker")
         with st.form("debt_form"):
-            n, a = st.text_input("Name"), st.number_input("Amount", min_value=0.0)
-            t = st.selectbox("Category", ["Borrowed", "Lent"])
-            if st.form_submit_button("SAVE"):
+            n = st.text_input("Name")
+            a = st.number_input("Amount", min_value=0.0)
+            t = st.selectbox("Category", ["Borrowed (കടം വാങ്ങിയത്)", "Lent (കടം കൊടുത്തത്)"])
+            if st.form_submit_button("SAVE DEBT"):
                 d, c = (0, a) if "Borrowed" in t else (a, 0)
                 requests.post(FORM_API, data={"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": f"[{curr_user.capitalize()}] DEBT: {t} - {n}", "entry.1460982454": d, "entry.1221658767": c})
-                st.success("Debt Saved! ✅")
+                st.success("Debt record saved! ✅")
