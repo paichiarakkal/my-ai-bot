@@ -1,10 +1,8 @@
 streamlit
-requests
-numpy
 pandas
-plotly
-scikit-learn
-streamlit-autorefresh
-deep-translator
-google-genai
+requests
 yfinance
+plotly
+streamlit-lottie
+streamlit-mic-recorder
+streamlit-autorefresh
