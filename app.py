@@ -1,2 +1,2 @@
 name = "Faisal"
-print("Hello " + name + ", welcome to Python learning!")
+print(f"Hello {name}, welcome to Python learning!")
