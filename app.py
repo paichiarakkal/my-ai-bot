@@ -9,207 +9,132 @@ from streamlit_mic_recorder import speech_to_text
 from streamlit_autorefresh import st_autorefresh
 import urllib.parse
 import threading
-import time
-
-# ലോട്ടീ ആനിമേഷൻ ലൈബ്രറി ചെക്ക് ചെയ്യുന്നു
-try:
-    from streamlit_lottie import st_lottie
-    LOTTIE_OK = True
-except:
-    LOTTIE_OK = False
 
 # --- 1. CONFIG & SETTINGS ---
 CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
 FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSfLySolQSiRXV0wELNPhUBlKJh77RnJKWc2-uqAM0TPNG3Q5A/formResponse"
-
 WA_PHONE = "971551347989"
 WA_API_KEY = "7463030"
-
-# പഴയ പാസ്‌വേഡുകൾ തന്നെ തിരിച്ചു കൊണ്ടുവരുന്നു
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
-st.set_page_config(page_title="PAICHI ULTIMATE v7.0", layout="wide")
+st.set_page_config(page_title="PAICHI DASHBOARD v8.0", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
-# --- 2. 🎨 ULTIMATE PREMIUM CSS ---
+# --- 2. 🎨 CLEAN MODERN CSS ---
 st.markdown("""
     <style>
-    .stApp {
-        background: linear-gradient(-45deg, #0f0c29, #302b63, #24243e, #000000);
-        background-size: 400% 400%;
-        animation: gradient 12s ease infinite;
-    }
-    @keyframes gradient {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
-    }
-    [data-testid="stSidebar"] {
-        background: rgba(0, 0, 0, 0.8) !important;
-        backdrop-filter: blur(15px);
-        border-right: 1px solid rgba(255, 215, 0, 0.2);
-    }
-    .premium-card {
-        background: rgba(255, 255, 255, 0.07);
-        backdrop-filter: blur(15px);
-        border-radius: 20px;
-        border: 1px solid rgba(255, 215, 0, 0.3);
-        padding: 25px;
-        text-align: center;
+    .stApp { background-color: #f4f7f6; }
+    [data-testid="stMetricValue"] { color: #2c3e50 !important; font-size: 28px !important; }
+    .main-card {
+        background: white;
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         margin-bottom: 20px;
     }
-    .gold-text {
-        background: linear-gradient(90deg, #FFD700, #FFA500);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-weight: 900;
-    }
     .stButton>button {
-        background: linear-gradient(135deg, #FFD700 0%, #B8860B 100%);
-        color: #000 !important; border-radius: 10px; font-weight: bold; width: 100%;
+        background: #3498db;
+        color: white;
+        border-radius: 8px;
+        height: 50px;
+        font-weight: bold;
     }
-    h1, h2, h3, p, label { color: white !important; font-weight: bold; }
+    h1, h2, h3 { color: #2c3e50 !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. HELPER ENGINES ---
-def load_lottieurl(url):
-    if not LOTTIE_OK: return None
-    try:
-        r = requests.get(url, timeout=5)
-        return r.json() if r.status_code == 200 else None
-    except: return None
-
-lottie_panther = load_lottieurl("https://lottie.host/81f9537d-9447-4974-98c4-e86749963721/nQ8Yw2rS6r.json")
-lottie_cash = load_lottieurl("https://lottie.host/869e5d4e-b5f7-4184-8840-062639097723/P6v68xT1N3.json")
-
+# --- 3. FUNCTIONS ---
 def send_wa(msg):
     url = f"https://api.callmebot.com/whatsapp.php?phone={WA_PHONE}&text={urllib.parse.quote(msg)}&apikey={WA_API_KEY}"
     try: requests.get(url, timeout=10)
     except: pass
 
-def get_total_balance():
+def get_data():
     try:
         df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
         df.columns = df.columns.str.strip()
-        bal = pd.to_numeric(df['Credit'], errors='coerce').sum() - pd.to_numeric(df['Debit'], errors='coerce').sum()
-        st.session_state['last_balance'] = bal
-        return bal
-    except: return st.session_state.get('last_balance', 0.0)
+        df['Debit'] = pd.to_numeric(df['Debit'], errors='coerce').fillna(0)
+        df['Credit'] = pd.to_numeric(df['Credit'], errors='coerce').fillna(0)
+        return df
+    except: return pd.DataFrame()
 
-def get_trading_data():
-    symbols = {"NIFTY 50": "^NSEI", "CRUDE OIL": "CL=F", "GIFT NIFTY": "NQ=F"}
-    results = []
-    try:
-        for name, sym in symbols.items():
-            ticker = yf.Ticker(sym)
-            df = ticker.history(period="1d", interval="5m")
-            if not df.empty:
-                last_price = df['Close'].iloc[-1]
-                pivot = (df['High'].max() + df['Low'].min() + df['Close'].iloc[-1]) / 3
-                signal = "🚀 BUY" if last_price > pivot else "📉 SELL"
-                color = "#00FF00" if "BUY" in signal else "#FF3131"
-                results.append({"name": name, "price": last_price, "signal": signal, "color": color})
-        return results
-    except: return None
-
-def get_ai_sentiment():
-    moods = [
-        {"mood": "🤑 Extreme Greed", "verdict": "മാർക്കറ്റിൽ വൻ ആവേശമാണ്. ജാഗ്രത വേണം!", "color": "#00FF00"},
-        {"mood": "😊 Neutral", "verdict": "മാർക്കറ്റ് സൈഡ്‌വേയ്‌സ് പോകാനാണ് സാധ്യത.", "color": "#FFD700"},
-        {"mood": "😨 Fear", "verdict": "ആളുകൾ ഭയത്തിലാണ്. സെല്ലിംഗ് വരാൻ സാധ്യതയുണ്ട്.", "color": "#FF4500"}
-    ]
-    return random.choice(moods)
-
-# --- 4. APP MAIN ---
+# --- 4. AUTHENTICATION ---
 if 'auth' not in st.session_state: st.session_state.auth = False
 
 if not st.session_state.auth:
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        if LOTTIE_OK and lottie_panther: st_lottie(lottie_panther, height=250)
-        st.markdown("<h2 style='text-align:center;'>PAICHI VAULT</h2>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align:center; padding:50px;'><h1>🏦 PAICHI LOGIN</h1></div>", unsafe_allow_html=True)
         u = st.text_input("Username").lower()
         p = st.text_input("Password", type="password")
-        if st.button("UNLOCK"):
+        if st.button("LOGIN"):
             if USERS.get(u) == p:
                 st.session_state.auth, st.session_state.user = True, u
                 st.rerun()
-            else: st.error("Access Denied!")
+            else: st.error("Invalid Credentials!")
 else:
+    # --- 5. MAIN DASHBOARD ---
+    df = get_data()
+    
     with st.sidebar:
-        st.markdown(f"### 🏦 FINANCE HUB")
-        page = st.radio("MENU", ["💰 Add Entry", "📊 Trading AI", "📜 History"])
-        st.divider()
+        st.title(f"Hi, {st.session_state.user.capitalize()}")
+        menu = st.radio("Navigation", ["📊 Dashboard", "➕ Add Entry", "📜 History"])
         if st.button("Logout"):
             st.session_state.auth = False
             st.rerun()
 
-    balance = get_total_balance()
-    st.markdown(f"""
-        <div class="premium-card">
-            <p style="margin:0; font-size:16px; color:#E0B0FF; letter-spacing: 2px;">TOTAL ASSETS</p>
-            <h1 class="gold-text" style="font-size:50px; margin:5px 0;">₹{balance:,.2f}</h1>
-        </div>
-        """, unsafe_allow_html=True)
-
-    if page == "💰 Add Entry":
-        st.title("🎙️ Quick Entry")
-        if LOTTIE_OK and lottie_cash: st_lottie(lottie_cash, height=150)
+    if menu == "📊 Dashboard":
+        st.markdown("## 📈 Financial Overview")
         
-        v_raw = speech_to_text(language='ml', key='v_v7')
-        
-        with st.form("entry_form", clear_on_submit=True):
-            it = st.text_input("Description")
+        if not df.empty:
+            ti = df['Credit'].sum()
+            te = df['Debit'].sum()
+            bal = ti - te
             
-            # ഷബാനയ്ക്ക് വേണ്ടി മാറ്റം വരുത്തിയ കാറ്റഗറി ബോക്സ്
-            cat = st.text_input("Category (ഷബാനയ്ക്ക് ടൈപ്പ് ചെയ്യാം)")
-            
-            am_str = st.text_input("Amount")
-            ty = st.radio("Type", ["Debit", "Credit"], horizontal=True)
-            
-            if st.form_submit_button("SAVE TRANSACTION"):
-                try:
-                    am = float(am_str)
-                    d, c = (am, 0) if ty == "Debit" else (0, am)
-                    full_desc = f"[{st.session_state.user}] {cat}: {it}"
-                    
-                    requests.post(FORM_API, data={"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": full_desc, "entry.1460982454": d, "entry.1221658767": c})
-                    
-                    st.toast('Successfully Saved!', icon='✅')
-                    st.snow()
-                    
-                    new_bal = balance + (c - d)
-                    wa_msg = f"✅ *Paichi Entry*\n💰 Amt: ₹{am}\n⚖️ *Total Bal: ₹{new_bal:,.2f}*"
-                    threading.Thread(target=send_wa, args=(wa_msg,)).start()
-                except: st.error("Amount തെറ്റാണ്!")
+            # ടോപ്പ് മെട്രിക്സ്
+            c1, c2, c3 = st.columns(3)
+            with c1: st.metric("Total Income", f"₹{ti:,.2f}")
+            with c2: st.metric("Total Expense", f"₹{te:,.2f}", delta=f"-₹{te:,.2f}", delta_color="inverse")
+            with c3: st.metric("Current Balance", f"₹{bal:,.2f}")
 
-    elif page == "📊 Trading AI":
-        st.title("🚀 Smart Trading Advisor")
-        sentiment = get_ai_sentiment()
-        st.markdown(f"""
-            <div class="premium-card" style="border-left: 10px solid {sentiment['color']}">
-                <h2 style="color:{sentiment['color']} !important;">{sentiment['mood']}</h2>
-                <p>{sentiment['verdict']}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            # ഗ്രാഫുകൾ
+            st.markdown("---")
+            col_left, col_right = st.columns(2)
             
-        signals = get_trading_data()
-        if signals:
-            cols = st.columns(len(signals))
-            for i, s in enumerate(signals):
-                with cols[i]:
-                    st.markdown(f"""
-                        <div class="premium-card">
-                            <p>{s['name']}</p>
-                            <h3 style="color:{s['color']} !important;">{s['signal']}</h3>
-                            <p>₹{s['price']:,.2f}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
+            with col_left:
+                st.subheader("Daily Spending")
+                fig_bar = px.bar(df.tail(10), x=df.columns[0], y='Debit', color_discrete_sequence=['#3498db'])
+                st.plotly_chart(fig_bar, use_container_width=True)
+                
+            with col_right:
+                st.subheader("Income vs Expense")
+                fig_pie = px.pie(values=[ti, te], names=['Income', 'Expense'], color_discrete_sequence=['#2ecc71', '#e74c3c'])
+                st.plotly_chart(fig_pie, use_container_width=True)
+        else:
+            st.info("ഷീറ്റിൽ ഡാറ്റയൊന്നുമില്ല. ഒരു എൻട്രി ചേർക്കൂ!")
 
-    elif page == "📜 History":
-        st.title("Recent Activity")
-        try:
-            df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
-            st.dataframe(df.iloc[::-1], use_container_width=True)
-        except: st.write("History not found.")
+    elif menu == "➕ Add Entry":
+        st.markdown("## ➕ New Transaction")
+        with st.form("new_entry", clear_on_submit=True):
+            desc = st.text_input("Description")
+            cat = st.text_input("Category")
+            amt = st.number_input("Amount", min_value=0.0, step=1.0)
+            kind = st.selectbox("Type", ["Debit", "Credit"])
+            
+            if st.form_submit_button("SAVE"):
+                d, c = (amt, 0) if kind == "Debit" else (0, amt)
+                full_desc = f"[{st.session_state.user}] {cat}: {desc}"
+                requests.post(FORM_API, data={
+                    "entry.1044099436": datetime.now().strftime("%Y-%m-%d"),
+                    "entry.2013476337": full_desc,
+                    "entry.1460982454": d,
+                    "entry.1221658767": c
+                })
+                st.success("സേവ് ആയി!")
+                # വാട്സാപ്പ് അയക്കുന്നു
+                wa_msg = f"✅ *New Entry*\n👤 User: {st.session_state.user}\n💰 Amount: ₹{amt}\n📝 {cat}: {desc}"
+                threading.Thread(target=send_wa, args=(wa_msg,)).start()
+
+    elif menu == "📜 History":
+        st.markdown("## 📜 Transaction History")
+        st.dataframe(df.iloc[::-1], use_container_width=True)
