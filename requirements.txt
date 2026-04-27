@@ -5,6 +5,5 @@ pandas
 plotly
 scikit-learn
 streamlit-autorefresh
-yfinance
 deep-translator
 google-genai
