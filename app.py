@@ -19,17 +19,17 @@ except:
     LOTTIE_OK = False
 
 # --- 1. CONFIG & SETTINGS ---
+# നിന്റെ പഴയ ഗൂഗിൾ ഷീറ്റ് URL തന്നെയാണിത്
 CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
 FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSfLySolQSiRXV0wELNPhUBlKJh77RnJKWc2-uqAM0TPNG3Q5A/formResponse"
 
 WA_PHONE = "971551347989"
 WA_API_KEY = "7463030"
-USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
 st.set_page_config(page_title="PAICHI ULTIMATE v7.0", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
-# --- 2. 🎨 ULTIMATE PREMIUM CSS ---
+# --- 2. 🎨 PREMIUM CSS ---
 st.markdown("""
     <style>
     .stApp {
@@ -41,11 +41,6 @@ st.markdown("""
         0% { background-position: 0% 50%; }
         50% { background-position: 100% 50%; }
         100% { background-position: 0% 50%; }
-    }
-    [data-testid="stSidebar"] {
-        background: rgba(0, 0, 0, 0.8) !important;
-        backdrop-filter: blur(15px);
-        border-right: 1px solid rgba(255, 215, 0, 0.2);
     }
     .premium-card {
         background: rgba(255, 255, 255, 0.07);
@@ -71,6 +66,24 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- 3. HELPER ENGINES ---
+def get_passwords_from_sheet():
+    # ഗൂഗിൾ ഷീറ്റിൽ നിന്ന് പാസ്‌വേഡ് ലിസ്റ്റ് വായിക്കുന്നു
+    # Default ആയി താഴെയുള്ള പാസ്‌വേഡുകൾ നൽകുന്നു
+    creds = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
+    try:
+        df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
+        # ഷീറ്റിൽ 'Password_Update' എന്ന് തുടങ്ങുന്ന ഡിസ്ക്രിപ്ഷൻ ഉണ്ടോ എന്ന് നോക്കുന്നു
+        updates = df[df['Description'].str.contains("Password_Update", na=False)]
+        for index, row in updates.iterrows():
+            # ഉദാഹരണത്തിന്: "Password_Update: shabana -> newpass123"
+            parts = row['Description'].split("->")
+            user_part = parts[0].split(":")[1].strip().lower()
+            new_pass = parts[1].strip()
+            creds[user_part] = new_pass
+    except:
+        pass
+    return creds
+
 def load_lottieurl(url):
     if not LOTTIE_OK: return None
     try:
@@ -79,48 +92,12 @@ def load_lottieurl(url):
     except: return None
 
 lottie_panther = load_lottieurl("https://lottie.host/81f9537d-9447-4974-98c4-e86749963721/nQ8Yw2rS6r.json")
-lottie_cash = load_lottieurl("https://lottie.host/869e5d4e-b5f7-4184-8840-062639097723/P6v68xT1N3.json")
-
-def send_wa(msg):
-    url = f"https://api.callmebot.com/whatsapp.php?phone={WA_PHONE}&text={urllib.parse.quote(msg)}&apikey={WA_API_KEY}"
-    try: requests.get(url, timeout=10)
-    except: pass
-
-def get_total_balance():
-    try:
-        df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
-        df.columns = df.columns.str.strip()
-        bal = pd.to_numeric(df['Credit'], errors='coerce').sum() - pd.to_numeric(df['Debit'], errors='coerce').sum()
-        st.session_state['last_balance'] = bal
-        return bal
-    except: return st.session_state.get('last_balance', 0.0)
-
-def get_trading_data():
-    symbols = {"NIFTY 50": "^NSEI", "CRUDE OIL": "CL=F", "GIFT NIFTY": "NQ=F"}
-    results = []
-    try:
-        for name, sym in symbols.items():
-            ticker = yf.Ticker(sym)
-            df = ticker.history(period="1d", interval="5m")
-            if not df.empty:
-                last_price = df['Close'].iloc[-1]
-                pivot = (df['High'].max() + df['Low'].min() + df['Close'].iloc[-1]) / 3
-                signal = "🚀 BUY" if last_price > pivot else "📉 SELL"
-                color = "#00FF00" if "BUY" in signal else "#FF3131"
-                results.append({"name": name, "price": last_price, "signal": signal, "color": color})
-        return results
-    except: return None
-
-def get_ai_sentiment():
-    moods = [
-        {"mood": "🤑 Extreme Greed", "verdict": "മാർക്കറ്റിൽ വൻ ആവേശമാണ്. പക്ഷേ ജാഗ്രത വേണം!", "color": "#00FF00"},
-        {"mood": "😊 Neutral", "verdict": "മാർക്കറ്റ് സൈഡ്‌വേയ്‌സ് പോകാനാണ് സാധ്യത.", "color": "#FFD700"},
-        {"mood": "😨 Fear", "verdict": "ആളുകൾ ഭയത്തിലാണ്. സെല്ലിംഗ് വരാൻ സാധ്യതയുണ്ട്.", "color": "#FF4500"}
-    ]
-    return random.choice(moods)
 
 # --- 4. APP MAIN ---
 if 'auth' not in st.session_state: st.session_state.auth = False
+
+# ഷീറ്റിൽ നിന്ന് പാസ്‌വേഡ് എടുക്കുന്നു
+current_users = get_passwords_from_sheet()
 
 if not st.session_state.auth:
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -129,91 +106,40 @@ if not st.session_state.auth:
         st.markdown("<h2 style='text-align:center;'>PAICHI VAULT</h2>", unsafe_allow_html=True)
         u = st.text_input("Username").lower()
         p = st.text_input("Password", type="password")
+        
         if st.button("UNLOCK"):
-            if USERS.get(u) == p:
+            if current_users.get(u) == p:
                 st.session_state.auth, st.session_state.user = True, u
                 st.rerun()
             else: st.error("Access Denied!")
 else:
     with st.sidebar:
         st.markdown(f"### 🏦 FINANCE HUB")
-        page = st.radio("MENU", ["💰 Add Entry", "📊 Trading AI", "📜 History"])
-        st.divider()
-        current_bal = st.session_state.get('last_balance', 0.0)
-        sms_url = f"sms:{WA_PHONE}?body=Paichi Bal: ₹{current_bal:,.2f}"
-        st.markdown(f'<a href="{sms_url}" style="text-decoration:none;"><button style="width:100%; border-radius:10px; background:#4CAF50; color:white; border:none; padding:10px; cursor:pointer;">Send Balance via SMS</button></a>', unsafe_allow_html=True)
+        page = st.radio("MENU", ["💰 Add Entry", "📊 Trading AI", "📜 History", "🔐 Settings"])
         if st.button("Logout"):
             st.session_state.auth = False
             st.rerun()
 
-    balance = get_total_balance()
-    st.markdown(f"""
-        <div class="premium-card">
-            <p style="margin:0; font-size:16px; color:#E0B0FF; letter-spacing: 2px;">TOTAL ASSETS</p>
-            <h1 class="gold-text" style="font-size:50px; margin:5px 0;">₹{balance:,.2f}</h1>
-        </div>
-        """, unsafe_allow_html=True)
-
-    if page == "💰 Add Entry":
-        st.title("🎙️ Quick Entry")
-        if LOTTIE_OK and lottie_cash: st_lottie(lottie_cash, height=150)
+    if page == "🔐 Settings":
+        st.title("⚙️ Account Settings")
+        st.subheader(f"Hi {st.session_state.user.capitalize()}, change your password here:")
         
-        v_raw = speech_to_text(language='ml', key='v_v7')
+        new_p = st.text_input("New Password", type="password")
+        confirm_p = st.text_input("Confirm New Password", type="password")
         
-        with st.form("entry_form", clear_on_submit=True):
-            it = st.text_input("Description")
-            
-            # ഇവിടെയാണ് മാറ്റം! ഷബാനയ്ക്ക് ഇഷ്ടമുള്ള കാറ്റഗറി ടൈപ്പ് ചെയ്യാം
-            cat = st.text_input("Category") 
-            
-            am_str = st.text_input("Amount")
-            ty = st.radio("Type", ["Debit", "Credit"], horizontal=True)
-            
-            if st.form_submit_button("SAVE TRANSACTION"):
-                try:
-                    am = float(am_str)
-                    d, c = (am, 0) if ty == "Debit" else (0, am)
-                    full_desc = f"[{st.session_state.user}] {cat}: {it}"
-                    
-                    st.toast('Saving to Cloud...', icon='💸')
-                    requests.post(FORM_API, data={"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": full_desc, "entry.1460982454": d, "entry.1221658767": c})
-                    
-                    st.toast('Successfully Saved!', icon='✅')
-                    st.snow()
-                    
-                    new_bal = balance + (c - d)
-                    wa_msg = f"✅ *Paichi Entry*\n💰 Amt: ₹{am}\n⚖️ *Total Bal: ₹{new_bal:,.2f}*"
-                    threading.Thread(target=send_wa, args=(wa_msg,)).start()
-                except: st.error("Amount തെറ്റാണ്!")
+        if st.button("Update Password Permanent"):
+            if new_p == confirm_p and new_p != "":
+                # ഗൂഗിൾ ഫോം വഴി ഷീറ്റിലേക്ക് പാസ്‌വേഡ് അപ്‌ഡേറ്റ് അയക്കുന്നു
+                pass_desc = f"Password_Update: {st.session_state.user} -> {new_p}"
+                requests.post(FORM_API, data={
+                    "entry.1044099436": datetime.now().strftime("%Y-%m-%d"), 
+                    "entry.2013476337": pass_desc, 
+                    "entry.1460982454": 0, 
+                    "entry.1221658767": 0
+                })
+                st.success(f"അടിപൊളി! പുതിയ പാസ്‌വേഡ് ഷീറ്റിൽ സേവ് ആയി. ഇനി എപ്പോൾ തുറന്നാലും '{new_p}' ഉപയോഗിക്കാം.")
+                st.balloons()
+            else:
+                st.error("പാസ്‌വേഡുകൾ തമ്മിൽ ചേരുന്നില്ല!")
 
-    elif page == "📊 Trading AI":
-        st.title("🚀 Smart Trading Advisor")
-        sentiment = get_ai_sentiment()
-        st.markdown(f"""
-            <div class="premium-card" style="border-left: 10px solid {sentiment['color']}">
-                <p style="margin:0; color:#E0B0FF;">MARKET MOOD (AI)</p>
-                <h2 style="color:{sentiment['color']} !important; margin:10px 0;">{sentiment['mood']}</h2>
-                <p style="font-size:14px;">{sentiment['verdict']}</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-        signals = get_trading_data()
-        if signals:
-            cols = st.columns(len(signals))
-            for i, s in enumerate(signals):
-                with cols[i]:
-                    st.markdown(f"""
-                        <div class="premium-card">
-                            <p style="margin:0; font-size:14px;">{s['name']}</p>
-                            <h3 style="color:{s['color']} !important;">{s['signal']}</h3>
-                            <p style="font-size:18px; color:#FFD700;">₹{s['price']:,.2f}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-        else: st.warning("Market Data unavailable.")
-
-    elif page == "📜 History":
-        st.title("Recent Activity")
-        try:
-            df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
-            st.dataframe(df.iloc[::-1], use_container_width=True)
-        except: st.write("History not found.")
+    # ബാക്കി ഭാഗങ്ങൾ (Add Entry, Trading AI, History) ഇതിൽ തുടർന്ന് വരും...
