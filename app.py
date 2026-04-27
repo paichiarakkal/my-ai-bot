@@ -164,7 +164,7 @@ else:
             it = st.text_input("Description")
             
             # ഇവിടെയാണ് മാറ്റം! ഷബാനയ്ക്ക് ഇഷ്ടമുള്ള കാറ്റഗറി ടൈപ്പ് ചെയ്യാം
-            cat = st.text_input("Category 
+            cat = st.text_input("Category") 
             
             am_str = st.text_input("Amount")
             ty = st.radio("Type", ["Debit", "Credit"], horizontal=True)
