@@ -17,35 +17,22 @@ import threading
 CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
 FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSfLySolQSiRXV0wELNPhUBlKJh77RnJKWc2-uqAM0TPNG3Q5A/formResponse"
 
-WA_PHONE = "971551347989"
+WA_PHONE = "+971551347989" 
 WA_API_KEY = "7463030"
 
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
-st.set_page_config(page_title="PAICHI PREMIUM v4.6", layout="wide")
+st.set_page_config(page_title="PAICHI PREMIUM v4.8", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 # --- 2. 🎨 PREMIUM DESIGN ---
 st.markdown("""
     <style>
-    .stApp {
-        background: linear-gradient(135deg, #2D0844, #4B0082, #1A0521);
-        color: #fff;
-    }
+    .stApp { background: linear-gradient(135deg, #2D0844, #4B0082, #1A0521); color: #fff; }
     [data-testid="stSidebar"] { background: rgba(0,0,0,0.85) !important; }
-    .stButton>button {
-        background-color: #FFD700; color: #000; border-radius: 10px; font-weight: bold; width: 100%;
-    }
-    .balance-banner {
-        background: rgba(255, 215, 0, 0.1);
-        padding: 15px; border-radius: 15px; border-left: 5px solid #FFD700;
-        margin-bottom: 25px; text-align: center;
-    }
-    .purple-box {
-        background: rgba(255, 255, 255, 0.05);
-        padding: 20px; border-radius: 25px; border: 2px solid rgba(255, 215, 0, 0.3);
-        text-align: center; margin-bottom: 20px;
-    }
+    .stButton>button { background-color: #FFD700; color: #000; border-radius: 10px; font-weight: bold; width: 100%; }
+    .balance-banner { background: rgba(255, 215, 0, 0.1); padding: 15px; border-radius: 15px; border-left: 5px solid #FFD700; margin-bottom: 25px; text-align: center; }
+    .purple-box { background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 25px; border: 2px solid rgba(255, 215, 0, 0.3); text-align: center; margin-bottom: 20px; }
     h1, h2, h3, p, label { color: white !important; font-weight: bold !important; }
     .stDataFrame { background: white; border-radius: 10px; }
     </style>
@@ -56,29 +43,29 @@ if 'auth' not in st.session_state: st.session_state.auth = False
 # --- 3. 📊 SMART ENGINES ---
 
 def send_wa(msg):
-    url = f"https://api.callmebot.com/whatsapp.php?phone={WA_PHONE}&text={urllib.parse.quote(msg)}&apikey={WA_API_KEY}"
-    try: requests.get(url, timeout=10)
+    encoded_msg = urllib.parse.quote(msg)
+    url = f"https://api.callmebot.com/whatsapp.php?phone={WA_PHONE}&text={encoded_msg}&apikey={WA_API_KEY}"
+    try: requests.get(url, timeout=15)
     except: pass
 
 def get_total_balance():
     try:
         df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
         df.columns = df.columns.str.strip()
-        total_in = pd.to_numeric(df['Credit'], errors='coerce').fillna(0).sum()
-        total_out = pd.to_numeric(df['Debit'], errors='coerce').fillna(0).sum()
-        return total_in - total_out
+        ti = pd.to_numeric(df['Credit'], errors='coerce').fillna(0).sum()
+        te = pd.to_numeric(df['Debit'], errors='coerce').fillna(0).sum()
+        return ti - te
     except: return 0.0
 
 def process_voice(text):
     if not text: return "", None, ""
-    raw_text = text.lower()
-    nums = re.findall(r'\d+', raw_text)
-    amount = float(nums[0]) if nums else None
-    clean_desc = re.sub(r'\d+', '', raw_text).strip()
-    category = ""
-    if any(x in raw_text for x in ["food", "ഭക്ഷണം", "ഹോട്ടൽ", "ചായ"]): category = "Food"
-    elif any(x in raw_text for x in ["shop", "കട", "സാധനം"]): category = "Shop"
-    return category, amount, clean_desc
+    raw = text.lower(); nums = re.findall(r'\d+', raw)
+    amt = float(nums[0]) if nums else None
+    desc = re.sub(r'\d+', '', raw).strip()
+    cat = ""
+    if any(x in raw for x in ["food", "ഭക്ഷണം", "ഹോട്ടൽ"]): cat = "Food"
+    elif any(x in raw for x in ["shop", "കട", "സാധനം"]): cat = "Shop"
+    return cat, amt, desc
 
 def create_pdf(df):
     try:
@@ -138,16 +125,11 @@ else:
         <span style="font-size:32px; color:#FFD700;">₹{balance:,.2f}</span>
     </div>""", unsafe_allow_html=True)
 
-    # --- ഷബാനയ്ക്ക്Debt Tracker കൂടി കാണാൻ വേണ്ടിയുള്ള മാറ്റം ---
-    if curr_user == "shabana":
-        page = st.sidebar.radio("Menu", ["💰 Add Entry", "🤝 Debt Tracker"])
-    else:
-        page = st.sidebar.radio("Menu", ["📊 Advisor", "🏠 Dashboard", "💰 Add Entry", "📊 Report", "🔍 History", "🤝 Debt Tracker"])
+    if curr_user == "shabana": page = st.sidebar.radio("Menu", ["💰 Add Entry", "🤝 Debt Tracker"])
+    else: page = st.sidebar.radio("Menu", ["📊 Advisor", "🏠 Dashboard", "💰 Add Entry", "📊 Report", "🔍 History", "🤝 Debt Tracker"])
 
-    if st.sidebar.button("Logout"):
-        st.session_state.auth = False; st.rerun()
+    if st.sidebar.button("Logout"): st.session_state.auth = False; st.rerun()
 
-    # --- PAGES ---
     if page == "📊 Advisor":
         st.title("🚀 Smart Trading Advisor")
         markets = get_triple_advisor()
@@ -177,7 +159,7 @@ else:
 
     elif page == "💰 Add Entry":
         st.title("Voice & Manual Entry 🎙️")
-        v_raw = speech_to_text(language='ml', key='voice_v46')
+        v_raw = speech_to_text(language='ml', key='voice_v48')
         v_cat, v_amt, v_desc = process_voice(v_raw)
         
         with st.form("entry_form", clear_on_submit=True):
@@ -195,10 +177,15 @@ else:
                         full_desc = f"[{curr_user.capitalize()}] {final_cat}: {it}"
                         requests.post(FORM_API, data={"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": full_desc, "entry.1460982454": d, "entry.1221658767": c})
                         
-                        wa_msg = f"✅ *Paichi Entry*\n👤 User: {curr_user.capitalize()}\n💰 Amt: ₹{am}\n📝 {final_cat}: {it}"
+                        # പുതിയ ബാലൻസ് കണക്കാക്കുന്നു
+                        new_bal = (balance - am) if ty == "Debit" else (balance + am)
+                        
+                        # വാട്സാപ്പ് മെസ്സേജിൽ ബാലൻസ് കൂടി ചേർക്കുന്നു
+                        wa_msg = f"✅ *Paichi Entry*\n👤 User: {curr_user.capitalize()}\n💰 Amt: ₹{am}\n📝 {final_cat}: {it}\n\n📉 *New Balance: ₹{new_bal:,.2f}*"
                         threading.Thread(target=send_wa, args=(wa_msg,)).start()
                         
-                        st.success("സേവ് ആയി! ✅"); st.rerun()
+                        st.success(f"സേവ് ആയി! പുതിയ ബാലൻസ്: ₹{new_bal:,.2f} ✅")
+                        st.rerun()
                 except: st.error("Amount കൃത്യമായി നൽകുക!")
 
     elif page == "📊 Report":
@@ -226,8 +213,7 @@ else:
     elif page == "🤝 Debt Tracker":
         st.title("Debt Management")
         with st.form("debt_form"):
-            n = st.text_input("Name")
-            a = st.number_input("Amount", min_value=0.0)
+            n = st.text_input("Name"); a = st.number_input("Amount", min_value=0.0)
             t = st.selectbox("Category", ["Borrowed (കടം വാങ്ങിയത്)", "Lent (കടം കൊടുത്തത്)"])
             if st.form_submit_button("SAVE DEBT"):
                 d, c = (0, a) if "Borrowed" in t else (a, 0)
