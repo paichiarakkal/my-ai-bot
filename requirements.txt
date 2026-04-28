@@ -7,3 +7,4 @@ streamlit-lottie
 streamlit-mic-recorder
 streamlit-autorefresh
 fpdf
+Plotly Express
