@@ -30,7 +30,7 @@ def apply_ai_animation(color_set):
     st.markdown(f"""
         <style>
         /* Smooth Background Animation */
-        @keyframes gradient {{
+        @keyframes gradientAnimation {{
             0% {{ background-position: 0% 50%; }}
             50% {{ background-position: 100% 50%; }}
             100% {{ background-position: 0% 50%; }}
@@ -38,14 +38,39 @@ def apply_ai_animation(color_set):
         .stApp {{
             background: linear-gradient(-45deg, {color_set});
             background-size: 400% 400%;
-            animation: gradient 10s ease infinite;
+            animation: gradientAnimation 12s ease infinite;
             color: #fff;
             transition: all 0.8s ease-in-out;
         }}
-        [data-testid="stSidebar"] {{ background: rgba(0,0,0,0.8) !important; }}
-        .balance-banner {{ background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 20px; border: 2px solid rgba(255,215,0,0.5); text-align: center; margin-bottom: 25px; }}
-        .purple-box {{ background: rgba(0, 0, 0, 0.3); padding: 20px; border-radius: 25px; border: 1px solid rgba(255,255,255,0.2); text-align: center; margin-bottom: 20px; backdrop-filter: blur(10px); }}
+        [data-testid="stSidebar"] {{ background: rgba(0,0,0,0.85) !important; }}
+        .balance-banner {{ 
+            background: rgba(255, 255, 255, 0.1); 
+            backdrop-filter: blur(10px);
+            padding: 20px; 
+            border-radius: 20px; 
+            border: 1px solid rgba(255,215,0,0.4); 
+            text-align: center; 
+            margin-bottom: 25px; 
+        }}
+        .purple-box {{ 
+            background: rgba(0, 0, 0, 0.25); 
+            padding: 20px; 
+            border-radius: 25px; 
+            border: 1px solid rgba(255,255,255,0.1); 
+            text-align: center; 
+            margin-bottom: 20px; 
+            backdrop-filter: blur(12px); 
+        }}
         h1, h2, h3, p, label {{ color: white !important; font-weight: bold !important; }}
+        .stButton>button {{ 
+            background-color: #FFD700; 
+            color: black; 
+            border-radius: 12px; 
+            font-weight: bold; 
+            border: none;
+            transition: 0.3s;
+        }}
+        .stButton>button:hover {{ transform: scale(1.02); background-color: #fff; }}
         </style>
         """, unsafe_allow_html=True)
 
@@ -92,15 +117,17 @@ def get_triple_advisor():
 
 # --- 4. APP LOGIC ---
 if not st.session_state.auth:
-    apply_ai_animation("#2D0844, #1A0521, #000000")
-    st.markdown("<h2 style='text-align:center;'>🔐 PAICHI LOGIN</h2>", unsafe_allow_html=True)
-    u = st.text_input("Username").lower()
-    p = st.text_input("Password", type="password")
-    if st.button("LOGIN"):
-        if USERS.get(u) == p:
-            st.session_state.auth, st.session_state.user = True, u
-            st.rerun()
-        else: st.error("Access Denied!")
+    # Login Page Animation (Deep Dark)
+    apply_ai_animation("#0f0c29, #302b63, #24243e")
+    st.markdown("<h1 style='text-align:center;'>🔐 PAICHI AI</h1>", unsafe_allow_html=True)
+    with st.container():
+        u = st.text_input("Username").lower()
+        p = st.text_input("Password", type="password")
+        if st.button("LOGIN"):
+            if USERS.get(u) == p:
+                st.session_state.auth, st.session_state.user = True, u
+                st.rerun()
+            else: st.error("Access Denied!")
 else:
     curr_user = st.session_state.user
     
@@ -110,18 +137,18 @@ else:
     else:
         page = st.sidebar.radio("Menu", ["📊 Advisor", "🏠 Dashboard", "💰 Add Entry", "📊 Report", "🔍 History", "🤝 Debt Tracker"])
 
-    # --- PAGE WISE ANIMATION COLORS ---
-    if page == "📊 Advisor": apply_ai_animation("#4B0082, #00008B, #000000") # Deep Blue/Purple
-    elif page == "🏠 Dashboard": apply_ai_animation("#1a1a00, #4D4D00, #000000") # Gold Dark
-    elif page == "💰 Add Entry": apply_ai_animation("#2D0844, #800080, #000000") # Purple
-    elif page == "📊 Report": apply_ai_animation("#2c2c2c, #708090, #000000") # Silver/Slate
-    elif page == "🔍 History": apply_ai_animation("#001F3F, #003366, #000000") # Navy
-    elif page == "🤝 Debt Tracker": apply_ai_animation("#4A0E0E, #8B0000, #000000") # Rose/Red
+    # --- PAGE WISE ANIMATED COLORS ---
+    if page == "📊 Advisor": apply_ai_animation("#0f0c29, #302b63, #24243e") # Space Blue
+    elif page == "🏠 Dashboard": apply_ai_animation("#1a1a00, #4D4D00, #000000") # Dark Gold
+    elif page == "💰 Add Entry": apply_ai_animation("#41295a, #2F0743, #000000") # Royal Purple
+    elif page == "📊 Report": apply_ai_animation("#004d40, #002424, #000000") # Forest Teal
+    elif page == "🔍 History": apply_ai_animation("#1e3c72, #2a5298, #000000") # Ocean Blue
+    elif page == "🤝 Debt Tracker": apply_ai_animation("#4b1212, #2d0b0b, #000000") # Midnight Red
 
     balance = get_total_balance()
     st.markdown(f"""<div class="balance-banner">
-        <span style="font-size:14px; opacity:0.8;">AVAILABLE BALANCE</span><br>
-        <span style="font-size:32px; color:#FFD700;">₹{balance:,.2f}</span>
+        <span style="font-size:14px; opacity:0.8;">CURRENT AVAILABLE BALANCE</span><br>
+        <span style="font-size:36px; color:#FFD700; font-weight:900;">₹{balance:,.2f}</span>
     </div>""", unsafe_allow_html=True)
 
     if st.sidebar.button("Logout"):
@@ -134,16 +161,16 @@ else:
         if markets:
             for m in markets:
                 st.markdown(f"""<div class="purple-box" style="border-top: 4px solid {m['color']};">
-                    <h3>{m["name"]}</h3>
-                    <h1 style="color:{m["color"]} !important;">{m["signal"]}</h1>
+                    <h3 style="color:#E0B0FF !important;">{m["name"]}</h3>
+                    <h1 style="color:{m["color"]} !important; font-size:45px;">{m["signal"]}</h1>
                     <h2 style="color:#FFD700 !important;">₹{m["price"]:,.0f}</h2>
                 </div>""", unsafe_allow_html=True)
 
     elif page == "🏠 Dashboard":
         st.title("Financial Overview")
         try:
-            df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}").fillna(0)
-            st.plotly_chart(px.bar(df.tail(10), x=df.columns[0], y='Debit', template="plotly_dark"), use_container_width=True)
+            df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
+            st.plotly_chart(px.bar(df.tail(10), x=df.columns[0], y='Debit', template="plotly_dark", color_discrete_sequence=['#FFD700']), use_container_width=True)
         except: st.error("Data error")
 
     elif page == "💰 Add Entry":
@@ -176,29 +203,5 @@ else:
 
     elif page == "🤝 Debt Tracker":
         st.title("Debt Tracker")
-        # (Same debt form as your original code)
-        st.write("Debt records loading...")
-    # --- PAGE WISE ANIMATION COLORS (UPDATED) ---
-    if page == "📊 Advisor": 
-        # Deep Blue to Indigo - ബുദ്ധിപരമായ തീരുമാനങ്ങൾക്ക്
-        apply_ai_animation("#0F0C29, #302B63, #24243E") 
-
-    elif page == "🏠 Dashboard": 
-        # Golden to Dark Slate - സമ്പന്നമായ ലുക്കിന്
-        apply_ai_animation("#1a1a00, #4D4D00, #000000") 
-
-    elif page == "💰 Add Entry": 
-        # Purple to Magenta - ആവേശം തരുന്ന നിറങ്ങൾ
-        apply_ai_animation("#41295a, #2F0743, #000000") 
-
-    elif page == "📊 Report": 
-        # Teal to Dark Green - ലാഭത്തെ സൂചിപ്പിക്കുന്ന പച്ചപ്പ്
-        apply_ai_animation("#004d40, #002424, #000000") 
-
-    elif page == "🔍 History": 
-        # Steel Blue to Navy - പ്രൊഫഷണൽ ലുക്കിന്
-        apply_ai_animation("#1e3c72, #2a5298, #000000") 
-
-    elif page == "🤝 Debt Tracker": 
-        # Sunset Red to Dark Brown - ജാഗ്രതയെ സൂചിപ്പിക്കാൻ
-        apply_ai_animation("#4b1212, #2d0b0b, #000000")
+        st.info("Debt records are updated in the main ledger.")
+        # Debt form logic goes here
