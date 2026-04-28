@@ -16,7 +16,7 @@ IMGBB_API_KEY = "7b08945ff15a43258cc137387e6038d5"
 
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
-st.set_page_config(page_title="PAICHI AI PRO v7.5", layout="wide")
+st.set_page_config(page_title="PAICHI AI PRO v8.1", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 # --- 2. 🎨 PREMIUM STYLING ---
@@ -27,19 +27,18 @@ def apply_style(colors):
         [data-testid="stSidebar"] {{ background: rgba(0,0,0,0.85) !important; }}
         .purple-box {{ background: rgba(0,0,0,0.25); padding: 25px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); backdrop-filter: blur(15px); text-align: center; margin-bottom: 20px; }}
         h1, h2, h3, p, label {{ color: white !important; font-weight: bold !important; }}
-        .stButton>button {{ background: #FFD700; color: black; border-radius: 12px; font-weight: bold; width: 100%; border: none; height: 45px; transition: 0.3s; }}
+        .stButton>button {{ background: #FFD700; color: black; border-radius: 12px; font-weight: bold; width: 100%; border: none; height: 45px; }}
     </style>""", unsafe_allow_html=True)
 
-# --- 3. 📊 CORE ENGINES ---
+# --- 3. 📊 SMART ENGINES ---
 def upload_bill(file):
     try:
         img_data = base64.b64encode(file.getvalue())
         res = requests.post("https://api.imgbb.com/1/upload", data={"key": IMGBB_API_KEY, "image": img_data})
-        json_data = res.json()
-        if json_data['success']:
-            return json_data['data']['url']
-        return None
-    except: return None
+        json_res = res.json()
+        if json_res['success']: return json_res['data']['url']
+        return ""
+    except: return ""
 
 def send_wa(msg):
     try: requests.get(f"https://api.callmebot.com/whatsapp.php?phone={WA_PHONE}&text={urllib.parse.quote(msg)}&apikey={WA_API_KEY}", timeout=10)
@@ -72,6 +71,7 @@ else:
 
     df_main = get_data()
     if not df_main.empty:
+        # നമ്പറുകൾ വരുന്നത് E, F കോളങ്ങളിൽ ആണെന്ന് നീ പറഞ്ഞല്ലോ
         credit = pd.to_numeric(df_main['Credit'], errors='coerce').fillna(0).sum()
         debit = pd.to_numeric(df_main['Debit'], errors='coerce').fillna(0).sum()
         balance = credit - debit
@@ -84,6 +84,10 @@ else:
         v_raw = speech_to_text(language='ml', key='v_entry')
         with st.form("entry_fm", clear_on_submit=True):
             it = st.text_input("Item Name", value=v_raw if v_raw else "")
+            
+            # ഇവിടെ ശബാനയ്ക്ക് കാറ്റഗറി ടൈപ്പ് ചെയ്യാൻ സാധിക്കും
+            category = st.text_input("Category (Type here)")
+            
             am_input = st.text_input("Amount")
             ty = st.radio("Type", ["Debit", "Credit"], horizontal=True)
             bill = st.file_uploader("Upload Bill Photo", type=['jpg', 'jpeg', 'png'])
@@ -92,9 +96,11 @@ else:
                 if it and am_input:
                     try:
                         am = float(am_input)
-                        with st.spinner("Processing & Uploading Bill..."):
+                        with st.spinner("Processing & Uploading..."):
                             link = upload_bill(bill) if bill else ""
-                            final_desc = f"[{curr_user.capitalize()}] {it}"
+                            
+                            # ഷീറ്റിൽ ടൈപ്പ് ചെയ്ത കാറ്റഗറി ഉൾപ്പെടെ സേവ് ചെയ്യുന്നു
+                            final_desc = f"[{curr_user.capitalize()}] {category if category else 'Others'}: {it}"
                             if link: final_desc += f" | 📂 Bill: {link}"
                             
                             d, c = (am, 0) if ty=="Debit" else (0, am)
@@ -102,11 +108,11 @@ else:
                             
                             requests.post(FORM_API, data={"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": final_desc, "entry.1460982454": d, "entry.1221658767": c})
                             
-                            wa_msg = f"✅ *Paichi Entry*\n👤 {curr_user.capitalize()}\n💰 ₹{am} - {it}\n💳 *Balance: ₹{new_bal:,.2f}*"
+                            wa_msg = f"✅ *Paichi Entry*\n👤 {curr_user.capitalize()}\n📂 Category: {category if category else 'Others'}\n💰 ₹{am} - {it}\n💳 *Balance: ₹{new_bal:,.2f}*"
                             if link: wa_msg += f"\n📂 Bill: {link}"
                             
                             threading.Thread(target=send_wa, args=(wa_msg,)).start()
-                            st.success(f"സേവ് ആയി! പുതിയ ബാലൻസ്: ₹{new_bal:,.2f}"); st.rerun()
+                            st.success(f"സേവ് ആയി! ബാലൻസ്: ₹{new_bal:,.2f}"); st.rerun()
                     except: st.error("Amount കൃത്യമായി നൽകുക!")
 
     elif page == "🤝 Debt Tracker":
