@@ -5,8 +5,10 @@ from datetime import datetime
 import yfinance as yf
 import random
 import re, urllib.parse, threading, base64
+import plotly.express as px
 from streamlit_mic_recorder import speech_to_text
 from streamlit_autorefresh import st_autorefresh
+from fpdf import FPDF # PDF ജനറേറ്റ് ചെയ്യാൻ
 
 # --- 1. CONFIG & SETTINGS ---
 CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
@@ -16,7 +18,7 @@ IMGBB_API_KEY = "7b08945ff15a43258cc137387e6038d5"
 
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
-st.set_page_config(page_title="PAICHI AI PRO v9.0", layout="wide")
+st.set_page_config(page_title="PAICHI AI PRO v9.5", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 # --- 2. 🎨 PREMIUM STYLING ---
@@ -24,10 +26,9 @@ def apply_style(colors):
     st.markdown(f"""<style>
         @keyframes grad {{ 0% {{background-position: 0% 50%;}} 50% {{background-position: 100% 50%;}} 100% {{background-position: 0% 50%;}} }}
         .stApp {{ background: linear-gradient(-45deg, {colors}); background-size: 400% 400%; animation: grad 15s ease infinite; color: white; }}
-        [data-testid="stSidebar"] {{ background: rgba(0,0,0,0.85) !important; }}
-        .purple-box {{ background: rgba(0,0,0,0.25); padding: 25px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); backdrop-filter: blur(15px); text-align: center; margin-bottom: 20px; }}
+        .purple-box {{ background: rgba(0,0,0,0.3); padding: 25px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); backdrop-filter: blur(15px); text-align: center; margin-bottom: 20px; }}
         h1, h2, h3, p, label {{ color: white !important; font-weight: bold !important; }}
-        .stButton>button {{ background: #FFD700; color: black; border-radius: 12px; font-weight: bold; width: 100%; border: none; height: 45px; }}
+        .stButton>button {{ background: #FFD700; color: black; border-radius: 12px; font-weight: bold; width: 100%; height: 45px; }}
     </style>""", unsafe_allow_html=True)
 
 # --- 3. 📊 SMART ENGINES ---
@@ -63,16 +64,14 @@ if not st.session_state.auth:
 else:
     curr_user = st.session_state.user
     
-    # 🛡️ USER ROLE LOGIC: ശബാനയ്ക്ക് ട്രേഡിംഗ് സെക്ഷൻ കാണിക്കില്ല
+    # User-based menu
     if curr_user == "shabana":
         menu = ["💰 Add Entry", "🤝 Debt Tracker", "🔍 History"]
     else:
-        menu = ["📊 Trading Advisor", "🏠 Dashboard", "💰 Add Entry", "📊 Expense Report", "🔍 History", "🤝 Debt Tracker"]
+        menu = ["📊 Trading Advisor", "🏠 Dashboard", "💰 Add Entry", "📊 Report", "🔍 History", "🤝 Debt Tracker"]
     
     page = st.sidebar.radio("Menu", menu)
-    
-    themes = {"📊 Trading Advisor":"#0f0c29, #302b63", "🏠 Dashboard":"#1a1a00, #4d4d00", "💰 Add Entry":"#41295a, #2f0743", "📊 Expense Report":"#004d40, #002424", "🔍 History":"#1e3c72, #2a5298", "🤝 Debt Tracker":"#4b1212, #2d0b0b"}
-    apply_style(themes.get(page, "#2D0844, #1A0521"))
+    apply_style({"📊 Trading Advisor":"#0f0c29, #302b63", "🏠 Dashboard":"#1a1a00, #4d4d00", "💰 Add Entry":"#41295a, #2f0743", "📊 Report":"#004d40, #002424", "🔍 History":"#1e3c72, #2a5298", "🤝 Debt Tracker":"#4b1212, #2d0b0b"}.get(page, "#2D0844"))
 
     df_main = get_data()
     if not df_main.empty:
@@ -88,7 +87,7 @@ else:
         v_raw = speech_to_text(language='ml', key='v_entry')
         with st.form("entry_fm", clear_on_submit=True):
             it = st.text_input("Item Name", value=v_raw if v_raw else "")
-            category = st.text_input("Category (Type here)")
+            category = st.text_input("Category (Type/Write)")
             am_input = st.text_input("Amount")
             ty = st.radio("Type", ["Debit", "Credit"], horizontal=True)
             bill = st.file_uploader("Upload Bill Photo", type=['jpg', 'jpeg', 'png'])
@@ -97,7 +96,7 @@ else:
                 if it and am_input:
                     try:
                         am = float(am_input)
-                        with st.spinner("Processing & Uploading..."):
+                        with st.spinner("Processing..."):
                             link = upload_bill(bill) if bill else ""
                             final_desc = f"[{curr_user.capitalize()}] {category if category else 'Others'}: {it}"
                             if link: final_desc += f" | 📂 Bill: {link}"
@@ -108,46 +107,44 @@ else:
                             requests.post(FORM_API, data={"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": final_desc, "entry.1460982454": d, "entry.1221658767": c})
                             
                             wa_msg = f"✅ *Paichi Entry*\n👤 {curr_user.capitalize()}\n💰 ₹{am} - {it}\n💳 *Balance: ₹{new_bal:,.2f}*"
-                            if link: wa_msg += f"\n📂 Bill: {link}"
-                            
                             threading.Thread(target=send_wa, args=(wa_msg,)).start()
                             st.success(f"സേവ് ആയി! ബാലൻസ്: ₹{new_bal:,.2f}"); st.rerun()
                     except: st.error("Amount കൃത്യമായി നൽകുക!")
 
-    elif page == "🤝 Debt Tracker":
-        st.title("Debt Management 🤝")
-        with st.form("debt_fm", clear_on_submit=True):
-            n = st.text_input("Person Name")
-            a_input = st.number_input("Amount", min_value=0.0)
-            t = st.selectbox("Category", ["Borrowed (കടം വാങ്ങിയത്)", "Lent (കടം കൊടുത്തത്)"])
-            if st.form_submit_button("SAVE DEBT"):
-                if n and a_input > 0:
-                    d, c = (a_input, 0) if "Lent" in t else (0, a_input)
-                    new_bal = balance - a_input if "Lent" in t else balance + a_input
-                    requests.post(FORM_API, data={"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": f"[{curr_user.capitalize()}] DEBT: {t}-{n}", "entry.1460982454": d, "entry.1221658767": c})
-                    wa_msg = f"🤝 *Debt Update*\n👤 {n}\n💰 ₹{a_input}\n💳 *Balance: ₹{new_bal:,.2f}*"
-                    threading.Thread(target=send_wa, args=(wa_msg,)).start()
-                    st.success("Debt Saved!"); st.rerun()
+    elif page == "📊 Report" and curr_user != "shabana":
+        st.title("Analysis & Export 📈")
+        if not df_main.empty:
+            df_plot = df_main.copy()
+            df_plot['Debit'] = pd.to_numeric(df_plot['Debit'], errors='coerce').fillna(0)
+            df_plot = df_plot[df_plot['Debit'] > 0]
+            
+            if not df_plot.empty:
+                fig = px.pie(df_plot, values='Debit', names='Item', hole=0.4, title="Expense Distribution")
+                fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', font_color="white")
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # PDF Download Button
+                if st.button("Generate PDF Report"):
+                    pdf = FPDF()
+                    pdf.add_page()
+                    pdf.set_font("Arial", 'B', 16)
+                    pdf.cell(200, 10, txt="Paichi AI - Monthly Report", ln=True, align='C')
+                    pdf.set_font("Arial", size=12)
+                    pdf.cell(200, 10, txt=f"Total Balance: {balance}", ln=True)
+                    st.download_button("Download PDF", data=pdf.output(dest='S').encode('latin-1'), file_name="report.pdf")
+            else: st.write("ചിലവുകൾ ഒന്നുമില്ല.")
 
     elif page == "📊 Trading Advisor" and curr_user != "shabana":
-        st.title("🛢️ MCX & Nifty Advisor")
-        symbols = {"Crude Oil (MCX)": "CL=F", "Nifty 50": "^NSEI", "Bank Nifty": "^NSEBANK"}
-        for name, sym in symbols.items():
-            data = yf.Ticker(sym).history(period="1d")
-            if not data.empty:
-                px = data['Close'].iloc[-1]
-                if name == "Crude Oil (MCX)": px = px * 83.5 * 1.15 # Approx conversion
+        st.title("🛢️ Market Tracker")
+        for name, sym in {"Crude Oil": "CL=F", "Nifty 50": "^NSEI", "Bank Nifty": "^NSEBANK"}.items():
+            try:
+                px = yf.Ticker(sym).history(period="1d")['Close'].iloc[-1]
+                if "Crude" in name: px *= 83.5 # Convert to INR approx
                 st.markdown(f'<div class="purple-box"><h3>{name}</h3><h1 style="color:#00FF00 !important;">₹{px:,.2f}</h1></div>', unsafe_allow_html=True)
-
-    elif page == "📊 Expense Report" and curr_user != "shabana":
-        st.title("Expense Analysis")
-        if not df_main.empty:
-            df_main['Debit'] = pd.to_numeric(df_main['Debit'], errors='coerce').fillna(0)
-            fig = px.pie(df_main[df_main['Debit'] > 0], values='Debit', names='Item', hole=0.4, template="plotly_dark")
-            st.plotly_chart(fig, use_container_width=True)
+            except: pass
 
     elif page == "🔍 History":
-        st.title("History")
+        st.title("History 🔍")
         st.dataframe(df_main.iloc[::-1], use_container_width=True)
 
     if st.sidebar.button("Logout"): st.session_state.auth = False; st.rerun()
