@@ -16,7 +16,7 @@ IMGBB_API_KEY = "7b08945ff15a43258cc137387e6038d5"
 
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
-st.set_page_config(page_title="PAICHI AI PRO v8.1", layout="wide")
+st.set_page_config(page_title="PAICHI AI PRO v9.0", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 # --- 2. 🎨 PREMIUM STYLING ---
@@ -35,8 +35,7 @@ def upload_bill(file):
     try:
         img_data = base64.b64encode(file.getvalue())
         res = requests.post("https://api.imgbb.com/1/upload", data={"key": IMGBB_API_KEY, "image": img_data})
-        json_res = res.json()
-        if json_res['success']: return json_res['data']['url']
+        if res.json()['success']: return res.json()['data']['url']
         return ""
     except: return ""
 
@@ -63,15 +62,20 @@ if not st.session_state.auth:
         st.rerun()
 else:
     curr_user = st.session_state.user
-    menu = ["💰 Add Entry", "🤝 Debt Tracker"] if curr_user == "shabana" else ["📊 Advisor", "🏠 Dashboard", "💰 Add Entry", "📊 Report", "🔍 History", "🤝 Debt Tracker"]
+    
+    # 🛡️ USER ROLE LOGIC: ശബാനയ്ക്ക് ട്രേഡിംഗ് സെക്ഷൻ കാണിക്കില്ല
+    if curr_user == "shabana":
+        menu = ["💰 Add Entry", "🤝 Debt Tracker", "🔍 History"]
+    else:
+        menu = ["📊 Trading Advisor", "🏠 Dashboard", "💰 Add Entry", "📊 Expense Report", "🔍 History", "🤝 Debt Tracker"]
+    
     page = st.sidebar.radio("Menu", menu)
     
-    themes = {"📊 Advisor":"#0f0c29, #302b63", "🏠 Dashboard":"#1a1a00, #4d4d00", "💰 Add Entry":"#41295a, #2f0743", "📊 Report":"#004d40, #002424", "🔍 History":"#1e3c72, #2a5298", "🤝 Debt Tracker":"#4b1212, #2d0b0b"}
+    themes = {"📊 Trading Advisor":"#0f0c29, #302b63", "🏠 Dashboard":"#1a1a00, #4d4d00", "💰 Add Entry":"#41295a, #2f0743", "📊 Expense Report":"#004d40, #002424", "🔍 History":"#1e3c72, #2a5298", "🤝 Debt Tracker":"#4b1212, #2d0b0b"}
     apply_style(themes.get(page, "#2D0844, #1A0521"))
 
     df_main = get_data()
     if not df_main.empty:
-        # നമ്പറുകൾ വരുന്നത് E, F കോളങ്ങളിൽ ആണെന്ന് നീ പറഞ്ഞല്ലോ
         credit = pd.to_numeric(df_main['Credit'], errors='coerce').fillna(0).sum()
         debit = pd.to_numeric(df_main['Debit'], errors='coerce').fillna(0).sum()
         balance = credit - debit
@@ -84,10 +88,7 @@ else:
         v_raw = speech_to_text(language='ml', key='v_entry')
         with st.form("entry_fm", clear_on_submit=True):
             it = st.text_input("Item Name", value=v_raw if v_raw else "")
-            
-            # ഇവിടെ ശബാനയ്ക്ക് കാറ്റഗറി ടൈപ്പ് ചെയ്യാൻ സാധിക്കും
             category = st.text_input("Category (Type here)")
-            
             am_input = st.text_input("Amount")
             ty = st.radio("Type", ["Debit", "Credit"], horizontal=True)
             bill = st.file_uploader("Upload Bill Photo", type=['jpg', 'jpeg', 'png'])
@@ -98,8 +99,6 @@ else:
                         am = float(am_input)
                         with st.spinner("Processing & Uploading..."):
                             link = upload_bill(bill) if bill else ""
-                            
-                            # ഷീറ്റിൽ ടൈപ്പ് ചെയ്ത കാറ്റഗറി ഉൾപ്പെടെ സേവ് ചെയ്യുന്നു
                             final_desc = f"[{curr_user.capitalize()}] {category if category else 'Others'}: {it}"
                             if link: final_desc += f" | 📂 Bill: {link}"
                             
@@ -108,7 +107,7 @@ else:
                             
                             requests.post(FORM_API, data={"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": final_desc, "entry.1460982454": d, "entry.1221658767": c})
                             
-                            wa_msg = f"✅ *Paichi Entry*\n👤 {curr_user.capitalize()}\n📂 Category: {category if category else 'Others'}\n💰 ₹{am} - {it}\n💳 *Balance: ₹{new_bal:,.2f}*"
+                            wa_msg = f"✅ *Paichi Entry*\n👤 {curr_user.capitalize()}\n💰 ₹{am} - {it}\n💳 *Balance: ₹{new_bal:,.2f}*"
                             if link: wa_msg += f"\n📂 Bill: {link}"
                             
                             threading.Thread(target=send_wa, args=(wa_msg,)).start()
@@ -126,20 +125,29 @@ else:
                     d, c = (a_input, 0) if "Lent" in t else (0, a_input)
                     new_bal = balance - a_input if "Lent" in t else balance + a_input
                     requests.post(FORM_API, data={"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": f"[{curr_user.capitalize()}] DEBT: {t}-{n}", "entry.1460982454": d, "entry.1221658767": c})
-                    wa_msg = f"🤝 *Debt Update*\n👤 {n}\n📝 {t}\n💰 ₹{a_input}\n💳 *Balance: ₹{new_bal:,.2f}*"
+                    wa_msg = f"🤝 *Debt Update*\n👤 {n}\n💰 ₹{a_input}\n💳 *Balance: ₹{new_bal:,.2f}*"
                     threading.Thread(target=send_wa, args=(wa_msg,)).start()
                     st.success("Debt Saved!"); st.rerun()
 
-    elif page == "🔍 History":
-        st.title("Transaction History 🔍")
-        if not df_main.empty:
-            st.dataframe(df_main.iloc[::-1], use_container_width=True)
-        else: st.write("No transactions found.")
+    elif page == "📊 Trading Advisor" and curr_user != "shabana":
+        st.title("🛢️ MCX & Nifty Advisor")
+        symbols = {"Crude Oil (MCX)": "CL=F", "Nifty 50": "^NSEI", "Bank Nifty": "^NSEBANK"}
+        for name, sym in symbols.items():
+            data = yf.Ticker(sym).history(period="1d")
+            if not data.empty:
+                px = data['Close'].iloc[-1]
+                if name == "Crude Oil (MCX)": px = px * 83.5 * 1.15 # Approx conversion
+                st.markdown(f'<div class="purple-box"><h3>{name}</h3><h1 style="color:#00FF00 !important;">₹{px:,.2f}</h1></div>', unsafe_allow_html=True)
 
-    elif page == "📊 Advisor":
-        st.title("Market Advisor 📈")
-        for name, sym in {"Nifty 50":"^NSEI", "Bank Nifty":"^NSEBANK"}.items():
-            px_val = yf.Ticker(sym).history(period="1d")['Close'].iloc[-1]
-            st.markdown(f'<div class="purple-box"><h3>{name}</h3><h1 style="color:#00FF00 !important;">₹{px_val:,.2f}</h1></div>', unsafe_allow_html=True)
+    elif page == "📊 Expense Report" and curr_user != "shabana":
+        st.title("Expense Analysis")
+        if not df_main.empty:
+            df_main['Debit'] = pd.to_numeric(df_main['Debit'], errors='coerce').fillna(0)
+            fig = px.pie(df_main[df_main['Debit'] > 0], values='Debit', names='Item', hole=0.4, template="plotly_dark")
+            st.plotly_chart(fig, use_container_width=True)
+
+    elif page == "🔍 History":
+        st.title("History")
+        st.dataframe(df_main.iloc[::-1], use_container_width=True)
 
     if st.sidebar.button("Logout"): st.session_state.auth = False; st.rerun()
