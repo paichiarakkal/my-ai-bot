@@ -11,44 +11,25 @@ import re
 import urllib.parse
 import threading
 
-# --- 1. CONFIG & SETTINGS ---
-# ഷോപ്പിംഗ് ലിസ്റ്റിനായി മറ്റൊരു ഷീറ്റ് ലിങ്ക് ഉണ്ടെങ്കിൽ അത് ഇവിടെ നൽകാം, അല്ലെങ്കിൽ തൽക്കാലം ഇതേ ഷീറ്റിൽ തന്നെ മാനേജ് ചെയ്യാം.
+# --- 1. CONFIG ---
 CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
 FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSfLySolQSiRXV0wELNPhUBlKJh77RnJKWc2-uqAM0TPNG3Q5A/formResponse"
-
-WA_PHONE = "+971551347989" 
-WA_API_KEY = "7463030"
-
+WA_PHONE = "+971551347989"; WA_API_KEY = "7463030"
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
-st.set_page_config(page_title="PAICHI PREMIUM v5.0", layout="wide")
+st.set_page_config(page_title="PAICHI PREMIUM v5.1", layout="wide")
 st_autorefresh(interval=300000, key="auto_refresh")
-
-# --- 2. 🎨 PREMIUM DESIGN ---
-st.markdown("""
-    <style>
-    .stApp { background: linear-gradient(135deg, #1A0521, #4B0082, #000000); color: #fff; }
-    .gold-box { background: linear-gradient(90deg, #FFD700, #BF953F); color: black; padding: 10px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 10px; }
-    .balance-banner { background: rgba(255, 215, 0, 0.1); padding: 15px; border-radius: 15px; border-left: 5px solid #FFD700; margin-bottom: 25px; text-align: center; }
-    .stCheckbox label { color: #FFD700 !important; font-size: 18px !important; }
-    </style>
-    """, unsafe_allow_html=True)
 
 if 'auth' not in st.session_state: st.session_state.auth = False
 if 'shopping_items' not in st.session_state: st.session_state.shopping_items = []
 
-# --- 3. 📊 ENGINES ---
+# --- 2. 📊 ENGINES ---
 def get_gold_rate():
     try:
         gold = yf.Ticker("GC=F").history(period="1d")['Close'].iloc[-1]
-        rate_24k = (gold / 31.1035) * 3.67 
-        return round(rate_24k, 2), round(rate_24k * 0.916, 2)
+        r24 = (gold / 31.1035) * 3.67 
+        return round(r24, 2), round(r24 * 0.916, 2)
     except: return "N/A", "N/A"
-
-def send_wa(msg):
-    url = f"https://api.callmebot.com/whatsapp.php?phone={WA_PHONE}&text={urllib.parse.quote(msg)}&apikey={WA_API_KEY}"
-    try: requests.get(url, timeout=10)
-    except: pass
 
 def get_data():
     try:
@@ -60,8 +41,20 @@ def get_data():
         return df
     except: return pd.DataFrame()
 
+# --- 3. 🎨 DYNAMIC COLOR LOGIC ---
+def set_page_style(color_gradient):
+    st.markdown(f"""
+        <style>
+        .stApp {{ background: {color_gradient}; color: #fff; }}
+        .gold-box {{ background: linear-gradient(90deg, #FFD700, #BF953F); color: black; padding: 10px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 10px; }}
+        .balance-banner {{ background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.2); margin-bottom: 25px; text-align: center; }}
+        h1, h2, h3, p, label {{ color: white !important; font-weight: bold !important; }}
+        </style>
+        """, unsafe_allow_html=True)
+
 # --- 4. APP LOGIC ---
 if not st.session_state.auth:
+    set_page_style("linear-gradient(135deg, #1A0521, #000000)")
     st.markdown("<h2 style='text-align:center;'>🔐 PAICHI LOGIN</h2>", unsafe_allow_html=True)
     u = st.text_input("Username").lower()
     p = st.text_input("Password", type="password")
@@ -71,88 +64,74 @@ if not st.session_state.auth:
             st.rerun()
         else: st.error("Access Denied!")
 else:
-    curr_user = st.session_state.user
+    # Sidebar menu
+    page = st.sidebar.radio("Menu", ["🏠 Dashboard", "🛒 Shopping List", "💰 Add Entry", "📊 Report", "🔍 History"])
+    
+    # ഓരോ പേജിനും നിറം നിശ്ചയിക്കുന്നു
+    if page == "🏠 Dashboard": set_page_style("linear-gradient(135deg, #001F3F, #000000)") # Royal Blue
+    elif page == "🛒 Shopping List": set_page_style("linear-gradient(135deg, #064E3B, #000000)") # Emerald Green
+    elif page == "💰 Add Entry": set_page_style("linear-gradient(135deg, #4C1D95, #000000)") # Deep Purple
+    elif page == "📊 Report": set_page_style("linear-gradient(135deg, #7F1D1D, #000000)") # Maroon
+    elif page == "🔍 History": set_page_style("linear-gradient(135deg, #374151, #000000)") # Dark Grey
+
     df_all = get_data()
     g24, g22 = get_gold_rate()
     st.markdown(f"""<div class="gold-box">✨ Dubai Gold: 24K: AED {g24} | 22K: AED {g22}</div>""", unsafe_allow_html=True)
     
     total_bal = df_all['Credit'].sum() - df_all['Debit'].sum()
     st.markdown(f"""<div class="balance-banner">
-        <span style="font-size:16px; color:#E0B0FF;">TOTAL BALANCE</span><br>
+        <span style="font-size:16px; color:#ddd;">TOTAL BALANCE</span><br>
         <span style="font-size:32px; color:#FFD700;">₹{total_bal:,.2f}</span>
     </div>""", unsafe_allow_html=True)
 
-    page = st.sidebar.radio("Menu", ["🏠 Dashboard", "🛒 Shopping List", "💰 Add Entry", "📊 Report", "🔍 History"])
-
-    if page == "🛒 Shopping List":
-        st.title("Smart Shopping List 🛒")
-        st.write("വാങ്ങേണ്ട സാധനങ്ങൾ താഴെ ചേർക്കുക:")
-        
-        # Voice input for shopping list
-        shop_voice = speech_to_text(language='ml', key='shop_v5')
-        
-        with st.form("shop_form", clear_on_submit=True):
-            new_item = st.text_input("Add Item", value=shop_voice if shop_voice else "")
-            if st.form_submit_button("ADD TO LIST"):
-                if new_item:
-                    st.session_state.shopping_items.append({"item": new_item, "done": False})
-                    st.rerun()
-
-        st.subheader("Your List:")
-        for idx, item_obj in enumerate(st.session_state.shopping_items):
-            cols = st.columns([0.1, 0.9])
-            is_done = cols[0].checkbox("", value=item_obj["done"], key=f"item_{idx}")
-            if is_done:
-                cols[1].markdown(f"~~{item_obj['item']}~~")
-                st.session_state.shopping_items[idx]["done"] = True
-            else:
-                cols[1].write(item_obj['item'])
-        
-        if st.button("Clear Completed Items"):
-            st.session_state.shopping_items = [i for i in st.session_state.shopping_items if not i["done"]]
-            st.rerun()
-
-    elif page == "🏠 Dashboard":
+    # --- PAGE CONTENT ---
+    if page == "🏠 Dashboard":
         st.title("Monthly Overview")
         if not df_all.empty:
             df_all['Month'] = df_all['Date'].dt.strftime('%B %Y')
-            month_list = df_all['Month'].unique().tolist()
-            sel_month = st.selectbox("Select Month", month_list[::-1])
+            sel_month = st.selectbox("Select Month", df_all['Month'].unique().tolist()[::-1])
             m_df = df_all[df_all['Date'].dt.strftime('%B %Y') == sel_month]
-            st.metric("Month Expense", f"₹{m_df['Debit'].sum():,.2f}")
-            fig = px.bar(m_df, x='Date', y='Debit', color_discrete_sequence=['#FFD700'], template="plotly_dark")
-            st.plotly_chart(fig, use_container_width=True)
+            st.metric("Expense", f"₹{m_df['Debit'].sum():,.2f}")
+            st.plotly_chart(px.bar(m_df, x='Date', y='Debit', template="plotly_dark"), use_container_width=True)
+
+    elif page == "🛒 Shopping List":
+        st.title("Shopping List 🛒")
+        shop_voice = speech_to_text(language='ml', key='sv51')
+        with st.form("shop_form", clear_on_submit=True):
+            new_item = st.text_input("Add Item", value=shop_voice if shop_voice else "")
+            if st.form_submit_button("ADD"):
+                if new_item: st.session_state.shopping_items.append({"item": new_item, "done": False}); st.rerun()
+        for idx, item in enumerate(st.session_state.shopping_items):
+            if not item["done"]:
+                if st.checkbox(item["item"], key=f"it_{idx}"):
+                    st.session_state.shopping_items[idx]["done"] = True; st.rerun()
+        if st.button("Clear Done Items"):
+            st.session_state.shopping_items = [i for i in st.session_state.shopping_items if not i["done"]]; st.rerun()
 
     elif page == "💰 Add Entry":
         st.title("New Entry 📝")
-        v_raw = speech_to_text(language='ml', key='entry_v5')
+        v_raw = speech_to_text(language='ml', key='ev51')
         with st.form("entry_form", clear_on_submit=True):
-            it = st.text_input("Description", value=v_raw if v_raw else "")
+            it = st.text_input("Item", value=v_raw if v_raw else "")
             cat = st.selectbox("Category", ["Food", "Shop", "Fuel", "Rent", "Bills", "Others"])
             am = st.number_input("Amount", min_value=0.0)
             ty = st.radio("Type", ["Debit", "Credit"], horizontal=True)
-            if st.form_submit_button("SAVE DATA"):
+            if st.form_submit_button("SAVE"):
                 if it and am > 0:
                     d, c = (am, 0) if ty == "Debit" else (0, am)
-                    requests.post(FORM_API, data={"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": f"[{curr_user.capitalize()}] {cat}: {it}", "entry.1460982454": d, "entry.1221658767": c})
-                    wa_msg = f"✅ *Paichi Entry*\n👤 {curr_user.capitalize()}\n💰 Amt: ₹{am}\n📝 {it}\n\n📊 *Balance: ₹{total_bal-d+c:,.2f}*"
-                    threading.Thread(target=send_wa, args=(wa_msg,)).start()
-                    st.success("Saved! ✅")
-                    st.rerun()
+                    requests.post(FORM_API, data={"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": f"[{st.session_state.user.capitalize()}] {cat}: {it}", "entry.1460982454": d, "entry.1221658767": c})
+                    st.success("Saved! ✅"); st.rerun()
 
     elif page == "📊 Report":
-        st.title("Expense Analysis")
+        st.title("Analysis")
         if not df_all.empty:
             df_all['Month'] = df_all['Date'].dt.strftime('%B %Y')
-            sel_month = st.selectbox("Month", df_all['Month'].unique().tolist()[::-1])
-            m_df = df_all[(df_all['Date'].dt.strftime('%B %Y') == sel_month) & (df_all['Debit'] > 0)]
-            if not m_df.empty:
-                fig = px.pie(m_df, values='Debit', names='Item', hole=0.4, template="plotly_dark")
-                st.plotly_chart(fig, use_container_width=True)
+            sel = st.selectbox("Month", df_all['Month'].unique().tolist()[::-1])
+            m_df = df_all[(df_all['Date'].dt.strftime('%B %Y') == sel) & (df_all['Debit'] > 0)]
+            if not m_df.empty: st.plotly_chart(px.pie(m_df, values='Debit', names='Item', hole=0.4, template="plotly_dark"), use_container_width=True)
 
     elif page == "🔍 History":
         st.title("History")
         st.dataframe(df_all.sort_values(by='Date', ascending=False), use_container_width=True)
 
-    if st.sidebar.button("Logout"):
-        st.session_state.auth = False; st.rerun()
+    if st.sidebar.button("Logout"): st.session_state.auth = False; st.rerun()
