@@ -178,3 +178,27 @@ else:
         st.title("Debt Tracker")
         # (Same debt form as your original code)
         st.write("Debt records loading...")
+    # --- PAGE WISE ANIMATION COLORS (UPDATED) ---
+    if page == "📊 Advisor": 
+        # Deep Blue to Indigo - ബുദ്ധിപരമായ തീരുമാനങ്ങൾക്ക്
+        apply_ai_animation("#0F0C29, #302B63, #24243E") 
+
+    elif page == "🏠 Dashboard": 
+        # Golden to Dark Slate - സമ്പന്നമായ ലുക്കിന്
+        apply_ai_animation("#1a1a00, #4D4D00, #000000") 
+
+    elif page == "💰 Add Entry": 
+        # Purple to Magenta - ആവേശം തരുന്ന നിറങ്ങൾ
+        apply_ai_animation("#41295a, #2F0743, #000000") 
+
+    elif page == "📊 Report": 
+        # Teal to Dark Green - ലാഭത്തെ സൂചിപ്പിക്കുന്ന പച്ചപ്പ്
+        apply_ai_animation("#004d40, #002424, #000000") 
+
+    elif page == "🔍 History": 
+        # Steel Blue to Navy - പ്രൊഫഷണൽ ലുക്കിന്
+        apply_ai_animation("#1e3c72, #2a5298, #000000") 
+
+    elif page == "🤝 Debt Tracker": 
+        # Sunset Red to Dark Brown - ജാഗ്രതയെ സൂചിപ്പിക്കാൻ
+        apply_ai_animation("#4b1212, #2d0b0b, #000000")
