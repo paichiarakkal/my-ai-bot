@@ -8,7 +8,7 @@ import re, urllib.parse, threading, base64
 import plotly.express as px
 from streamlit_mic_recorder import speech_to_text
 from streamlit_autorefresh import st_autorefresh
-from fpdf import FPDF # PDF ജനറേറ്റ് ചെയ്യാൻ
+from fpdf import FPDF
 
 # --- 1. CONFIG & SETTINGS ---
 CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
@@ -18,20 +18,37 @@ IMGBB_API_KEY = "7b08945ff15a43258cc137387e6038d5"
 
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
-st.set_page_config(page_title="PAICHI AI PRO v9.5", layout="wide")
+st.set_page_config(page_title="PAICHI AI PRO v10.0", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
-# --- 2. 🎨 PREMIUM STYLING ---
+# --- 2. 🎨 GLASSMORPHISM STYLING ---
 def apply_style(colors):
     st.markdown(f"""<style>
         @keyframes grad {{ 0% {{background-position: 0% 50%;}} 50% {{background-position: 100% 50%;}} 100% {{background-position: 0% 50%;}} }}
         .stApp {{ background: linear-gradient(-45deg, {colors}); background-size: 400% 400%; animation: grad 15s ease infinite; color: white; }}
-        .purple-box {{ background: rgba(0,0,0,0.3); padding: 25px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); backdrop-filter: blur(15px); text-align: center; margin-bottom: 20px; }}
+        
+        /* 🖤 BLACK GLASS SIDEBAR */
+        [data-testid="stSidebar"] {{
+            background: rgba(0, 0, 0, 0.45) !important;
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border-right: 1px solid rgba(255, 215, 0, 0.2);
+        }}
+        
+        .purple-box {{ 
+            background: rgba(255, 255, 255, 0.08); 
+            padding: 25px; 
+            border-radius: 20px; 
+            border: 1px solid rgba(255,215,0,0.3); 
+            backdrop-filter: blur(10px); 
+            text-align: center; 
+            margin-bottom: 20px; 
+        }}
         h1, h2, h3, p, label {{ color: white !important; font-weight: bold !important; }}
         .stButton>button {{ background: #FFD700; color: black; border-radius: 12px; font-weight: bold; width: 100%; height: 45px; }}
     </style>""", unsafe_allow_html=True)
 
-# --- 3. 📊 SMART ENGINES ---
+# --- 3. 📊 CORE ENGINES ---
 def upload_bill(file):
     try:
         img_data = base64.b64encode(file.getvalue())
@@ -64,7 +81,7 @@ if not st.session_state.auth:
 else:
     curr_user = st.session_state.user
     
-    # User-based menu
+    # 🛡️ ROLE LOGIC: ശബാനയ്ക്കും ഇപ്പോൾ History കാണാം
     if curr_user == "shabana":
         menu = ["💰 Add Entry", "🤝 Debt Tracker", "🔍 History"]
     else:
@@ -111,40 +128,25 @@ else:
                             st.success(f"സേവ് ആയി! ബാലൻസ്: ₹{new_bal:,.2f}"); st.rerun()
                     except: st.error("Amount കൃത്യമായി നൽകുക!")
 
-    elif page == "📊 Report" and curr_user != "shabana":
-        st.title("Analysis & Export 📈")
+    elif page == "🔍 History":
+        st.title("Transaction Ledger 🔍")
         if not df_main.empty:
-            df_plot = df_main.copy()
-            df_plot['Debit'] = pd.to_numeric(df_plot['Debit'], errors='coerce').fillna(0)
-            df_plot = df_plot[df_plot['Debit'] > 0]
-            
-            if not df_plot.empty:
-                fig = px.pie(df_plot, values='Debit', names='Item', hole=0.4, title="Expense Distribution")
-                fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', font_color="white")
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # PDF Download Button
-                if st.button("Generate PDF Report"):
-                    pdf = FPDF()
-                    pdf.add_page()
-                    pdf.set_font("Arial", 'B', 16)
-                    pdf.cell(200, 10, txt="Paichi AI - Monthly Report", ln=True, align='C')
-                    pdf.set_font("Arial", size=12)
-                    pdf.cell(200, 10, txt=f"Total Balance: {balance}", ln=True)
-                    st.download_button("Download PDF", data=pdf.output(dest='S').encode('latin-1'), file_name="report.pdf")
-            else: st.write("ചിലവുകൾ ഒന്നുമില്ല.")
+            st.dataframe(df_main.iloc[::-1], use_container_width=True)
+            if st.button("Generate PDF Report"):
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", 'B', 16)
+                pdf.cell(200, 10, txt="Paichi AI - Ledger Report", ln=True, align='C')
+                st.download_button("Download PDF", data=pdf.output(dest='S').encode('latin-1'), file_name="history.pdf")
+        else: st.write("No transactions found.")
 
     elif page == "📊 Trading Advisor" and curr_user != "shabana":
         st.title("🛢️ Market Tracker")
         for name, sym in {"Crude Oil": "CL=F", "Nifty 50": "^NSEI", "Bank Nifty": "^NSEBANK"}.items():
             try:
                 px = yf.Ticker(sym).history(period="1d")['Close'].iloc[-1]
-                if "Crude" in name: px *= 83.5 # Convert to INR approx
+                if "Crude" in name: px *= 83.5 
                 st.markdown(f'<div class="purple-box"><h3>{name}</h3><h1 style="color:#00FF00 !important;">₹{px:,.2f}</h1></div>', unsafe_allow_html=True)
             except: pass
-
-    elif page == "🔍 History":
-        st.title("History 🔍")
-        st.dataframe(df_main.iloc[::-1], use_container_width=True)
 
     if st.sidebar.button("Logout"): st.session_state.auth = False; st.rerun()
