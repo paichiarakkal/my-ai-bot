@@ -3,7 +3,9 @@ pandas
 requests
 yfinance
 plotly
-streamlit-lottie
 streamlit-mic-recorder
 streamlit-autorefresh
-fpdf
+pytesseract
+pillow
+opencv-python-headless
+numpy
