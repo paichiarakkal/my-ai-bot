@@ -38,10 +38,11 @@ def get_data():
         return df
     except: return pd.DataFrame()
 
-def add_to_sheet(item, amount, typ, cat, user="App"):
-    # ഗൂഗിൾ സ്ക്രിപ്റ്റിലേക്ക് Item, Amount, Type, Category എല്ലാം വെവ്വേറെ അയക്കുന്നു
+def add_to_sheet(item, amount, typ, user="App"):
     t_p = "d" if typ.lower() == "debit" else "c"
-    url = f"{SCRIPT_API}?item={urllib.parse.quote(item)}&amount={amount}&type={t_p}&cat={urllib.parse.quote(cat)}&user={user}"
+    # വാട്സാപ്പിൽ അയക്കുന്ന അതേ ഫോർമാറ്റിലേക്ക് മാറ്റുന്നു
+    full_item = f"{item}"
+    url = f"{SCRIPT_API}?item={urllib.parse.quote(full_item)}&amount={amount}&type={t_p}&user={user}"
     try: requests.get(url, timeout=10)
     except: pass
 
@@ -92,24 +93,18 @@ else:
         st.title("New Entry 🎙️")
         v = speech_to_text(language='ml', key='voice')
         with st.form("fm", clear_on_submit=True):
-            it = st.text_input("Item Name", value=v if v else "")
-            cat_options = ["Food", "Transport", "Salary", "Shopping", "Rent", "Others"]
-            cat = st.selectbox("Category", cat_options)
+            it = st.text_input("Item (ഉദാ: Tea (Food))", value=v if v else "")
             am = st.text_input("Amount")
             ty = st.radio("Type", ["Debit", "Credit"], horizontal=True)
             if st.form_submit_button("SAVE"):
-                add_to_sheet(it, float(am), ty, cat, user=curr_user.capitalize())
-                st.success(f"Saved: {it} in {cat} ✅"); st.rerun()
+                add_to_sheet(it, float(am), ty, user=curr_user.capitalize())
+                st.success(f"Saved: {it} ✅"); st.rerun()
 
     elif page == "📊 Report":
         st.title("Expense Analysis")
-        # ഷീറ്റിലെ 'Category' കോളം ഉപയോഗിച്ച് റിപ്പോർട്ട് ഉണ്ടാക്കുന്നു
-        if not df.empty and 'Category' in df.columns:
-            exp = df[df['Debit'] > 0]
-            if not exp.empty:
-                st.plotly_chart(px.pie(exp, values='Debit', names='Category', hole=0.4))
-        else:
-            st.info("Category വിവരങ്ങൾ ഷീറ്റിൽ ലഭ്യമല്ല.")
+        exp = df[df['Debit'] > 0]
+        if not exp.empty:
+            st.plotly_chart(px.pie(exp, values='Debit', names='Item', hole=0.4))
 
     elif page == "🔍 History":
         st.title("History")
@@ -119,10 +114,10 @@ else:
         st.title("Debt Tracker 🤝")
         with st.form("d_fm", clear_on_submit=True):
             p_n, p_a = st.text_input("Name"), st.text_input("Amount")
-            cat_debt = st.selectbox("Type", ["Lent (കൊടുത്തത്)", "Borrowed (വാങ്ങിയത്)"])
+            cat = st.selectbox("Type", ["Lent (കൊടുത്തത്)", "Borrowed (വാങ്ങിയത്)"])
             if st.form_submit_button("SAVE DEBT"):
-                ty = "Debit" if "Lent" in cat_debt else "Credit"
-                add_to_sheet(f"DEBT: {p_n}", float(p_a), ty, "Debt", user=curr_user.capitalize())
+                ty = "Debit" if "Lent" in cat else "Credit"
+                add_to_sheet(f"DEBT: {p_n}", float(p_a), ty, user=curr_user.capitalize())
                 st.success("Debt Saved! ✅"); st.rerun()
 
     if st.sidebar.button("Logout"): st.session_state.auth = False; st.rerun()
