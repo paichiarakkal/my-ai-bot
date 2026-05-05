@@ -24,6 +24,7 @@ WA_API_KEY = "7463030"
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
 st.set_page_config(page_title="PAICHI GOLD v8.0", layout="wide")
+# ഓരോ 60 സെക്കൻഡിലും ആപ്പ് തനിയെ പുതുക്കപ്പെടും
 st_autorefresh(interval=60000, key="auto_refresh")
 
 # --- 2. 🎨 PREMIUM DESIGN ---
@@ -112,34 +113,43 @@ def create_pdf(df):
         return pdf.output(dest='S').encode('latin-1')
     except: return None
 
-# --- 4. 🔔 AUTOMATIC TWILIO NOTIFIER ENGINE ---
-if 'last_row_count' not in st.session_state:
-    try:
-        temp_df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
-        temp_df.columns = temp_df.columns.str.strip()
-        st.session_state.last_row_count = len(temp_df)
-    except:
-        st.session_state.last_row_count = 0
+# --- 4. 🔔 AUTOMATIC EXTERNAL NOTIFIER ENGINE ---
 
 def check_for_new_entries():
+    url = f"{CSV_URL}&r={random.randint(1,99999)}"
     try:
-        current_df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
+        current_df = pd.read_csv(url)
         current_df.columns = current_df.columns.str.strip()
         current_row_count = len(current_df)
         
+        # ആദ്യ റണ്ണിൽ വരികളുടെ എണ്ണം സെറ്റ് ചെയ്യുന്നു
+        if 'last_row_count' not in st.session_state:
+            st.session_state.last_row_count = current_row_count
+            return
+
+        # പുതിയ വരികൾ വന്നിട്ടുണ്ടെങ്കിൽ
         if current_row_count > st.session_state.last_row_count:
             new_rows = current_df.iloc[st.session_state.last_row_count:]
             for index, row in new_rows.iterrows():
                 item_val = str(row.get('Item', ''))
-                if "[Faisal]" in item_val or "[Shabana]" in item_val:
-                    d_val = pd.to_numeric(row.get('Debit', 0), errors='coerce') or 0
-                    c_val = pd.to_numeric(row.get('Credit', 0), errors='coerce') or 0
-                    amt = d_val if d_val > 0 else c_val
-                    notif_msg = f"🔔 *External Entry Saved*\n📝 {item_val}\n💰 Amount: ₹{amt:,.2f}"
+                
+                # പുറത്തുനിന്നുള്ള എൻട്രികൾ പരിശോധിക്കുന്നു
+                if any(x in item_val for x in ["[WhatsApp]", "[Faisal]", "[Shabana]"]):
+                    amt = row.get('Amount', 0)
+                    # തുക കൃത്യമായി കിട്ടാൻ Debit/Credit കൂടി നോക്കുന്നു
+                    if pd.to_numeric(amt, errors='coerce') == 0 or pd.isna(amt):
+                        d_val = pd.to_numeric(row.get('Debit', 0), errors='coerce') or 0
+                        c_val = pd.to_numeric(row.get('Credit', 0), errors='coerce') or 0
+                        amt = d_val if d_val > 0 else c_val
+                    
+                    notif_msg = f"🔔 *New Entry Detected*\n📝 {item_val}\n💰 Amount: ₹{amt}"
                     send_whatsapp_auto(notif_msg)
+            
+            # കൗണ്ട് അപ്‌ഡേറ്റ് ചെയ്യുന്നു
             st.session_state.last_row_count = current_row_count
     except: pass
 
+# ഫങ്ക്ഷൻ കോൾ ചെയ്യുന്നു
 check_for_new_entries()
 
 # --- 5. APP MAIN ---
@@ -204,14 +214,13 @@ else:
                     am = float(am_str.strip().replace(',', ''))
                     if it and am > 0:
                         d, c = (am, 0) if ty == "Debit" else (0, am)
-                        # ഇവിടെ ഉപയോഗിക്കുന്ന Payload ഗൂഗിൾ ഫോം വഴിയാണ് ഡാറ്റ അയക്കുന്നത്
                         payload = {"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": f"[{curr_user.capitalize()}] {cat}: {it}", "entry.1460982454": d, "entry.1221658767": c}
                         
                         threading.Thread(target=send_to_google_async, args=(payload,)).start()
                         msg = f"✅ *Paichi Entry*\n📝 Item: {it}\n💰 Amt: ₹{am}\n👤 User: {curr_user}"
                         threading.Thread(target=send_whatsapp_auto, args=(msg,)).start()
                         st.success("Saved & Notification Sent! ✅")
-                        # നോട്ടിഫിക്കേഷൻ ലൂപ്പ് ഒഴിവാക്കാൻ കൗണ്ട് അപ്‌ഡേറ്റ് ചെയ്യുന്നു
+                        # നോട്ടിഫിക്കേഷൻ ലൂപ്പ് ഒഴിവാക്കാൻ കൗണ്ട് ഇവിടെയും അപ്ഡേറ്റ് ചെയ്യുന്നു
                         st.session_state.last_row_count += 1
                     else: st.error("വിവരങ്ങൾ നൽകുക!")
                 except: st.error("നമ്പർ മാത്രം നൽകുക!")
