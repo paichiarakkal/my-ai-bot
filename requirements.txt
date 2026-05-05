@@ -9,3 +9,4 @@ pytesseract
 pillow
 opencv-python-headless
 numpy
+fpdf
