@@ -129,3 +129,36 @@ else:
                 st.success("Debt Saved! ✅"); st.rerun()
 
     if st.sidebar.button("Logout"): st.session_state.auth = False; st.rerun()
+# പഴയ വരികളുടെ എണ്ണം സൂക്ഷിക്കാൻ ഒരു വേരിയബിൾ
+if 'last_row_count' not in st.session_state:
+    try:
+        temp_df = pd.read_csv(CSV_URL)
+        st.session_state.last_row_count = len(temp_df)
+    except:
+        st.session_state.last_row_count = 0
+
+# ഷീറ്റിൽ പുതിയ വരി വന്നോ എന്ന് പരിശോധിക്കുന്ന ഫങ്ക്ഷൻ
+def check_for_new_entries():
+    try:
+        current_df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
+        current_row_count = len(current_df)
+        
+        if current_row_count > st.session_state.last_row_count:
+            # പുതിയ വരികൾ വന്നിട്ടുണ്ട്!
+            new_rows = current_df.iloc[st.session_state.last_row_count:]
+            
+            for index, row in new_rows.iterrows():
+                item = row['Item']
+                # ഇത് Twilio വഴിയാണോ വന്നതെന്ന് നോക്കുന്നു (ഉദാഹരണത്തിന് [Shabana] എന്ന് പേര് ഉണ്ടോ എന്ന്)
+                if "[Shabana]" in str(item) or "[Faisal]" in str(item):
+                    amt = row['Debit'] if row['Debit'] > 0 else row['Credit']
+                    msg = f"🔔 *External Entry Detected*\n📝 {item}\n💰 Amt: ₹{amt}"
+                    send_whatsapp_auto(msg)
+            
+            # കൗണ്ട് അപ്ഡേറ്റ് ചെയ്യുന്നു
+            st.session_state.last_row_count = current_row_count
+    except:
+        pass
+
+# ഇത് ഓട്ടോമാറ്റിക്കായി റൺ ചെയ്യാൻ നിന്റെ st_autorefresh സഹായിക്കും
+check_for_new_entries()
