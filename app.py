@@ -122,21 +122,16 @@ def check_for_new_entries():
         current_df.columns = current_df.columns.str.strip()
         current_row_count = len(current_df)
         
-        # ആദ്യ റണ്ണിൽ വരികളുടെ എണ്ണം സെറ്റ് ചെയ്യുന്നു
         if 'last_row_count' not in st.session_state:
             st.session_state.last_row_count = current_row_count
             return
 
-        # പുതിയ വരികൾ വന്നിട്ടുണ്ടെങ്കിൽ
         if current_row_count > st.session_state.last_row_count:
             new_rows = current_df.iloc[st.session_state.last_row_count:]
             for index, row in new_rows.iterrows():
                 item_val = str(row.get('Item', ''))
-                
-                # പുറത്തുനിന്നുള്ള എൻട്രികൾ പരിശോധിക്കുന്നു
                 if any(x in item_val for x in ["[WhatsApp]", "[Faisal]", "[Shabana]"]):
                     amt = row.get('Amount', 0)
-                    # തുക കൃത്യമായി കിട്ടാൻ Debit/Credit കൂടി നോക്കുന്നു
                     if pd.to_numeric(amt, errors='coerce') == 0 or pd.isna(amt):
                         d_val = pd.to_numeric(row.get('Debit', 0), errors='coerce') or 0
                         c_val = pd.to_numeric(row.get('Credit', 0), errors='coerce') or 0
@@ -145,11 +140,9 @@ def check_for_new_entries():
                     notif_msg = f"🔔 *New Entry Detected*\n📝 {item_val}\n💰 Amount: ₹{amt}"
                     send_whatsapp_auto(notif_msg)
             
-            # കൗണ്ട് അപ്‌ഡേറ്റ് ചെയ്യുന്നു
             st.session_state.last_row_count = current_row_count
     except: pass
 
-# ഫങ്ക്ഷൻ കോൾ ചെയ്യുന്നു
 check_for_new_entries()
 
 # --- 5. APP MAIN ---
@@ -171,8 +164,11 @@ else:
         <span style="font-size:40px; color:#FFD700; font-weight:bold;">₹{balance:,.2f}</span>
     </div>''', unsafe_allow_html=True)
 
-    if curr_user == "shabana": menu_options = ["💰 Add Entry"]
-    else: menu_options = ["📊 Advisor", "🏠 Dashboard", "💰 Add Entry", "📊 Report", "🔍 History", "🤝 Debt Tracker"]
+    # ഷബാനയ്ക്ക് ഹിസ്റ്ററി കൂടി കാണാൻ മെനുവിൽ മാറ്റം വരുത്തി
+    if curr_user == "shabana": 
+        menu_options = ["💰 Add Entry", "🔍 History"]
+    else: 
+        menu_options = ["📊 Advisor", "🏠 Dashboard", "💰 Add Entry", "📊 Report", "🔍 History", "🤝 Debt Tracker"]
 
     page = st.sidebar.radio("Menu", menu_options)
     if st.sidebar.button("Logout"): st.session_state.auth = False; st.rerun()
@@ -218,9 +214,8 @@ else:
                         
                         threading.Thread(target=send_to_google_async, args=(payload,)).start()
                         msg = f"✅ *Paichi Entry*\n📝 Item: {it}\n💰 Amt: ₹{am}\n👤 User: {curr_user}"
-                        threading.Thread(target=send_whatsapp_auto, args=(msg,)).start()
+                        threading.Thread(target=send_whatsapp_auto(msg,)).start()
                         st.success("Saved & Notification Sent! ✅")
-                        # നോട്ടിഫിക്കേഷൻ ലൂപ്പ് ഒഴിവാക്കാൻ കൗണ്ട് ഇവിടെയും അപ്ഡേറ്റ് ചെയ്യുന്നു
                         st.session_state.last_row_count += 1
                     else: st.error("വിവരങ്ങൾ നൽകുക!")
                 except: st.error("നമ്പർ മാത്രം നൽകുക!")
