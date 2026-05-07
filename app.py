@@ -157,7 +157,7 @@ else:
         <span style="font-size:40px; color:#FFD700; font-weight:bold;">₹{balance:,.2f}</span>
     </div>''', unsafe_allow_html=True)
 
-    # ഷബാനയ്ക്ക് റിപ്പോർട്ടും ഹിസ്റ്ററിയും കാണാൻ അനുവാദം നൽകി
+    # ഷബാനയ്ക്കും എല്ലാ ആക്സസ്സും നൽകി
     if curr_user == "shabana": 
         menu_options = ["💰 Add Entry", "📊 Report", "🔍 History"]
     else: 
@@ -212,7 +212,6 @@ else:
         df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
         df['Month'] = df['Date'].dt.strftime('%B %Y')
         
-        # പഴയ മാസങ്ങൾ കാണാൻ ഫിൽട്ടർ
         months = df.sort_values(by='Date', ascending=False)['Month'].dropna().unique()
         sel_month = st.selectbox("Select Month", months)
         
@@ -226,7 +225,16 @@ else:
         </div>""", unsafe_allow_html=True)
 
         if m_total > 0:
-            fig = px.pie(monthly_df[monthly_df['Debit'] > 0], values='Debit', names='Item', hole=0.4)
+            # പൈ ചാർട്ടിലെ എഴുത്തുകൾ ശരിയാക്കാൻ കാറ്റഗറി ലേബൽ ഉപയോഗിക്കുന്നു
+            monthly_df['Category_Label'] = monthly_df['Item'].apply(lambda x: x.split(':')[0] if ':' in x else 'Others')
+            
+            fig = px.pie(
+                monthly_df[monthly_df['Debit'] > 0], 
+                values='Debit', 
+                names='Category_Label', 
+                hole=0.4
+            )
+            fig.update_traces(textposition='inside', textinfo='percent+label')
             st.plotly_chart(fig, use_container_width=True)
 
     elif page == "🔍 History":
