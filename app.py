@@ -17,7 +17,6 @@ import threading
 CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
 FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSfLySolQSiRXV0wELNPhUBlKJh77RnJKWc2-uqAM0TPNG3Q5A/formResponse"
 
-# WhatsApp API Config (CallMeBot)
 WA_PHONE = "971551347989"
 WA_API_KEY = "7463030"
 
@@ -43,7 +42,6 @@ if 'auth' not in st.session_state: st.session_state.auth = False
 if 'user' not in st.session_state: st.session_state.user = ""
 
 # --- 3. 📊 SMART ENGINES ---
-
 def send_whatsapp_auto(message):
     url = f"https://api.callmebot.com/whatsapp.php?phone={WA_PHONE}&text={urllib.parse.quote(message)}&apikey={WA_API_KEY}"
     try: requests.get(url, timeout=10)
@@ -112,7 +110,6 @@ def create_pdf(df):
         return pdf.output(dest='S').encode('latin-1')
     except: return None
 
-# --- 4. 🔔 NOTIFIER ---
 def check_for_new_entries():
     url = f"{CSV_URL}&r={random.randint(1,99999)}"
     try:
@@ -157,7 +154,6 @@ else:
         <span style="font-size:40px; color:#FFD700; font-weight:bold;">₹{balance:,.2f}</span>
     </div>''', unsafe_allow_html=True)
 
-    # ഷബാനയ്ക്കും എല്ലാ ആക്സസ്സും നൽകി
     if curr_user == "shabana": 
         menu_options = ["💰 Add Entry", "📊 Report", "🔍 History"]
     else: 
@@ -166,7 +162,6 @@ else:
     page = st.sidebar.radio("Menu", menu_options)
     if st.sidebar.button("Logout"): st.session_state.auth = False; st.rerun()
 
-    # --- PAGES ---
     if page == "📊 Advisor":
         st.title("🚀 Smart Trading Terminal")
         markets = get_triple_advisor()
@@ -211,41 +206,25 @@ else:
         df.columns = df.columns.str.strip()
         df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
         df['Month'] = df['Date'].dt.strftime('%B %Y')
-        
         months = df.sort_values(by='Date', ascending=False)['Month'].dropna().unique()
         sel_month = st.selectbox("Select Month", months)
-        
         monthly_df = df[df['Month'] == sel_month].copy()
         monthly_df['Debit'] = pd.to_numeric(monthly_df['Debit'], errors='coerce').fillna(0)
         m_total = monthly_df['Debit'].sum()
-        
-        st.markdown(f"""<div class="purple-box">
-            <h3>{sel_month} Total Expense</h3>
-            <h1 style="color: #FF3131;">₹{m_total:,.2f}</h1>
-        </div>""", unsafe_allow_html=True)
-
+        st.markdown(f'<div class="purple-box"><h3>{sel_month} Total Expense</h3><h1 style="color: #FF3131;">₹{m_total:,.2f}</h1></div>', unsafe_allow_html=True)
         if m_total > 0:
-            # പൈ ചാർട്ടിലെ എഴുത്തുകൾ ശരിയാക്കാൻ കാറ്റഗറി ലേബൽ ഉപയോഗിക്കുന്നു
             monthly_df['Category_Label'] = monthly_df['Item'].apply(lambda x: x.split(':')[0] if ':' in x else 'Others')
-            
-            fig = px.pie(
-                monthly_df[monthly_df['Debit'] > 0], 
-                values='Debit', 
-                names='Category_Label', 
-                hole=0.4
-            )
+            fig = px.pie(monthly_df[monthly_df['Debit'] > 0], values='Debit', names='Category_Label', hole=0.4)
             fig.update_traces(textposition='inside', textinfo='percent+label')
             st.plotly_chart(fig, use_container_width=True)
 
-        elif page == "🔍 History":
+    elif page == "🔍 History":
         st.title("Transaction History")
-        df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
-        df.columns = df.columns.str.strip()
-        
-        pdf_bytes = create_pdf(df)
+        df_hist = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
+        df_hist.columns = df_hist.columns.str.strip()
+        pdf_bytes = create_pdf(df_hist)
         if pdf_bytes: st.download_button("📥 Download PDF", pdf_bytes, "Report.pdf", "application/pdf")
 
-        # --- കളർ വരാനും എറർ ഒഴിവാക്കാനുമുള്ള ഭാഗം ---
         def highlight_cols(x):
             style_df = pd.DataFrame('', index=x.index, columns=x.columns)
             d_num = pd.to_numeric(x['Debit'], errors='coerce').fillna(0)
@@ -254,12 +233,10 @@ else:
             style_df.loc[c_num > 0, 'Credit'] = 'background-color: #e6ffed; color: green; font-weight: bold;'
             return style_df
 
-        # നമ്പറുകൾ .00 ഫോർമാറ്റിൽ കാണിക്കാൻ
-        styled_df = df.iloc[::-1].style.apply(highlight_cols, axis=None).format({
+        styled_df = df_hist.iloc[::-1].style.apply(highlight_cols, axis=None).format({
             'Debit': lambda x: f"{float(x):.2f}" if str(x).replace('.','',1).isdigit() else x,
             'Credit': lambda x: f"{float(x):.2f}" if str(x).replace('.','',1).isdigit() else x
         }, na_rep="")
-        
         st.dataframe(styled_df, use_container_width=True)
 
     elif page == "🤝 Debt Tracker":
