@@ -137,7 +137,6 @@ else:
     page = st.sidebar.radio("Menu", menu_options)
     if st.sidebar.button("Logout"): st.session_state.auth = False; st.rerun()
 
-    # (ഇവിടെ Advisor, Dashboard, Add Entry, Report സെക്ഷനുകൾ പഴയതുപോലെ തന്നെ തുടരും...)
     if page == "📊 Advisor":
         st.title("🚀 Smart Trading Terminal")
         markets = get_triple_advisor()
@@ -170,9 +169,13 @@ else:
                     am = float(am_str.strip().replace(',', ''))
                     d, c = (am, 0) if ty == "Debit" else (0, am)
                     payload = {"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": f"[{curr_user.capitalize()}] {cat}: {it}", "entry.1460982454": d, "entry.1221658767": c}
+                    
+                    new_bal = balance - d + c
                     threading.Thread(target=send_to_google_async, args=(payload,)).start()
-                    send_whatsapp_auto(f"✅ *Paichi Entry*\n📝 Item: {it}\n💰 Amt: ₹{am}\n👤 User: {curr_user}")
-                    st.success("Saved! ✅")
+                    
+                    wa_msg = f"✅ *Paichi Entry Saved!*\n📝 Item: {it}\n💰 Amt: ₹{am:,.2f}\n👤 User: {curr_user}\n\n💳 *Current Bal: ₹{new_bal:,.2f}*"
+                    send_whatsapp_auto(wa_msg)
+                    st.success(f"Saved! Balance: ₹{new_bal:,.2f}")
                 except: st.error("Error!")
 
     elif page == "📊 Report":
@@ -193,30 +196,25 @@ else:
             fig.update_traces(textposition='inside', textinfo='percent+label')
             st.plotly_chart(fig, use_container_width=True)
 
-    # --- പരിഹാരം ഇവിടെയാണ് ---
     elif page == "🔍 History":
         st.title("Transaction History")
         df_hist = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
         df_hist.columns = df_hist.columns.str.strip()
-        
         pdf_bytes = create_pdf(df_hist)
         if pdf_bytes: st.download_button("📥 Download PDF", pdf_bytes, "Report.pdf", "application/pdf")
 
         def highlight_cols(x):
             style_df = pd.DataFrame('', index=x.index, columns=x.columns)
-            # നമ്പറുകൾ മാത്രമാണെന്ന് ഉറപ്പുവരുത്തുന്നു
             d_num = pd.to_numeric(x['Debit'], errors='coerce').fillna(0)
             c_num = pd.to_numeric(x['Credit'], errors='coerce').fillna(0)
             style_df.loc[d_num > 0, 'Debit'] = 'background-color: #ffe6e6; color: red; font-weight: bold;'
             style_df.loc[c_num > 0, 'Credit'] = 'background-color: #e6ffed; color: green; font-weight: bold;'
             return style_df
 
-        # ഇവിടെയാണ് നമ്പറുകൾ രണ്ട് പൂജ്യം മാത്രമാക്കി മാറ്റുന്നത്
         styled_df = df_hist.iloc[::-1].style.apply(highlight_cols, axis=None).format({
             'Debit': lambda x: f"{float(x):.2f}" if str(x).replace('.','',1).isdigit() else x,
             'Credit': lambda x: f"{float(x):.2f}" if str(x).replace('.','',1).isdigit() else x
         }, na_rep="")
-        
         st.dataframe(styled_df, use_container_width=True)
 
     elif page == "🤝 Debt Tracker":
