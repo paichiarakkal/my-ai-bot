@@ -16,12 +16,25 @@ USERS = {"faisal": "faisal147", "shabana": "shabana123"}
 
 st.set_page_config(page_title="PAICHI GOLD", layout="wide")
 
-# --- 2. STYLE ---
+# --- 2. 🎨 DESIGN (Back to Classic Look) ---
 st.markdown("""
     <style>
-    .stApp { background: #1A0521; color: white; }
-    .balance-banner { background: rgba(255, 215, 0, 0.1); padding: 20px; border-radius: 15px; border: 1px solid #FFD700; text-align: center; margin-bottom: 20px; }
-    .stDataFrame { background: white; border-radius: 10px; }
+    /* ബാക്ക്ഗ്രൗണ്ട് ഗ്രേഡിയന്റ് */
+    .stApp { background: linear-gradient(135deg, #2D0844, #4B0082, #1A0521); color: white; }
+    
+    /* സൈഡ് ബാർ പഴയതുപോലെ ഡാർക്ക് */
+    [data-testid="stSidebar"] { background: rgba(0,0,0,0.85) !important; }
+    
+    /* ബാലൻസ് ബാനർ */
+    .balance-banner { background: rgba(255, 255, 255, 0.05); padding: 25px; border-radius: 15px; border-left: 10px solid #FFD700; margin-bottom: 25px; text-align: center; }
+    
+    /* ബട്ടണുകൾ പഴയ മഞ്ഞ നിറത്തിൽ */
+    .stButton>button { background-color: #FFD700; color: #000; border-radius: 10px; font-weight: bold; }
+    
+    /* ടേബിൾ വെള്ള ബാക്ക്ഗ്രൗണ്ടിൽ */
+    .stDataFrame { background: white; border-radius: 10px; color: black; }
+    
+    h1, h2, h3, p, label { color: white !important; font-weight: bold !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -67,43 +80,49 @@ if not st.session_state.auth:
             st.session_state.auth, st.session_state.user = True, u
             st.rerun()
 else:
+    curr_user = st.session_state.user
     df = get_data()
     balance = df['Credit'].sum() - df['Debit'].sum()
     
-    st.markdown(f'<div class="balance-banner"><h3>Balance: ₹{balance:,.2f}</h3></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="balance-banner"><h3>Total Balance: ₹{balance:,.2f}</h3></div>', unsafe_allow_html=True)
     
-    page = st.sidebar.radio("Menu", ["💰 Add Entry", "🔍 History", "📊 Trading"])
+    # ശബാനയുടെ മെനു നിയന്ത്രണം
+    if curr_user == "shabana":
+        menu = ["💰 Add Entry", "🔍 History"]
+    else:
+        menu = ["📊 Advisor", "💰 Add Entry", "🔍 History"]
     
-    if page == "💰 Add Entry":
-        st.title("Add Transaction")
+    page = st.sidebar.radio("Menu", menu)
+    
+    if page == "📊 Advisor":
+        st.title("📊 Market Watch")
+        signals = get_trading_signals()
+        for s in signals:
+            st.metric(s['name'], f"₹{s['price']:,.2f}")
+
+    elif page == "💰 Add Entry":
+        st.title("Add Entry 🎙️")
         v_raw = speech_to_text(language='ml', key='voice_input')
-        
         with st.form("entry_form", clear_on_submit=True):
-            it = st.text_input("Item", value=v_raw if v_raw else "")
+            it = st.text_input("Item/Description", value=v_raw if v_raw else "")
             am = st.number_input("Amount", min_value=0.0)
             ty = st.radio("Type", ["Debit", "Credit"], horizontal=True)
             if st.form_submit_button("SAVE"):
                 d, c = (am, 0) if ty == "Debit" else (0, am)
-                send_data(it, d, c, st.session_state.user)
-                st.success("Saved!")
+                send_data(it, d, c, curr_user)
+                st.success("Entry Saved Successfully! ✅")
 
     elif page == "🔍 History":
-        st.title("History")
+        st.title("Transaction History")
         if not df.empty:
             def highlight(x):
-                c = pd.DataFrame('', index=x.index, columns=x.columns)
-                c.loc[x['Debit'] > 0, 'Debit'] = 'color: red; font-weight: bold;'
-                c.loc[x['Credit'] > 0, 'Credit'] = 'color: green; font-weight: bold;'
-                return c
+                style_df = pd.DataFrame('', index=x.index, columns=x.columns)
+                style_df.loc[x['Debit'] > 0, 'Debit'] = 'background-color: #ffe6e6; color: red; font-weight: bold;'
+                style_df.loc[x['Credit'] > 0, 'Credit'] = 'background-color: #e6ffed; color: green; font-weight: bold;'
+                return style_df
 
             styled_df = df.iloc[::-1].style.apply(highlight, axis=None).format({'Debit': "{:.2f}", 'Credit': "{:.2f}"})
             st.dataframe(styled_df, use_container_width=True)
-
-    elif page == "📊 Trading":
-        st.title("Market Watch")
-        signals = get_trading_signals()
-        for s in signals:
-            st.metric(s['name'], f"₹{s['price']:,.2f}")
 
     if st.sidebar.button("Logout"):
         st.session_state.auth = False
