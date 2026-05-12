@@ -237,24 +237,7 @@ else:
             fig.update_traces(textposition='inside', textinfo='percent+label')
             st.plotly_chart(fig, use_container_width=True)
 
-    elif page == "🔍 History":
-        st.title("Transaction History")
-        df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
-        pdf_bytes = create_pdf(df)
-        if pdf_bytes: st.download_button("📥 Download PDF", pdf_bytes, "Report.pdf", "application/pdf")
-        st.dataframe(df.iloc[::-1], use_container_width=True)
-
-    elif page == "🤝 Debt Tracker":
-        st.title("Debt Management")
-        with st.form("debt_form"):
-            n, a = st.text_input("Name"), st.number_input("Amount", min_value=0.0)
-            t = st.selectbox("Category", ["Borrowed", "Lent"])
-            if st.form_submit_button("SAVE"):
-                d, c = (0, a) if "Borrowed" in t else (a, 0)
-                payload = {"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": f"[{curr_user.capitalize()}] DEBT: {t} - {n}", "entry.1460982454": d, "entry.1221658767": c}
-                threading.Thread(target=send_to_google_async, args=(payload,)).start()
-                st.success("Saved! ✅")
-                st.session_state.last_row_count += 1    elif page == "🔍 History":
+        elif page == "🔍 History":
         st.title("Transaction History")
         df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
         df.columns = df.columns.str.strip()
@@ -278,3 +261,15 @@ else:
         }, na_rep="")
         
         st.dataframe(styled_df, use_container_width=True)
+
+    elif page == "🤝 Debt Tracker":
+        st.title("Debt Management")
+        with st.form("debt_form"):
+            n, a = st.text_input("Name"), st.number_input("Amount", min_value=0.0)
+            t = st.selectbox("Category", ["Borrowed", "Lent"])
+            if st.form_submit_button("SAVE"):
+                d, c = (0, a) if "Borrowed" in t else (a, 0)
+                payload = {"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": f"[{curr_user.capitalize()}] DEBT: {t} - {n}", "entry.1460982454": d, "entry.1221658767": c}
+                threading.Thread(target=send_to_google_async, args=(payload,)).start()
+                st.success("Saved! ✅")
+                st.session_state.last_row_count += 1
