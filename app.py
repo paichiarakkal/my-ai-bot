@@ -157,7 +157,6 @@ else:
         <span style="font-size:40px; color:#FFD700; font-weight:bold;">₹{balance:,.2f}</span>
     </div>''', unsafe_allow_html=True)
 
-    # ഷബാനയ്ക്കും എല്ലാ ആക്സസ്സും നൽകി
     if curr_user == "shabana": 
         menu_options = ["💰 Add Entry", "📊 Report", "🔍 History"]
     else: 
@@ -225,24 +224,30 @@ else:
         </div>""", unsafe_allow_html=True)
 
         if m_total > 0:
-            # പൈ ചാർട്ടിലെ എഴുത്തുകൾ ശരിയാക്കാൻ കാറ്റഗറി ലേബൽ ഉപയോഗിക്കുന്നു
             monthly_df['Category_Label'] = monthly_df['Item'].apply(lambda x: x.split(':')[0] if ':' in x else 'Others')
-            
-            fig = px.pie(
-                monthly_df[monthly_df['Debit'] > 0], 
-                values='Debit', 
-                names='Category_Label', 
-                hole=0.4
-            )
+            fig = px.pie(monthly_df[monthly_df['Debit'] > 0], values='Debit', names='Category_Label', hole=0.4)
             fig.update_traces(textposition='inside', textinfo='percent+label')
             st.plotly_chart(fig, use_container_width=True)
 
     elif page == "🔍 History":
         st.title("Transaction History")
         df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
+        df.columns = df.columns.str.strip()
+        
         pdf_bytes = create_pdf(df)
         if pdf_bytes: st.download_button("📥 Download PDF", pdf_bytes, "Report.pdf", "application/pdf")
-        st.dataframe(df.iloc[::-1], use_container_width=True)
+        
+        # --- 🎨 HIGHLIGHTING LOGIC ---
+        def highlight_cols(x):
+            style_df = pd.DataFrame('', index=x.index, columns=x.columns)
+            # Debit ഉള്ള സെല്ലുകൾക്ക് ചുവപ്പ് നിറം
+            style_df.loc[pd.to_numeric(x['Debit'], errors='coerce') > 0, 'Debit'] = 'background-color: #ffe6e6; color: #cc0000; font-weight: bold;'
+            # Credit ഉള്ള സെല്ലുകൾക്ക് പച്ച നിറം
+            style_df.loc[pd.to_numeric(x['Credit'], errors='coerce') > 0, 'Credit'] = 'background-color: #e6ffed; color: #008000; font-weight: bold;'
+            return style_df
+
+        styled_df = df.iloc[::-1].style.apply(highlight_cols, axis=None)
+        st.dataframe(styled_df, use_container_width=True)
 
     elif page == "🤝 Debt Tracker":
         st.title("Debt Management")
