@@ -1,12 +1,1 @@
-streamlit
-pandas
-requests
 yfinance
-plotly
-streamlit-mic-recorder
-streamlit-autorefresh
-pytesseract
-pillow
-opencv-python-headless
-numpy
-fpdf
