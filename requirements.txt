@@ -1,4 +1,5 @@
 pandas
-pandas_ta
 yfinance
 requests
+streamlit
+https://github.com/twopirllc/pandas-ta/archive/refs/heads/development.zip
