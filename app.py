@@ -11,95 +11,21 @@ from fpdf import FPDF
 import io
 import re
 import urllib.parse
-import threading
-from flask import Flask, request as flask_request, jsonify
 
-# ==========================================
-# 1. FLASK BACKEND FOR WHATSAPP BOT (API)
-# ==========================================
-# ഗൂഗിൾ ആപ്പ് സ്ക്രിപ്റ്റിൽ ഉണ്ടായിരുന്ന അതേ വാട്സാപ്പ് ലോജിക് ഇവിടെ പൈത്തണിലേക്ക് മാറ്റിയിരിക്കുന്നു.
-# ഇതിലേക്ക് CallMeBot-ൽ നിന്ന് Webhook കണക്ട് ചെയ്യാം.
-
-flask_app = Flask(__name__)
-
-# WhatsApp API Config
-WA_PHONE = "971551347989"
-WA_API_KEY = "7463030"
+# --- 1. CONFIG & SETTINGS ---
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
 FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSfLySolQSiRXV0wELNPhUBlKJh77RnJKWc2-uqAM0TPNG3Q5A/formResponse"
 
-def send_whatsapp_bot(message):
-    url = f"https://api.callmebot.com/whatsapp.php?phone={WA_PHONE}&text={urllib.parse.quote(message)}&apikey={WA_API_KEY}"
-    try: requests.get(url, timeout=10)
-    except: pass
+# WhatsApp API Config (CallMeBot for Notifications)
+WA_PHONE = "971551347989"
+WA_API_KEY = "7463030"
 
-def send_to_google_sheet(item_name, debit_amt, credit_amt):
-    payload = {
-        "entry.1044099436": datetime.now().strftime("%Y-%m-%d"), 
-        "entry.2013476337": item_name, 
-        "entry.1460982454": debit_amt, 
-        "entry.1221658767": credit_amt
-    }
-    try: requests.post(FORM_API, data=payload, timeout=10)
-    except: pass
-
-@flask_app.route('/webhook', methods=['GET', 'POST'])
-def whatsapp_webhook():
-    # CallMeBot ഇൻകമിംഗ് മെസ്സേജുകൾ തരിക GET വഴിയോ POST വഴിയോ ആകാം
-    msg_body = flask_request.values.get('Body', '')
-    from_number = flask_request.values.get('From', '')
-    
-    if not msg_body:
-        return jsonify({"status": "No message body"}), 400
-        
-    # ആപ്പ് സ്ക്രിപ്റ്റിലെ പോലെ Faisal / Shabana യൂസർമാരെ തിരിച്ചറിയുന്നു
-    sender = "Faisal" if "971551347989" in from_number else "Shabana"
-    
-    # മെസ്സേജ് സ്പ്ലിറ്റ് ചെയ്യുന്നു (ഉദാഹരണത്തിന്: "Food 50 d" അല്ലെങ്കിൽ "Salary 5000 c")
-    parts = msg_body.split(' ')
-    item = parts[0] if len(parts) > 0 else "Unknown"
-    amount_str = parts[1] if len(parts) > 1 else "0"
-    type_char = parts[2].lower() if len(parts) > 2 else "d"
-    
-    try:
-        amount = float(amount_str)
-    except:
-        amount = 0.0
-        
-    debit = amount if type_char == "d" else 0
-    credit = amount if type_char == "c" else 0
-    
-    formatted_item = f"[{sender}] {item}"
-    
-    # 1. ഗൂഗിൾ ഷീറ്റിലേക്ക് ഡാറ്റ വിടുന്നു
-    send_to_google_sheet(formatted_item, debit, credit)
-    
-    # 2. തിരിച്ച് വാട്സാപ്പിലേക്ക് കൺഫർമേഷൻ മെസ്സേജ് അയക്കുന്നു
-    reply_msg = f"✅ *Entry Saved!*\n\n📝 *Item:* {item}\n💰 *Amount:* ₹{amount}\n👤 *Sender:* {sender}"
-    send_whatsapp_bot(reply_msg)
-    
-    return "OK", 200
-
-# Flask ബാക്ക്ഗ്രൗണ്ടിൽ തനിയെ റൺ ചെയ്യാനുള്ള ത്രെഡ് സെറ്റിംഗ്സ്
-def run_flask():
-    # പോർട്ട് 5000-ൽ ബോട്ട് സർവീസ് ലൈവ് ആകും
-    flask_app.run(port=5000, debug=False, use_reloader=False)
-
-# ആപ്പ് സ്റ്റാർട്ട് ചെയ്യുമ്പോൾ Flask ബാക്ക്ഗ്രൗണ്ടിൽ ലോഡ് ചെയ്യും
-if not any(t.name == "FlaskThread" for t in threading.enumerate()):
-    threading.Thread(target=run_flask, name="FlaskThread", daemon=True).start()
-
-
-# ==========================================
-# 2. STREAMLIT FRONTEND (PAICHI GOLD v8.0)
-# ==========================================
-
-CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
 st.set_page_config(page_title="PAICHI GOLD v8.0", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
-# --- 🎨 PREMIUM DESIGN ---
+# --- 2. 🎨 PREMIUM DESIGN ---
 st.markdown("""
     <style>
     .stApp { background: linear-gradient(135deg, #2D0844, #4B0082, #1A0521); color: #fff; }
@@ -115,7 +41,7 @@ st.markdown("""
 if 'auth' not in st.session_state: st.session_state.auth = False
 if 'user' not in st.session_state: st.session_state.user = ""
 
-# --- 📊 SMART ENGINES ---
+# --- 3. 📊 SMART ENGINES ---
 def send_whatsapp_auto(message):
     url = f"https://api.callmebot.com/whatsapp.php?phone={WA_PHONE}&text={urllib.parse.quote(message)}&apikey={WA_API_KEY}"
     try: requests.get(url, timeout=10)
@@ -184,7 +110,7 @@ def create_pdf(df):
         return pdf.output(dest='S').encode('latin-1')
     except: return None
 
-# --- 🔔 NOTIFIER ---
+# --- 4. 🔔 NOTIFIER ---
 def check_for_new_entries():
     url = f"{CSV_URL}&r={random.randint(1,99999)}"
     try:
@@ -210,7 +136,7 @@ def check_for_new_entries():
 
 check_for_new_entries()
 
-# --- APP MAIN ---
+# --- 5. APP MAIN ---
 if not st.session_state.auth:
     st.title("🔐 PAICHI FINANCE LOGIN")
     u = st.text_input("Username").lower()
@@ -270,7 +196,7 @@ else:
                     am = float(am_str.strip().replace(',', ''))
                     d, c = (am, 0) if ty == "Debit" else (0, am)
                     payload = {"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": f"[{curr_user.capitalize()}] {cat}: {it}", "entry.1460982454": d, "entry.1221658767": c}
-                    threading.Thread(target=send_to_google_async, args=(payload,)).start()
+                    send_to_google_async(payload)
                     send_whatsapp_auto(f"✅ *Paichi Entry*\n📝 Item: {it}\n💰 Amt: ₹{am}\n👤 User: {curr_user}")
                     st.success("Saved! ✅")
                     st.session_state.last_row_count += 1
@@ -322,6 +248,6 @@ else:
             if st.form_submit_button("SAVE"):
                 d, c = (0, a) if "Borrowed" in t else (a, 0)
                 payload = {"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": f"[{curr_user.capitalize()}] DEBT: {t} - {n}", "entry.1460982454": d, "entry.1221658767": c}
-                threading.Thread(target=send_to_google_async, args=(payload,)).start()
+                send_to_google_async(payload)
                 st.success("Saved! ✅")
                 st.session_state.last_row_count += 1
