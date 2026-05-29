@@ -1,5 +1,8 @@
-pandas
-yfinance
-requests
 streamlit
-pip install flask --break-system-packages
+pandas
+requests
+yfinance
+plotly
+streamlit-mic-recorder
+streamlit-autorefresh
+fpdf2
