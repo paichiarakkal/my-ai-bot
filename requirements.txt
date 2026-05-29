@@ -2,3 +2,4 @@ pandas
 yfinance
 requests
 streamlit
+pip install flask --break-system-packages
