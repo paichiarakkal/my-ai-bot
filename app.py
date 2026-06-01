@@ -17,7 +17,6 @@ from dateutil import parser as date_parser
 CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
 FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSfLySolQSiRXV0wELNPhUBlKJh77RnJKWc2-uqAM0TPNG3Q5A/formResponse"
 
-# WhatsApp API Config (CallMeBot for Notifications)
 WA_PHONE = "971551347989"
 WA_API_KEY = "7463030"
 
@@ -111,12 +110,15 @@ def create_pdf(df):
         return pdf.output(dest='S').encode('latin-1')
     except: return None
 
+# 🔥 ഇതാണ് ഡേറ്റ് കറക്റ്റ് ആക്കുന്ന പുതിയ ഫംഗ്ഷൻ
 def parse_mixed_dates(date_series):
     parsed_dates = []
     for val in date_series:
         val_str = str(val).strip()
         try:
-            dt = date_parser.parse(val_str, dayfirst=True)
+            dt = pd.to_datetime(val_str, dayfirst=True, errors='coerce')
+            if pd.isna(dt):
+                dt = date_parser.parse(val_str, dayfirst=True)
             parsed_dates.append(dt)
         except:
             parsed_dates.append(pd.NaT)
@@ -262,7 +264,6 @@ else:
             st.subheader(f"📋 {sel_month} Detailed Transactions")
             clean_table_df = monthly_df.drop(columns=['Month'], errors='ignore')
             
-            # 🔥 REPORT DOWNLOAD BUTTON ADDED
             csv_data = clean_table_df.to_csv(index=False).encode('utf-8')
             st.download_button(label="📥 Download Excel/CSV Report", data=csv_data, file_name=f"Report_{sel_month.replace(' ', '_')}.csv", mime="text/csv")
             
@@ -288,7 +289,6 @@ else:
             
             clean_hist_df = filtered_history.drop(columns=['Month'], errors='ignore')
             
-            # 🔥 HISTORY DOWNLOAD BUTTON ADDED (CSV)
             csv_hist_data = clean_hist_df.to_csv(index=False).encode('utf-8')
             
             col_pdf, col_csv = st.columns(2)
