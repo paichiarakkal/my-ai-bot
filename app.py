@@ -151,7 +151,7 @@ else:
     t_in, t_out, balance = get_totals()
     
     st.markdown(f'''<div class="balance-banner">
-        <span style="font-size:20px; color: #E0B0FF;">Available Balance</span><br>
+        <span style="font-size:20px; color: #E0B0FF;">Available Balance (All-Time)</span><br>
         <span style="font-size:40px; color:#FFD700; font-weight:bold;">₹{balance:,.2f}</span>
     </div>''', unsafe_allow_html=True)
 
@@ -176,7 +176,7 @@ else:
                 </div>""", unsafe_allow_html=True)
 
     elif page == "🏠 Dashboard":
-        st.title("Financial Overview")
+        st.title("Financial Overview (All-Time)")
         st.markdown(f"""<div class="purple-box">
             <h2 style="color: #00FF00;">Total Credit: ₹{t_in:,.2f}</h2>
             <h2 style="color: #FF3131;">Total Debit: ₹{t_out:,.2f}</h2>
@@ -203,46 +203,44 @@ else:
                 except: st.error("Error!")
 
     elif page == "📊 Report":
-        st.title("Monthly Expense Analysis")
+        st.title("Monthly Financial Analysis")
         df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
         df.columns = df.columns.str.strip()
-        
-        # തീയതി ഫോർമാറ്റ് സെറ്റ് ചെയ്യുന്നു
         df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
         df['Month'] = df['Date'].dt.strftime('%B %Y')
         
         months = df.sort_values(by='Date', ascending=False)['Month'].dropna().unique()
         sel_month = st.selectbox("Select Month", months)
         
-        # ഇവിടെ ആ മാസം മാത്രം ഫിൽട്ടർ ചെയ്ത് എടുക്കുന്നു
+        # ഇവിടെ വെച്ചാണ് നമ്മൾ സെലക്ട് ചെയ്ത മാസം മാത്രം വെച്ച് ഫിൽട്ടർ ചെയ്യുന്നത്
         monthly_df = df[df['Month'] == sel_month].copy()
+        
         monthly_df['Debit'] = pd.to_numeric(monthly_df['Debit'], errors='coerce').fillna(0)
         monthly_df['Credit'] = pd.to_numeric(monthly_df['Credit'], errors='coerce').fillna(0)
         
-        m_total_debit = monthly_df['Debit'].sum()
-        m_total_credit = monthly_df['Credit'].sum()
-        m_savings = m_total_credit - m_total_debit
+        m_debit_total = monthly_df['Debit'].sum()
+        m_credit_total = monthly_df['Credit'].sum()
+        m_balance = m_credit_total - m_debit_total
         
-        # മൂന്ന് ബോക്സുകളിലായി ആ മാസത്തെ കണക്ക് കാണിക്കുന്നു
+        # ഓരോ മാസത്തെയും വരവും ചെലവും പ്രത്യേകം ബോക്സുകളിലാക്കി കാണിക്കുന്നു
         col1, col2, col3 = st.columns(3)
         with col1:
             st.markdown(f"""<div class="purple-box">
-                <h3 style="color: #00FF00;">{sel_month} Total Credit</h3>
-                <h1 style="color: #00FF00;">₹{m_total_credit:,.2f}</h1>
+                <h4 style="color: #00FF00;">{sel_month} Credit (വരവ്)</h4>
+                <h2 style="color: #00FF00;">₹{m_credit_total:,.2f}</h2>
             </div>""", unsafe_allow_html=True)
         with col2:
             st.markdown(f"""<div class="purple-box">
-                <h3 style="color: #FF3131;">{sel_month} Total Expense</h3>
-                <h1 style="color: #FF3131;">₹{m_total_debit:,.2f}</h1>
+                <h4 style="color: #FF3131;">{sel_month} Debit (ചെലവ്)</h4>
+                <h2 style="color: #FF3131;">₹{m_debit_total:,.2f}</h2>
             </div>""", unsafe_allow_html=True)
         with col3:
             st.markdown(f"""<div class="purple-box">
-                <h3 style="color: #FFD700;">{sel_month} Net Savings</h3>
-                <h1 style="color: #FFD700;">₹{m_savings:,.2f}</h1>
+                <h4 style="color: #FFD700;">{sel_month} Net Savings</h4>
+                <h2 style="color: #FFD700;">₹{m_balance:,.2f}</h2>
             </div>""", unsafe_allow_html=True)
 
-        # പൈ ചാർട്ട് കാണിക്കുന്നു
-        if m_total_debit > 0:
+        if m_debit_total > 0:
             monthly_df['Category_Label'] = monthly_df['Item'].apply(lambda x: x.split(':')[0] if ':' in x else 'Others')
             
             fig = px.pie(
@@ -250,15 +248,10 @@ else:
                 values='Debit', 
                 names='Category_Label', 
                 hole=0.4,
-                title=f"{sel_month} Expense Split"
+                title=f"{sel_month} Expense Breakdown"
             )
             fig.update_traces(textposition='inside', textinfo='percent+label')
             st.plotly_chart(fig, use_container_width=True)
-            
-        # 🔥 പുതിയ ഫീച്ചർ: ആ മാസത്തെ ഡാറ്റ മാത്രം താഴെ ഗൂഗിൾ ഷീറ്റ് ടേബിൾ രൂപത്തിൽ കാണിക്കുന്നു
-        st.subheader(f"📋 {sel_month} Detailed Transactions")
-        clean_table_df = monthly_df.drop(columns=['Month'], errors='ignore')
-        st.dataframe(clean_table_df.iloc[::-1], use_container_width=True)
 
     elif page == "🔍 History":
         st.title("Transaction History")
