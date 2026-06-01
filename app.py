@@ -11,7 +11,6 @@ from fpdf import FPDF
 import io
 import re
 import urllib.parse
-from dateutil import parser as date_parser
 
 # --- 1. CONFIG & SETTINGS ---
 CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
@@ -110,18 +109,34 @@ def create_pdf(df):
         return pdf.output(dest='S').encode('latin-1')
     except: return None
 
-# 🔥 ഇതാണ് ഡേറ്റ് കറക്റ്റ് ആക്കുന്ന പുതിയ ഫംഗ്ഷൻ
+# 🔥 മിക്സഡ് ഫോർമാറ്റ് ഡേറ്റുകളെയും 2026 വർഷത്തെയും കൃത്യമായി ലോക്ക് ചെയ്യുന്ന പുതിയ സൂപ്പർ ഫംഗ്ഷൻ
 def parse_mixed_dates(date_series):
     parsed_dates = []
     for val in date_series:
         val_str = str(val).strip()
+        dt = pd.NaT
+        # 1. ആദ്യം DD/MM/YYYY ഫോർമാറ്റിൽ നോക്കുന്നു
         try:
-            dt = pd.to_datetime(val_str, dayfirst=True, errors='coerce')
-            if pd.isna(dt):
-                dt = date_parser.parse(val_str, dayfirst=True)
-            parsed_dates.append(dt)
+            dt = pd.to_datetime(val_str, format='%d/%m/%Y', errors='coerce')
         except:
-            parsed_dates.append(pd.NaT)
+            pass
+        
+        # 2. നടന്നില്ലെങ്കിൽ ഗൂഗിൾ ഫോം തരുന്ന തീയതി സ്റ്റൈലിൽ (M/D/YYYY) നോക്കുന്നു
+        if pd.isna(dt):
+            try:
+                dt = pd.to_datetime(val_str, errors='coerce')
+            except:
+                pass
+                
+        # ⚠️ സുരക്ഷാ ഫിൽട്ടർ: തീയതി തെറ്റായി 2026-ന് അപ്പുറത്തേക്ക് പോയാൽ (ഉദാഹരണത്തിന് ഡിസംബർ 2026) അതിനെ തിരുത്തി കറക്റ്റ് ചെയ്യുന്നു
+        if not pd.isna(dt) and dt.year == 2026 and dt.month > 6:
+            # മാസം 6-ന് (ജൂൺ) മുകളിൽ വന്നാൽ അത് തീയതിയും മാസവും മാറി മറിഞ്ഞതാണ്. അതിനെ തിരിച്ചു ശരിയാക്കുന്നു
+            try:
+                dt = datetime(2026, dt.day, dt.month)
+            except:
+                pass
+                
+        parsed_dates.append(dt)
     return pd.Series(parsed_dates)
 
 # --- 4. 🔔 NOTIFIER ---
