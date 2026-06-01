@@ -109,33 +109,27 @@ def create_pdf(df):
         return pdf.output(dest='S').encode('latin-1')
     except: return None
 
-# 🔥 മിക്സഡ് ഫോർമാറ്റ് ഡേറ്റുകളെയും 2026 വർഷത്തെയും കൃത്യമായി ലോക്ക് ചെയ്യുന്ന പുതിയ സൂപ്പർ ഫംഗ്ഷൻ
+# 🔥 തീയതി കൃത്യമാക്കാനും പഴയ മാസങ്ങളെ വെട്ടിമാറ്റാനുമുള്ള മാസ്സ് ഫംഗ്ഷൻ
 def parse_mixed_dates(date_series):
     parsed_dates = []
     for val in date_series:
         val_str = str(val).strip()
         dt = pd.NaT
-        # 1. ആദ്യം DD/MM/YYYY ഫോർമാറ്റിൽ നോക്കുന്നു
         try:
-            dt = pd.to_datetime(val_str, format='%d/%m/%Y', errors='coerce')
+            # 1. ആദ്യം ഗൂഗിൾ ഫോം ഫോർമാറ്റിൽ (M/D/YYYY) നോക്കുന്നു
+            dt = pd.to_datetime(val_str, errors='coerce')
+            if not pd.isna(dt) and dt.year == 2026 and dt.month < 4:
+                # മാസം ഏപ്രിലിന് താഴെയാണെങ്കിൽ അത് തീയതി മാറി വായിച്ചതാകാം, അത് തിരുത്തുന്നു
+                dt = datetime(2026, dt.day, dt.month)
         except:
             pass
-        
-        # 2. നടന്നില്ലെങ്കിൽ ഗൂഗിൾ ഫോം തരുന്ന തീയതി സ്റ്റൈലിൽ (M/D/YYYY) നോക്കുന്നു
+            
         if pd.isna(dt):
             try:
-                dt = pd.to_datetime(val_str, errors='coerce')
+                # 2. നടന്നില്ലെങ്കിൽ DD/MM/YYYY രീതിയിൽ നോക്കുന്നു
+                dt = pd.to_datetime(val_str, dayfirst=True, errors='coerce')
             except:
                 pass
-                
-        # ⚠️ സുരക്ഷാ ഫിൽട്ടർ: തീയതി തെറ്റായി 2026-ന് അപ്പുറത്തേക്ക് പോയാൽ (ഉദാഹരണത്തിന് ഡിസംബർ 2026) അതിനെ തിരുത്തി കറക്റ്റ് ചെയ്യുന്നു
-        if not pd.isna(dt) and dt.year == 2026 and dt.month > 6:
-            # മാസം 6-ന് (ജൂൺ) മുകളിൽ വന്നാൽ അത് തീയതിയും മാസവും മാറി മറിഞ്ഞതാണ്. അതിനെ തിരിച്ചു ശരിയാക്കുന്നു
-            try:
-                dt = datetime(2026, dt.day, dt.month)
-            except:
-                pass
-                
         parsed_dates.append(dt)
     return pd.Series(parsed_dates)
 
@@ -237,12 +231,17 @@ else:
         df.columns = df.columns.str.strip()
         
         df['Date'] = parse_mixed_dates(df['Date'])
+        
+        # ⚠️ കടുപ്പമേറിയ ഫിൽട്ടർ: 2026 ഏപ്രിലിന് (Month >= 4) മുൻപുള്ള എല്ലാ തീയതികളെയും ഇവിടെ വെച്ച് ഒഴിവാക്കുന്നു
+        df = df[df['Date'].dt.year == 2026]
+        df = df[df['Date'].dt.month >= 4]
+        
         df['Month'] = df['Date'].dt.strftime('%B %Y')
         df = df.dropna(subset=['Month'])
         
         months = df.sort_values(by='Date', ascending=False)['Month'].unique()
         if len(months) == 0:
-            st.warning("No data found in Google Sheets!")
+            st.warning("No data found in Google Sheets for April 2026 onwards!")
         else:
             sel_month = st.selectbox("Select Month", months)
             monthly_df = df[df['Month'] == sel_month].copy()
@@ -291,19 +290,23 @@ else:
         df.columns = df.columns.str.strip()
         
         df['Date'] = parse_mixed_dates(df['Date'])
+        
+        # ⚠️ ഇവിടെയും 2026 ഏപ്രിലിന് മുൻപുള്ള പഴയ ഡാറ്റകളെ ബ്ലോക്ക് ചെയ്യുന്നു
+        df = df[df['Date'].dt.year == 2026]
+        df = df[df['Date'].dt.month >= 4]
+        
         df['Month'] = df['Date'].dt.strftime('%B %Y')
         df = df.dropna(subset=['Month'])
         
         months = df.sort_values(by='Date', ascending=False)['Month'].unique()
         
         if len(months) == 0:
-            st.warning("No transactions found!")
+            st.warning("No transactions found from April 2026 onwards!")
         else:
             sel_hist_month = st.selectbox("Select Month for History", months, key="history_month_select")
             filtered_history = df[df['Month'] == sel_hist_month].copy()
             
             clean_hist_df = filtered_history.drop(columns=['Month'], errors='ignore')
-            
             csv_hist_data = clean_hist_df.to_csv(index=False).encode('utf-8')
             
             col_pdf, col_csv = st.columns(2)
