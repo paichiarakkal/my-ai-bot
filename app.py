@@ -11,6 +11,7 @@ from fpdf import FPDF
 import io
 import re
 import urllib.parse
+from dateutil import parser as date_parser
 
 # --- 1. CONFIG & SETTINGS ---
 CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
@@ -110,18 +111,18 @@ def create_pdf(df):
         return pdf.output(dest='S').encode('latin-1')
     except: return None
 
-# 🔥 FIX: TypeError പൂർണ്ണമായി ഒഴിവാക്കാൻ തീയതികൾ രണ്ട് ഫോർമാറ്റിലും പ്രത്യേകം ചെക്ക് ചെയ്യുന്നു
+# 🔥 FIX: ഒരു കൺഫ്യൂഷനും ഇല്ലാതെ തീയതികൾ പക്കാ ഇന്ത്യൻ ഫോർമാറ്റിൽ (Day First) റീഡ് ചെയ്യാൻ പുതിയ എഞ്ചിൻ
 def parse_mixed_dates(date_series):
-    # ആദ്യം WhatsApp ഫോർമാറ്റ് (DD/MM/YYYY) നോക്കുന്നു
-    parsed = pd.to_datetime(date_series, format="%d/%m/%Y", errors='coerce')
-    # ലിസ്റ്റിൽ ഇപ്പോഴും തീയതി മാറാത്തവ ഉണ്ടെങ്കിൽ ആപ്പ് ഫോർമാറ്റ് (YYYY-MM-DD) വെച്ച് മാറ്റുന്നു
-    missing = parsed.isna()
-    if missing.any():
-        parsed[missing] = pd.to_datetime(date_series[missing], format="%Y-%m-%d", errors='coerce')
-    # ഇനി എന്തെങ്കിലും ബാക്കിയുണ്ടെങ്കിൽ പൊതുവായി മാറ്റാൻ ശ്രമിക്കുന്നു
-    if parsed.isna().any():
-        parsed = parsed.fillna(pd.to_datetime(date_series, errors='coerce'))
-    return parsed
+    parsed_dates = []
+    for val in date_series:
+        val_str = str(val).strip()
+        try:
+            # dayfirst=True കൊടുക്കുന്നത് വഴി 12/05/2026 എന്നത് മെയ് 12 ആയി മാത്രം പൈത്തൺ റീഡ് ചെയ്യും (ഡിസംബർ ആകില്ല)
+            dt = date_parser.parse(val_str, dayfirst=True)
+            parsed_dates.append(dt)
+        except:
+            parsed_dates.append(pd.NaT)
+    return pd.Series(parsed_dates)
 
 # --- 4. 🔔 NOTIFIER ---
 def check_for_new_entries():
@@ -220,7 +221,7 @@ else:
         df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
         df.columns = df.columns.str.strip()
         
-        # തീയതികൾ കൃത്യമായി മാറ്റുന്നു (WhatsApp + App)
+        # തീയതികൾ പക്കാ ഡേ-ഫസ്റ്റ് ആയി മാറ്റുന്നു
         df['Date'] = parse_mixed_dates(df['Date'])
         df['Month'] = df['Date'].dt.strftime('%B %Y')
         df = df.dropna(subset=['Month'])
