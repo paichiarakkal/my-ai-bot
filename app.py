@@ -111,13 +111,11 @@ def create_pdf(df):
         return pdf.output(dest='S').encode('latin-1')
     except: return None
 
-# 🔥 FIX: ഒരു കൺഫ്യൂഷനും ഇല്ലാതെ തീയതികൾ പക്കാ ഇന്ത്യൻ ഫോർമാറ്റിൽ (Day First) റീഡ് ചെയ്യാൻ പുതിയ എഞ്ചിൻ
 def parse_mixed_dates(date_series):
     parsed_dates = []
     for val in date_series:
         val_str = str(val).strip()
         try:
-            # dayfirst=True കൊടുക്കുന്നത് വഴി 12/05/2026 എന്നത് മെയ് 12 ആയി മാത്രം പൈത്തൺ റീഡ് ചെയ്യും (ഡിസംബർ ആകില്ല)
             dt = date_parser.parse(val_str, dayfirst=True)
             parsed_dates.append(dt)
         except:
@@ -221,7 +219,6 @@ else:
         df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
         df.columns = df.columns.str.strip()
         
-        # തീയതികൾ പക്കാ ഡേ-ഫസ്റ്റ് ആയി മാറ്റുന്നു
         df['Date'] = parse_mixed_dates(df['Date'])
         df['Month'] = df['Date'].dt.strftime('%B %Y')
         df = df.dropna(subset=['Month'])
@@ -262,8 +259,13 @@ else:
                 fig.update_traces(textposition='inside', textinfo='percent+label')
                 st.plotly_chart(fig, use_container_width=True)
                 
-            st.subheader(f"📋 {sel_month} Detailed Transactions (Includes WhatsApp)")
+            st.subheader(f"📋 {sel_month} Detailed Transactions")
             clean_table_df = monthly_df.drop(columns=['Month'], errors='ignore')
+            
+            # 🔥 REPORT DOWNLOAD BUTTON ADDED
+            csv_data = clean_table_df.to_csv(index=False).encode('utf-8')
+            st.download_button(label="📥 Download Excel/CSV Report", data=csv_data, file_name=f"Report_{sel_month.replace(' ', '_')}.csv", mime="text/csv")
+            
             clean_table_df['Date'] = clean_table_df['Date'].dt.strftime('%d/%m/%Y')
             st.dataframe(clean_table_df.iloc[::-1], use_container_width=True)
 
@@ -284,12 +286,20 @@ else:
             sel_hist_month = st.selectbox("Select Month for History", months, key="history_month_select")
             filtered_history = df[df['Month'] == sel_hist_month].copy()
             
-            pdf_bytes = create_pdf(filtered_history.drop(columns=['Month']))
-            if pdf_bytes: 
-                st.download_button(f"📥 Download {sel_hist_month} PDF", pdf_bytes, f"History_{sel_hist_month.replace(' ', '_')}.pdf", "application/pdf")
-            
-            filtered_history['Date'] = filtered_history['Date'].dt.strftime('%d/%m/%Y')
             clean_hist_df = filtered_history.drop(columns=['Month'], errors='ignore')
+            
+            # 🔥 HISTORY DOWNLOAD BUTTON ADDED (CSV)
+            csv_hist_data = clean_hist_df.to_csv(index=False).encode('utf-8')
+            
+            col_pdf, col_csv = st.columns(2)
+            with col_pdf:
+                pdf_bytes = create_pdf(clean_hist_df)
+                if pdf_bytes: 
+                    st.download_button(f"📄 Download {sel_hist_month} PDF", pdf_bytes, f"History_{sel_hist_month.replace(' ', '_')}.pdf", "application/pdf")
+            with col_csv:
+                st.download_button(label=f"📥 Download {sel_hist_month} CSV (Excel)", data=csv_hist_data, file_name=f"History_{sel_hist_month.replace(' ', '_')}.csv", mime="text/csv")
+            
+            clean_hist_df['Date'] = clean_hist_df['Date'].dt.strftime('%d/%m/%Y')
             st.dataframe(clean_hist_df.iloc[::-1], use_container_width=True)
 
     elif page == "🤝 Debt Tracker":
