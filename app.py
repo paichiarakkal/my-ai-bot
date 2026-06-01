@@ -110,9 +110,18 @@ def create_pdf(df):
         return pdf.output(dest='S').encode('latin-1')
     except: return None
 
+# 🔥 FIX: TypeError പൂർണ്ണമായി ഒഴിവാക്കാൻ തീയതികൾ രണ്ട് ഫോർമാറ്റിലും പ്രത്യേകം ചെക്ക് ചെയ്യുന്നു
 def parse_mixed_dates(date_series):
-    # ഈ ഫങ്ക്ഷൻ വാട്സാപ്പ് തീയതികളെയും ആപ്പ് തീയതികളെയും ഒരുപോലെ കൃത്യമായി റീഡ് ചെയ്യും
-    return pd.to_datetime(date_series, errors='coerce', infer_datetime_format=True)
+    # ആദ്യം WhatsApp ഫോർമാറ്റ് (DD/MM/YYYY) നോക്കുന്നു
+    parsed = pd.to_datetime(date_series, format="%d/%m/%Y", errors='coerce')
+    # ലിസ്റ്റിൽ ഇപ്പോഴും തീയതി മാറാത്തവ ഉണ്ടെങ്കിൽ ആപ്പ് ഫോർമാറ്റ് (YYYY-MM-DD) വെച്ച് മാറ്റുന്നു
+    missing = parsed.isna()
+    if missing.any():
+        parsed[missing] = pd.to_datetime(date_series[missing], format="%Y-%m-%d", errors='coerce')
+    # ഇനി എന്തെങ്കിലും ബാക്കിയുണ്ടെങ്കിൽ പൊതുവായി മാറ്റാൻ ശ്രമിക്കുന്നു
+    if parsed.isna().any():
+        parsed = parsed.fillna(pd.to_datetime(date_series, errors='coerce'))
+    return parsed
 
 # --- 4. 🔔 NOTIFIER ---
 def check_for_new_entries():
@@ -211,7 +220,7 @@ else:
         df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
         df.columns = df.columns.str.strip()
         
-        # 🔥 FIX: മിക്സഡ് ഫോർമാറ്റ് തീയതികൾ ഒരുപോലെ മാറ്റുന്നു
+        # തീയതികൾ കൃത്യമായി മാറ്റുന്നു (WhatsApp + App)
         df['Date'] = parse_mixed_dates(df['Date'])
         df['Month'] = df['Date'].dt.strftime('%B %Y')
         df = df.dropna(subset=['Month'])
@@ -262,7 +271,6 @@ else:
         df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
         df.columns = df.columns.str.strip()
         
-        # 🔥 FIX: ഹിസ്റ്ററി പേജിലും മിക്സഡ് ഫോർമാറ്റ് തീയതികൾ ഒരേപോലെ സപ്പോർട്ട് ചെയ്യും
         df['Date'] = parse_mixed_dates(df['Date'])
         df['Month'] = df['Date'].dt.strftime('%B %Y')
         df = df.dropna(subset=['Month'])
