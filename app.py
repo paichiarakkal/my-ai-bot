@@ -207,11 +207,8 @@ else:
         df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
         df.columns = df.columns.str.strip()
         
-        # 🔥 FIX: തീയതി ഫോർമാറ്റ് മാറിക്കിടന്നാലും പൈത്തൺ കൃത്യമായി റീഡ് ചെയ്യാൻ (dayfirst=True ആഡ് ചെയ്തു)
         df['Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce')
         df['Month'] = df['Date'].dt.strftime('%B %Y')
-        
-        # ലിസ്റ്റിൽ ശൂന്യമായ മാസം വരാതിരിക്കാൻ ഡ്രോപ്പ് ചെയ്യുന്നു
         df = df.dropna(subset=['Month'])
         
         months = df.sort_values(by='Date', ascending=False)['Month'].unique()
@@ -219,8 +216,6 @@ else:
             st.warning("No data found in Google Sheets!")
         else:
             sel_month = st.selectbox("Select Month", months)
-            
-            # സെലക്ട് ചെയ്ത മാസം വെച്ച് ഫിൽട്ടർ ചെയ്യുന്നു
             monthly_df = df[df['Month'] == sel_month].copy()
             monthly_df['Debit'] = pd.to_numeric(monthly_df['Debit'], errors='coerce').fillna(0)
             monthly_df['Credit'] = pd.to_numeric(monthly_df['Credit'], errors='coerce').fillna(0)
@@ -229,7 +224,6 @@ else:
             m_total_credit = monthly_df['Credit'].sum()
             m_savings = m_total_credit - m_total_debit
             
-            # ഡിസ്പ്ലേ ബോക്സുകൾ
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.markdown(f"""<div class="purple-box">
@@ -247,33 +241,45 @@ else:
                     <h1 style="color: #FFD700;">₹{m_savings:,.2f}</h1>
                 </div>""", unsafe_allow_html=True)
 
-            # പൈ ചാർട്ട്
             if m_total_debit > 0:
                 monthly_df['Category_Label'] = monthly_df['Item'].apply(lambda x: x.split(':')[0] if ':' in x else 'Others')
-                
-                fig = px.pie(
-                    monthly_df[monthly_df['Debit'] > 0], 
-                    values='Debit', 
-                    names='Category_Label', 
-                    hole=0.4,
-                    title=f"{sel_month} Expense Split"
-                )
+                fig = px.pie(monthly_df[monthly_df['Debit'] > 0], values='Debit', names='Category_Label', hole=0.4, title=f"{sel_month} Expense Split")
                 fig.update_traces(textposition='inside', textinfo='percent+label')
                 st.plotly_chart(fig, use_container_width=True)
-                
-            # മാസം തിരിച്ചുള്ള ഷീറ്റ് ടേബിൾ ഡിസ്‌പ്ലേ
-            st.subheader(f"📋 {sel_month} Detailed Transactions")
-            clean_table_df = monthly_df.drop(columns=['Month'], errors='ignore')
-            # തീയതി ഫോർമാറ്റ് തിരിച്ച് ഭംഗിയുള്ളതാക്കുന്നു
-            clean_table_df['Date'] = clean_table_df['Date'].dt.strftime('%Y-%m-%d')
-            st.dataframe(clean_table_df.iloc[::-1], use_container_width=True)
 
+    # --- 🔥 FIX: HISTORY PAGE NOW HAS MONTHLY FILTER ---
     elif page == "🔍 History":
         st.title("Transaction History")
         df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
-        pdf_bytes = create_pdf(df)
-        if pdf_bytes: st.download_button("📥 Download PDF", pdf_bytes, "Report.pdf", "application/pdf")
-        st.dataframe(df.iloc[::-1], use_container_width=True)
+        df.columns = df.columns.str.strip()
+        
+        # തീയതികൾ പൈത്തൺ ഫോർമാറ്റിലേക്ക് മാറ്റുന്നു
+        df['Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce')
+        df['Month'] = df['Date'].dt.strftime('%B %Y')
+        df = df.dropna(subset=['Month'])
+        
+        months = df.sort_values(by='Date', ascending=False)['Month'].unique()
+        
+        if len(months) == 0:
+            st.warning("No transactions found!")
+        else:
+            # ഹിസ്റ്ററി പേജിൽ മാസം തിരഞ്ഞെടുക്കാനുള്ള ഡ്രോപ്പ്ഡൗൺ
+            sel_hist_month = st.selectbox("Select Month for History", months, key="history_month_select")
+            
+            # തിരഞ്ഞെടുത്ത മാസത്തെ ഡാറ്റ മാത്രം ഫിൽട്ടർ ചെയ്യുന്നു
+            filtered_history = df[df['Month'] == sel_hist_month].copy()
+            
+            # PDF ഡൗൺലോഡ് ബട്ടൺ (ആ മാസത്തെ ഡാറ്റ മാത്രം PDF ആക്കാൻ)
+            pdf_bytes = create_pdf(filtered_history.drop(columns=['Month']))
+            if pdf_bytes: 
+                st.download_button(f"📥 Download {sel_hist_month} PDF", pdf_bytes, f"History_{sel_hist_month.replace(' ', '_')}.pdf", "application/pdf")
+            
+            # ടേബിൾ ഭംഗിയാക്കാൻ തീയതി പഴയപടിയാക്കുന്നു
+            filtered_history['Date'] = filtered_history['Date'].dt.strftime('%Y-%m-%d')
+            clean_hist_df = filtered_history.drop(columns=['Month'], errors='ignore')
+            
+            # ഹിസ്റ്ററി ടേബിൾ ഡിസ്‌പ്ലേ (പുതിയ എൻട്രികൾ മുകളിൽ വരാൻ reverse ചെയ്യുന്നു)
+            st.dataframe(clean_hist_df.iloc[::-1], use_container_width=True)
 
     elif page == "🤝 Debt Tracker":
         st.title("Debt Management")
