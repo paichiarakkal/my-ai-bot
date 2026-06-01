@@ -110,6 +110,10 @@ def create_pdf(df):
         return pdf.output(dest='S').encode('latin-1')
     except: return None
 
+def parse_mixed_dates(date_series):
+    # ഈ ഫങ്ക്ഷൻ വാട്സാപ്പ് തീയതികളെയും ആപ്പ് തീയതികളെയും ഒരുപോലെ കൃത്യമായി റീഡ് ചെയ്യും
+    return pd.to_datetime(date_series, errors='coerce', infer_datetime_format=True)
+
 # --- 4. 🔔 NOTIFIER ---
 def check_for_new_entries():
     url = f"{CSV_URL}&r={random.randint(1,99999)}"
@@ -207,7 +211,8 @@ else:
         df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
         df.columns = df.columns.str.strip()
         
-        df['Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce')
+        # 🔥 FIX: മിക്സഡ് ഫോർമാറ്റ് തീയതികൾ ഒരുപോലെ മാറ്റുന്നു
+        df['Date'] = parse_mixed_dates(df['Date'])
         df['Month'] = df['Date'].dt.strftime('%B %Y')
         df = df.dropna(subset=['Month'])
         
@@ -246,15 +251,19 @@ else:
                 fig = px.pie(monthly_df[monthly_df['Debit'] > 0], values='Debit', names='Category_Label', hole=0.4, title=f"{sel_month} Expense Split")
                 fig.update_traces(textposition='inside', textinfo='percent+label')
                 st.plotly_chart(fig, use_container_width=True)
+                
+            st.subheader(f"📋 {sel_month} Detailed Transactions (Includes WhatsApp)")
+            clean_table_df = monthly_df.drop(columns=['Month'], errors='ignore')
+            clean_table_df['Date'] = clean_table_df['Date'].dt.strftime('%d/%m/%Y')
+            st.dataframe(clean_table_df.iloc[::-1], use_container_width=True)
 
-    # --- 🔥 FIX: HISTORY PAGE NOW HAS MONTHLY FILTER ---
     elif page == "🔍 History":
         st.title("Transaction History")
         df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
         df.columns = df.columns.str.strip()
         
-        # തീയതികൾ പൈത്തൺ ഫോർമാറ്റിലേക്ക് മാറ്റുന്നു
-        df['Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce')
+        # 🔥 FIX: ഹിസ്റ്ററി പേജിലും മിക്സഡ് ഫോർമാറ്റ് തീയതികൾ ഒരേപോലെ സപ്പോർട്ട് ചെയ്യും
+        df['Date'] = parse_mixed_dates(df['Date'])
         df['Month'] = df['Date'].dt.strftime('%B %Y')
         df = df.dropna(subset=['Month'])
         
@@ -263,22 +272,15 @@ else:
         if len(months) == 0:
             st.warning("No transactions found!")
         else:
-            # ഹിസ്റ്ററി പേജിൽ മാസം തിരഞ്ഞെടുക്കാനുള്ള ഡ്രോപ്പ്ഡൗൺ
             sel_hist_month = st.selectbox("Select Month for History", months, key="history_month_select")
-            
-            # തിരഞ്ഞെടുത്ത മാസത്തെ ഡാറ്റ മാത്രം ഫിൽട്ടർ ചെയ്യുന്നു
             filtered_history = df[df['Month'] == sel_hist_month].copy()
             
-            # PDF ഡൗൺലോഡ് ബട്ടൺ (ആ മാസത്തെ ഡാറ്റ മാത്രം PDF ആക്കാൻ)
             pdf_bytes = create_pdf(filtered_history.drop(columns=['Month']))
             if pdf_bytes: 
                 st.download_button(f"📥 Download {sel_hist_month} PDF", pdf_bytes, f"History_{sel_hist_month.replace(' ', '_')}.pdf", "application/pdf")
             
-            # ടേബിൾ ഭംഗിയാക്കാൻ തീയതി പഴയപടിയാക്കുന്നു
-            filtered_history['Date'] = filtered_history['Date'].dt.strftime('%Y-%m-%d')
+            filtered_history['Date'] = filtered_history['Date'].dt.strftime('%d/%m/%Y')
             clean_hist_df = filtered_history.drop(columns=['Month'], errors='ignore')
-            
-            # ഹിസ്റ്ററി ടേബിൾ ഡിസ്‌പ്ലേ (പുതിയ എൻട്രികൾ മുകളിൽ വരാൻ reverse ചെയ്യുന്നു)
             st.dataframe(clean_hist_df.iloc[::-1], use_container_width=True)
 
     elif page == "🤝 Debt Tracker":
