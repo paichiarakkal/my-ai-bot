@@ -12,8 +12,8 @@ import re
 import urllib.parse
 
 # --- 1. CONFIG & SETTINGS ---
-# പുതിയ ഗൂഗിൾ ഷീറ്റ് ഡാറ്റാ ലിങ്ക് ഇവിടെ അപ്ഡേറ്റ് ചെയ്തിട്ടുണ്ട് ഭായ്
-CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
+# ✅ പുതിയ ഗൂഗിൾ ഷീറ്റ് CSV ലിങ്ക് ഇവിടെ കൃത്യമായി അപ്ഡേറ്റ് ചെയ്തു ഭായ്
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo343-OatGv9gB4uC6P-V0v9wlyHTjgwDwRiY/pub?gid=0&single=true&output=csv"
 FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSfLySolQSiRXV0wELNPhUBlKJh77RnJKWc2-uqAM0TPNG3Q5A/formResponse"
 
 WA_PHONE = "971551347989"
@@ -24,7 +24,7 @@ USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 st.set_page_config(page_title="PAICHI EXPENSES v2.7", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
-# Session State Initialization (Growth ടൂളുകൾക്ക് വേണ്ടി മാറ്റിവെച്ചത്)
+# Session State Initialization
 if 'auth' not in st.session_state: st.session_state.auth = False
 if 'user' not in st.session_state: st.session_state.user = ""
 if 'tasks' not in st.session_state: st.session_state.tasks = []
@@ -156,7 +156,6 @@ else:
         <span style="font-size:40px; color:#FFD700; font-weight:bold;">₹{balance:,.2f}</span>
     </div>''', unsafe_allow_html=True)
 
-    # ഷബാനയ്ക്ക് എക്സ്പെൻസ് ഫീച്ചറുകൾ മാത്രം, ഫൈസലിന് ഗ്രോത്ത് പേജും കാണാം
     if curr_user == "shabana": 
         menu_options = ["💰 Add Entry", "📊 Report", "🔍 History", "🤝 Debt Tracker"]
     else: 
@@ -288,7 +287,6 @@ else:
         st.title("Personal Growth & Organizer ✨")
         tab1, tab2, tab3 = st.tabs(["🔮 Manifestation Journal", "📅 Alerts & Important Dates", "✅ Daily Tasks"])
         
-        # TAB 1: Manifestation Journal
         with tab1:
             st.subheader("28 Days Magic & Manifestation Tracker")
             with st.form("journal_form", clear_on_submit=True):
@@ -312,7 +310,6 @@ else:
                         <b>💪 Affirmation:</b> {j['affirmation']}
                     </div>""", unsafe_allow_html=True)
 
-        # TAB 2: Alerts & Important Dates
         with tab2:
             st.subheader("🔔 Critical Notifications & Dates Tracker")
             st.markdown("""
@@ -333,7 +330,6 @@ else:
                     if rem_title:
                         st.success(f"Alert Added: '{rem_title}' for {rem_date.strftime('%d/%m/%Y')}")
 
-        # TAB 3: Daily Tasks
         with tab3:
             st.subheader("✅ My Daily To-Do List")
             new_task = st.text_input("Enter a new task (ചെയ്യേണ്ട കാര്യം ടൈപ്പ് ചെയ്യുക):")
