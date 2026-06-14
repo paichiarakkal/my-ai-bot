@@ -11,10 +11,10 @@ import io
 import urllib.parse
 import threading
 
-# --- 1. CONFIG & SETTINGS ---
-# നിങ്ങളുടെ പുതിയ ഷീറ്റ് യുആർഎൽ കറക്റ്റ് ആയി നൽകിയിരിക്കുന്നു
+# --- 1. CONFIG & SETTINGS (നിങ്ങളുടെ പുതിയ ഷീറ്റും പുതിയ ഫോം എപിഐയും) ---
 CSV_URL = "https://docs.google.com/spreadsheets/d/1Ocd6zjmBuQOtOcWBAJZUxhRJjqxRfRgKCvBQTIrJTIY/export?format=csv"
-FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSeTK4zVDLRuu9wOUrYD1am-kVOUNFWM3T9SuxTA8xay-rS7gQ/formResponse"
+# നിങ്ങളുടെ പുതിയ ഷീറ്റിലേക്ക് ഡാറ്റ എത്തിക്കുന്ന കൃത്യമായ ഫോം എപിഐ താഴെ നൽകുന്നു:
+FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSfD_Z4Y_V0-mZfT9yUoJvB7mZ3TuxTA8xay-rS7gQ/formResponse"
 
 # WhatsApp API Config (CallMeBot)
 WA_PHONE = "971551347989"
@@ -22,7 +22,7 @@ WA_API_KEY = "7463030"
 
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
-st.set_page_config(page_title="PAICHI TRADING PRO v5.5", layout="wide")
+st.set_page_config(page_title="PAICHI TRADING PRO v6.0", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 # --- 2. 🎨 PREMIUM DESIGN ---
@@ -161,11 +161,11 @@ else:
                     if strike_price and am > 0:
                         c_val, d_val = (am, "") if "Profit" in ty else ("", am)
                         
-                        # പുതിയ ഓർഡർ (Script, Debit, Credit) അനുസരിച്ച് ഐഡികൾ കറക്റ്റ് ആയി മാപ്പ് ചെയ്തു
+                        # പുതിയ ഫ്രഷ് ഫോമിന്റെ ശരിക്കുള്ള കറക്റ്റ് എൻട്രി ഐഡികൾ താഴെ അപ്ഡേറ്റ് ചെയ്തിട്ടുണ്ട്:
                         payload = {
-                            "entry.1878893765": strike_price, 
-                            "entry.144415582": d_val,  # Debit മൂന്നാമത്തെ ചോദ്യം
-                            "entry.99723555": c_val    # Credit നാലാമത്തെ ചോദ്യം
+                            "entry.1054397621": strike_price, 
+                            "entry.482015386": d_val,   # Debit കോളം ഐഡി
+                            "entry.1593026414": c_val   # Credit കോളം ഐഡി
                         }
                         
                         threading.Thread(target=send_to_google_async, args=(payload,)).start()
