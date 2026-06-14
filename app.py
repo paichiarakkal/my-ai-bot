@@ -11,9 +11,9 @@ import io
 import urllib.parse
 import threading
 
-# --- 1. CONFIG & SETTINGS ---
-CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
-FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSfLySolQSiRXV0wELNPhUBlKJh77RnJKWc2-uqAM0TPNG3Q5A/formResponse"
+# --- 1. CONFIG & SETTINGS (ലിങ്കുകൾ പുതിയ ഫോമും ഷീറ്റുമായി അപ്ഡേറ്റ് ചെയ്തു) ---
+CSV_URL = "https://docs.google.com/spreadsheets/d/1idRVf2shNtYIVz48kWCyT-XO9Q00CJcY_emc5eQrhTM/export?format=csv"
+FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSeTK4zVDLRuu9wOUrYD1am-kVOUNFWM3T9SuxTA8xay-rS7gQ/formResponse"
 
 # WhatsApp API Config (CallMeBot)
 WA_PHONE = "971551347989"
@@ -21,7 +21,7 @@ WA_API_KEY = "7463030"
 
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
-st.set_page_config(page_title="PAICHI TRADING PRO v1.0", layout="wide")
+st.set_page_config(page_title="PAICHI TRADING PRO v3.0", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 # --- 2. 🎨 PREMIUM DESIGN ---
@@ -55,9 +55,9 @@ def get_totals():
     try:
         df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
         df.columns = df.columns.str.strip()
-        t_in = pd.to_numeric(df['Credit'], errors='coerce').fillna(0).sum()
-        t_out = pd.to_numeric(df['Debit'], errors='coerce').fillna(0).sum()
-        return t_in, t_out, (t_in - t_out)
+        t_profit = pd.to_numeric(df['Credit'], errors='coerce').fillna(0).sum()
+        t_loss = pd.to_numeric(df['Debit'], errors='coerce').fillna(0).sum()
+        return t_profit, t_loss, (t_profit - t_loss)
     except: return 0.0, 0.0, 0.0
 
 def get_triple_advisor():
@@ -111,11 +111,11 @@ if not st.session_state.auth:
         else: st.error("Access Denied!")
 else:
     curr_user = st.session_state.user
-    t_in, t_out, net_profit = get_totals()
+    t_profit, t_loss, net_p_and_l = get_totals()
     
     st.markdown(f'''<div class="balance-banner">
         <span style="font-size:20px; color: #00FFCC;">Net Trading P&L Balance</span><br>
-        <span style="font-size:40px; color:#FFD700; font-weight:bold;">₹{net_profit:,.2f}</span>
+        <span style="font-size:40px; color:#FFD700; font-weight:bold;">₹{net_p_and_l:,.2f}</span>
     </div>''', unsafe_allow_html=True)
 
     if curr_user == "shabana": 
@@ -142,51 +142,50 @@ else:
     elif page == "🏠 Dashboard":
         st.title("Trading Overview")
         st.markdown(f"""<div class="purple-box">
-            <h2 style="color: #00FF00;">Total Profits (Credit): ₹{t_in:,.2f}</h2>
-            <h2 style="color: #FF3131;">Total Losses (Debit): ₹{t_out:,.2f}</h2>
+            <h2 style="color: #00FF00;">Total Profits (Credit): ₹{t_profit:,.2f}</h2>
+            <h2 style="color: #FF3131;">Total Losses (Debit): ₹{t_loss:,.2f}</h2>
         </div>""", unsafe_allow_html=True)
 
     elif page == "💰 Add Trade":
         st.title("Log New Trade 📈")
         
         with st.form("trade_form", clear_on_submit=True):
-            it = st.text_input("Trade Setup / Script Name (e.g., Nifty 22000 CE)")
-            am_str = st.text_input("P&L Amount")
-            cat = st.selectbox("Segment", ["Nifty Options", "Bank Nifty Options", "Crude Oil", "Equity", "Others"])
+            strike_price = st.text_input("Strike Price / Script Name (e.g., Nifty 22000 CE)")
+            am_str = st.text_input("Amount (തുക)")
             ty = st.radio("Result Type", ["Profit (Credit)", "Loss (Debit)"], horizontal=True)
             
             if st.form_submit_button("SAVE TRADE & NOTIFY"):
                 try:
                     am = float(am_str.strip().replace(',', ''))
-                    if it and am > 0:
-                        d, c = (am, 0) if "Loss" in ty else (0, am)
+                    if strike_price and am > 0:
+                        c_val, d_val = (am, 0) if "Profit" in ty else (0, am)
+                        
+                        # നിങ്ങളുടെ പുതിയ ഫോമിലെ എൻട്രികൾ കറക്റ്റ് ഇൻഡെക്സ് അനുസരിച്ച് മാപ്പ് ചെയ്തത്
                         payload = {
-                            "entry.1044099436": datetime.now().strftime("%Y-%m-%d"), 
-                            "entry.2013476337": f"[{curr_user.capitalize()}] {cat}: {it}", 
-                            "entry.1460982454": d, 
-                            "entry.1221658767": c
+                            "entry.1017845348": strike_price, 
+                            "entry.484218995": c_val, 
+                            "entry.406981156": d_val
                         }
                         
                         threading.Thread(target=send_to_google_async, args=(payload,)).start()
                         
                         status_icon = "🟢" if "Profit" in ty else "🔴"
-                        msg = f"{status_icon} *Paichi Trade Entry*\n📝 Script: {it}\n📂 Segment: {cat}\n💰 P&L: ₹{am}\n👤 Trader: {curr_user}"
+                        msg = f"{status_icon} *Paichi Trade Entry*\n📝 Script: {strike_price}\n💰 P&L: ₹{am} ({ty})\n👤 Trader: {curr_user}"
                         threading.Thread(target=send_whatsapp_auto, args=(msg,)).start()
                         st.success("Trade Logged & WhatsApp Notification Sent! ✅")
                     else: st.error("വിവരങ്ങൾ പൂർണ്ണമായി നൽകുക!")
                 except: st.error("തുക കൃത്യമായി നമ്പർ ആയി നൽകുക!")
 
     elif page == "📊 Report":
-        st.title("Segment Analysis")
+        st.title("Profit Analysis")
         df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
         df.columns = df.columns.str.strip()
-        df['Credit'] = pd.to_numeric(df['Credit'], errors='coerce').fillna(0)
-        report_df = df[df['Credit'] > 0].copy()
-        if not report_df.empty:
-            fig = px.pie(report_df, values='Credit', names='Item', hole=0.4, title="Profit Distribution")
+        if 'Credit' in df.columns and not df[df['Credit'] > 0].empty:
+            df['Credit'] = pd.to_numeric(df['Credit'], errors='coerce').fillna(0)
+            fig = px.pie(df[df['Credit'] > 0], values='Credit', names='Script', hole=0.4, title="Profit Distribution")
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("No data available for chart analysis.")
+            st.info("No profit data available for chart analysis.")
 
     elif page == "🔍 History":
         st.title("Trade Log History")
