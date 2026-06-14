@@ -11,8 +11,8 @@ import io
 import urllib.parse
 import threading
 
-# --- 1. CONFIG & SETTINGS (ലിങ്കുകൾ പുതിയ ഫോമും ഷീറ്റുമായി അപ്ഡേറ്റ് ചെയ്തു) ---
-CSV_URL = "https://docs.google.com/spreadsheets/d/1idRVf2shNtYIVz48kWCyT-XO9Q00CJcY_emc5eQrhTM/export?format=csv"
+# --- 1. CONFIG & SETTINGS (നിങ്ങളുടെ പുതിയ ഷീറ്റും ഫോമും ഇവിടെ കണക്ട് ചെയ്തു) ---
+CSV_URL = "https://docs.google.com/spreadsheets/d/1T1Wivv6oZBn7xXjiNCQDAn5UkcCDHGQ2rDfha5sKrKs/export?format=csv"
 FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSeTK4zVDLRuu9wOUrYD1am-kVOUNFWM3T9SuxTA8xay-rS7gQ/formResponse"
 
 # WhatsApp API Config (CallMeBot)
@@ -21,7 +21,7 @@ WA_API_KEY = "7463030"
 
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
-st.set_page_config(page_title="PAICHI TRADING PRO v3.0", layout="wide")
+st.set_page_config(page_title="PAICHI TRADING PRO v3.5", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 # --- 2. 🎨 PREMIUM DESIGN ---
@@ -160,7 +160,7 @@ else:
                     if strike_price and am > 0:
                         c_val, d_val = (am, 0) if "Profit" in ty else (0, am)
                         
-                        # നിങ്ങളുടെ പുതിയ ഫോമിലെ എൻട്രികൾ കറക്റ്റ് ഇൻഡെക്സ് അനുസരിച്ച് മാപ്പ് ചെയ്തത്
+                        # പുതിയ ഫോമിലെ ഇൻപുട്ടുകൾ കൃത്യമായി കണക്ട് ചെയ്തിരിക്കുന്നു
                         payload = {
                             "entry.1017845348": strike_price, 
                             "entry.484218995": c_val, 
