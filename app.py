@@ -14,8 +14,6 @@ import threading
 
 # --- 1. CONFIG & SETTINGS ---
 CSV_URL = "https://docs.google.com/spreadsheets/d/1Ocd6zjmBuQOtOcWBAJZUxhRJjqxRfRgKCvBQTIrJTIY/export?format=csv"
-
-# നിങ്ങൾ തന്ന പുതിയ ആപ്പ് സ്ക്രിപ്റ്റ് ലിങ്ക് ഇവിടെ കൃത്യമായി കണക്ട് ചെയ്തിരിക്കുന്നു
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbx32NCrmb5UhcyEIFVhoO3mZzTjYnKuLm_MPjaNiJztGkj-fiOvlSTsXcZ_BCUKRxKWAg/exec"
 
 # WhatsApp API Config (CallMeBot)
@@ -24,7 +22,7 @@ WA_API_KEY = "7463030"
 
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
-st.set_page_config(page_title="PAICHI TRADING PRO v8.5", layout="wide")
+st.set_page_config(page_title="PAICHI TRADING PRO v8.7", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 # --- 2. 🎨 PREMIUM DESIGN ---
@@ -51,24 +49,30 @@ def send_whatsapp_auto(message):
     except: pass
 
 def send_to_sheet_direct(script, debit, credit):
-    # പുതിയ ഡയറക്ട് ആപ്പ് സ്ക്രിപ്റ്റ് വഴി സെക്യൂർ ആയി ഷീറ്റിലേക്ക് പോസ്റ്റ് ചെയ്യുന്നു
     payload = {"script": script, "debit": debit, "credit": credit}
     try:
         res = requests.post(WEBAPP_URL, data=json.dumps(payload), headers={"Content-Type": "application/json"}, timeout=15)
-        if res.status_code == 200:
-            return True
-    except:
-        pass
+        if res.status_code == 200: return True
+    except: pass
     return False
 
 def get_totals():
     try:
+        # ഗൂഗിൾ ഷീറ്റിൽ നിന്ന് ഫ്രഷ് ഡാറ്റ ലോഡ് ചെയ്യുന്നു
         df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
+        
+        # കോളം പേരുകളിലെ സ്പേസ് ഒഴിവാക്കാൻ ട്രിം ചെയ്യുന്നു
         df.columns = df.columns.str.strip()
-        t_profit = pd.to_numeric(df['Credit'], errors='coerce').fillna(0).sum()
-        t_loss = pd.to_numeric(df['Debit'], errors='coerce').fillna(0).sum()
-        return t_profit, t_loss, (t_profit - t_loss)
-    except: return 0.0, 0.0, 0.0
+        
+        # ബ്ലാങ്ക് വരികളോ അക്ഷരങ്ങളോ ഉണ്ടെങ്കിൽ അവ ഒഴിവാക്കി തുക മാത്രം കൃത്യമായി കൂട്ടാനുള്ള സുരക്ഷിതമായ ലോജിക്
+        # 3-ാമത്തെ കോളം Debit, 4-ാമത്തെ കോളം Credit
+        t_loss = pd.to_numeric(df.iloc[:, 2], errors='coerce').dropna().fillna(0).sum()
+        t_profit = pd.to_numeric(df.iloc[:, 3], errors='coerce').dropna().fillna(0).sum()
+        
+        net_amt = t_profit - t_loss
+        return float(t_profit), float(t_loss), float(net_amt)
+    except: 
+        return 0.0, 0.0, 0.0
 
 def get_triple_advisor():
     try:
@@ -123,6 +127,7 @@ else:
     curr_user = st.session_state.user
     t_profit, t_loss, net_p_and_l = get_totals()
     
+    # മുകളിൽ തിളങ്ങി നിൽക്കുന്ന ഗോൾഡൻ ബാലൻസ് ഡിസ്പ്ലേ
     st.markdown(f'''<div class="balance-banner">
         <span style="font-size:20px; color: #00FFCC;">Net Trading P&L Balance</span><br>
         <span style="font-size:40px; color:#FFD700; font-weight:bold;">₹{net_p_and_l:,.2f}</span>
@@ -152,8 +157,8 @@ else:
     elif page == "🏠 Dashboard":
         st.title("Trading Overview")
         st.markdown(f"""<div class="purple-box">
-            <h2 style="color: #00FF00;">Total Profits (Credit): ₹{t_profit:,.2f}</h2>
-            <h2 style="color: #FF3131;">Total Losses (Debit): ₹{t_loss:,.2f}</h2>
+            <h2 style="color: #00FF00;">Total Profits: ₹{t_profit:,.2f}</h2>
+            <h2 style="color: #FF3131;">Total Losses: ₹{t_loss:,.2f}</h2>
         </div>""", unsafe_allow_html=True)
 
     elif page == "💰 Add Trade":
@@ -170,7 +175,6 @@ else:
                     if strike_price and am > 0:
                         c_val, d_val = (am, "") if "Profit" in ty else ("", am)
                         
-                        # ഡാറ്റ നേരിട്ട് ആപ്പ് സ്ക്രിപ്റ്റിലേക്ക് തള്ളുന്നു
                         success = send_to_sheet_direct(strike_price, d_val, c_val)
                         
                         status_icon = "🟢" if "Profit" in ty else "🔴"
@@ -178,19 +182,20 @@ else:
                         threading.Thread(target=send_whatsapp_auto, args=(msg,)).start()
                         
                         st.success("Trade Logged & WhatsApp Notification Sent! ✅")
+                        st.rerun()
                     else: st.error("വിവരങ്ങൾ പൂർണ്ണമായി നൽകുക!")
                 except: st.error("തുക കൃത്യമായി നമ്പർ ആയി നൽകുക!")
 
     elif page == "📊 Report":
         st.title("Profit Analysis")
         df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
-        df.columns = df.columns.str.strip()
-        if 'Credit' in df.columns and not df[df['Credit'] > 0].empty:
-            df['Credit'] = pd.to_numeric(df['Credit'], errors='coerce').fillna(0)
-            fig = px.pie(df[df['Credit'] > 0], values='Credit', names='Script', hole=0.4, title="Profit Distribution")
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("No profit data available for chart analysis.")
+        if len(df.columns) >= 4:
+            df.iloc[:, 3] = pd.to_numeric(df.iloc[:, 3], errors='coerce').fillna(0)
+            if not df[df.iloc[:, 3] > 0].empty:
+                fig = px.pie(df[df.iloc[:, 3] > 0], values=df.columns[3], names=df.columns[1], hole=0.4, title="Profit Distribution")
+                st.plotly_chart(fig, use_container_width=True)
+            else: st.info("No profit data available for chart analysis.")
+        else: st.info("No data available.")
 
     elif page == "🔍 History":
         st.title("Trade Log History")
