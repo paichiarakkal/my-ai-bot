@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import requests
+import json
 from datetime import datetime
 import yfinance as yf
 import random
@@ -13,7 +14,9 @@ import threading
 
 # --- 1. CONFIG & SETTINGS ---
 CSV_URL = "https://docs.google.com/spreadsheets/d/1Ocd6zjmBuQOtOcWBAJZUxhRJjqxRfRgKCvBQTIrJTIY/export?format=csv"
-FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSfD_Z4Y_V0-mZfT9yUoJvB7mZ3TuxTA8xay-rS7gQ/formResponse"
+
+# നിങ്ങൾ തന്ന പുതിയ ആപ്പ് സ്ക്രിപ്റ്റ് ലിങ്ക് ഇവിടെ കൃത്യമായി കണക്ട് ചെയ്തിരിക്കുന്നു
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbx32NCrmb5UhcyEIFVhoO3mZzTjYnKuLm_MPjaNiJztGkj-fiOvlSTsXcZ_BCUKRxKWAg/exec"
 
 # WhatsApp API Config (CallMeBot)
 WA_PHONE = "971551347989"
@@ -21,7 +24,7 @@ WA_API_KEY = "7463030"
 
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
-st.set_page_config(page_title="PAICHI TRADING PRO v7.0", layout="wide")
+st.set_page_config(page_title="PAICHI TRADING PRO v8.5", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 # --- 2. 🎨 PREMIUM DESIGN ---
@@ -47,17 +50,14 @@ def send_whatsapp_auto(message):
     try: requests.get(url, timeout=10)
     except: pass
 
-def send_to_google_sync(data):
-    # ഹെഡറുകൾ ചേർത്ത് കൂടുതൽ സുരക്ഷിതമായി ഡാറ്റ ഫോമിലേക്ക് അയക്കുന്നു
-    headers = {
-        "Referer": "https://docs.google.com/forms/d/e/1FAIpQLSfD_Z4Y_V0-mZfT9yUoJvB7mZ3TuxTA8xay-rS7gQ/viewform",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    }
-    try: 
-        res = requests.post(FORM_API, data=data, headers=headers, timeout=15)
+def send_to_sheet_direct(script, debit, credit):
+    # പുതിയ ഡയറക്ട് ആപ്പ് സ്ക്രിപ്റ്റ് വഴി സെക്യൂർ ആയി ഷീറ്റിലേക്ക് പോസ്റ്റ് ചെയ്യുന്നു
+    payload = {"script": script, "debit": debit, "credit": credit}
+    try:
+        res = requests.post(WEBAPP_URL, data=json.dumps(payload), headers={"Content-Type": "application/json"}, timeout=15)
         if res.status_code == 200:
             return True
-    except: 
+    except:
         pass
     return False
 
@@ -170,14 +170,8 @@ else:
                     if strike_price and am > 0:
                         c_val, d_val = (am, "") if "Profit" in ty else ("", am)
                         
-                        payload = {
-                            "entry.1054397621": strike_price, 
-                            "entry.482015386": d_val,   
-                            "entry.1593026414": c_val   
-                        }
-                        
-                        # ഡാറ്റ കൃത്യമായി പോയി എന്ന് ഉറപ്പാക്കാൻ സിങ്ക് മൂഡിലേക്ക് മാറ്റി
-                        success = send_to_google_sync(payload)
+                        # ഡാറ്റ നേരിട്ട് ആപ്പ് സ്ക്രിപ്റ്റിലേക്ക് തള്ളുന്നു
+                        success = send_to_sheet_direct(strike_price, d_val, c_val)
                         
                         status_icon = "🟢" if "Profit" in ty else "🔴"
                         msg = f"{status_icon} *Paichi Trade Entry*\n📝 Script: {strike_price}\n💰 P&L: ₹{am} ({ty})\n👤 Trader: {curr_user}"
