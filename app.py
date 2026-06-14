@@ -11,7 +11,8 @@ import io
 import urllib.parse
 import threading
 
-# --- 1. CONFIG & SETTINGS (നിങ്ങളുടെ പുതിയ ഷീറ്റും ഫോമും ഇവിടെ കണക്ട് ചെയ്തു) ---
+# --- 1. CONFIG & SETTINGS ---
+# നിങ്ങളുടെ പുതിയ ഷീറ്റ് ലിങ്കും പുതിയ ഫോം റെസ്പോൺസ് എപിഐയും ഇവിടെ അപ്ഡേറ്റ് ചെയ്തിട്ടുണ്ട്
 CSV_URL = "https://docs.google.com/spreadsheets/d/1T1Wivv6oZBn7xXjiNCQDAn5UkcCDHGQ2rDfha5sKrKs/export?format=csv"
 FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSeTK4zVDLRuu9wOUrYD1am-kVOUNFWM3T9SuxTA8xay-rS7gQ/formResponse"
 
@@ -21,7 +22,7 @@ WA_API_KEY = "7463030"
 
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
-st.set_page_config(page_title="PAICHI TRADING PRO v3.5", layout="wide")
+st.set_page_config(page_title="PAICHI TRADING PRO v4.0", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 # --- 2. 🎨 PREMIUM DESIGN ---
@@ -158,13 +159,13 @@ else:
                 try:
                     am = float(am_str.strip().replace(',', ''))
                     if strike_price and am > 0:
-                        c_val, d_val = (am, 0) if "Profit" in ty else (0, am)
+                        c_val, d_val = (am, "") if "Profit" in ty else ("", am)
                         
-                        # പുതിയ ഫോമിലെ ഇൻപുട്ടുകൾ കൃത്യമായി കണക്ട് ചെയ്തിരിക്കുന്നു
+                        # പുതിയ ഫോമിന്റെ ശരിക്കുള്ള ബാക്ക്-എൻഡ് ഐഡികൾ ഇവിടെ കൃത്യമായി മാപ്പ് ചെയ്തിരിക്കുന്നു
                         payload = {
-                            "entry.1017845348": strike_price, 
-                            "entry.484218995": c_val, 
-                            "entry.406981156": d_val
+                            "entry.1878893765": strike_price, 
+                            "entry.144415582": c_val, 
+                            "entry.99723555": d_val
                         }
                         
                         threading.Thread(target=send_to_google_async, args=(payload,)).start()
