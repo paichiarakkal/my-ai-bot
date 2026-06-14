@@ -11,9 +11,8 @@ import io
 import urllib.parse
 import threading
 
-# --- 1. CONFIG & SETTINGS ---
-# നിങ്ങളുടെ പുതിയ ഷീറ്റ് ലിങ്കും പുതിയ ഫോം റെസ്പോൺസ് എപിഐയും ഇവിടെ അപ്ഡേറ്റ് ചെയ്തിട്ടുണ്ട്
-CSV_URL = "https://docs.google.com/spreadsheets/d/1T1Wivv6oZBn7xXjiNCQDAn5UkcCDHGQ2rDfha5sKrKs/export?format=csv"
+# --- 1. CONFIG & SETTINGS (നിങ്ങളുടെ പുതിയ ഷീറ്റും ഫോമും ഇവിടെ അപ്ഡേറ്റ് ചെയ്തു) ---
+CSV_URL = "https://docs.google.com/spreadsheets/d/1Ocd6zjmBuQOtOcWBAJZUxhRJjqxRfRgKCvBQTIrJTIY/export?format=csv"
 FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSeTK4zVDLRuu9wOUrYD1am-kVOUNFWM3T9SuxTA8xay-rS7gQ/formResponse"
 
 # WhatsApp API Config (CallMeBot)
@@ -22,7 +21,7 @@ WA_API_KEY = "7463030"
 
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
-st.set_page_config(page_title="PAICHI TRADING PRO v4.0", layout="wide")
+st.set_page_config(page_title="PAICHI TRADING PRO v5.0", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 # --- 2. 🎨 PREMIUM DESIGN ---
@@ -161,7 +160,7 @@ else:
                     if strike_price and am > 0:
                         c_val, d_val = (am, "") if "Profit" in ty else ("", am)
                         
-                        # പുതിയ ഫോമിന്റെ ശരിക്കുള്ള ബാക്ക്-എൻഡ് ഐഡികൾ ഇവിടെ കൃത്യമായി മാപ്പ് ചെയ്തിരിക്കുന്നു
+                        # പുതിയ ഫ്രഷ് ഫോമിന്റെ ബാക്ക്-എൻഡ് ഐഡികൾ ഇവിടെ കൃത്യമായി മാപ്പ് ചെയ്തിരിക്കുന്നു
                         payload = {
                             "entry.1878893765": strike_price, 
                             "entry.144415582": c_val, 
