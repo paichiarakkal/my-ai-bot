@@ -11,9 +11,8 @@ import io
 import urllib.parse
 import threading
 
-# --- 1. CONFIG & SETTINGS (നിങ്ങളുടെ പുതിയ ഷീറ്റും പുതിയ ഫോം എപിഐയും) ---
+# --- 1. CONFIG & SETTINGS ---
 CSV_URL = "https://docs.google.com/spreadsheets/d/1Ocd6zjmBuQOtOcWBAJZUxhRJjqxRfRgKCvBQTIrJTIY/export?format=csv"
-# നിങ്ങളുടെ പുതിയ ഷീറ്റിലേക്ക് ഡാറ്റ എത്തിക്കുന്ന കൃത്യമായ ഫോം എപിഐ താഴെ നൽകുന്നു:
 FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSfD_Z4Y_V0-mZfT9yUoJvB7mZ3TuxTA8xay-rS7gQ/formResponse"
 
 # WhatsApp API Config (CallMeBot)
@@ -22,7 +21,7 @@ WA_API_KEY = "7463030"
 
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
-st.set_page_config(page_title="PAICHI TRADING PRO v6.0", layout="wide")
+st.set_page_config(page_title="PAICHI TRADING PRO v7.0", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 # --- 2. 🎨 PREMIUM DESIGN ---
@@ -48,9 +47,19 @@ def send_whatsapp_auto(message):
     try: requests.get(url, timeout=10)
     except: pass
 
-def send_to_google_async(data):
-    try: requests.post(FORM_API, data=data, timeout=10)
-    except: pass
+def send_to_google_sync(data):
+    # ഹെഡറുകൾ ചേർത്ത് കൂടുതൽ സുരക്ഷിതമായി ഡാറ്റ ഫോമിലേക്ക് അയക്കുന്നു
+    headers = {
+        "Referer": "https://docs.google.com/forms/d/e/1FAIpQLSfD_Z4Y_V0-mZfT9yUoJvB7mZ3TuxTA8xay-rS7gQ/viewform",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+    try: 
+        res = requests.post(FORM_API, data=data, headers=headers, timeout=15)
+        if res.status_code == 200:
+            return True
+    except: 
+        pass
+    return False
 
 def get_totals():
     try:
@@ -161,18 +170,19 @@ else:
                     if strike_price and am > 0:
                         c_val, d_val = (am, "") if "Profit" in ty else ("", am)
                         
-                        # പുതിയ ഫ്രഷ് ഫോമിന്റെ ശരിക്കുള്ള കറക്റ്റ് എൻട്രി ഐഡികൾ താഴെ അപ്ഡേറ്റ് ചെയ്തിട്ടുണ്ട്:
                         payload = {
                             "entry.1054397621": strike_price, 
-                            "entry.482015386": d_val,   # Debit കോളം ഐഡി
-                            "entry.1593026414": c_val   # Credit കോളം ഐഡി
+                            "entry.482015386": d_val,   
+                            "entry.1593026414": c_val   
                         }
                         
-                        threading.Thread(target=send_to_google_async, args=(payload,)).start()
+                        # ഡാറ്റ കൃത്യമായി പോയി എന്ന് ഉറപ്പാക്കാൻ സിങ്ക് മൂഡിലേക്ക് മാറ്റി
+                        success = send_to_google_sync(payload)
                         
                         status_icon = "🟢" if "Profit" in ty else "🔴"
                         msg = f"{status_icon} *Paichi Trade Entry*\n📝 Script: {strike_price}\n💰 P&L: ₹{am} ({ty})\n👤 Trader: {curr_user}"
                         threading.Thread(target=send_whatsapp_auto, args=(msg,)).start()
+                        
                         st.success("Trade Logged & WhatsApp Notification Sent! ✅")
                     else: st.error("വിവരങ്ങൾ പൂർണ്ണമായി നൽകുക!")
                 except: st.error("തുക കൃത്യമായി നമ്പർ ആയി നൽകുക!")
