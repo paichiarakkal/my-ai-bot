@@ -3,7 +3,6 @@ import pandas as pd
 import requests
 import json
 from datetime import datetime
-import yfinance as yf
 import random
 import plotly.express as px
 from streamlit_autorefresh import st_autorefresh
@@ -11,6 +10,8 @@ from fpdf import FPDF
 import io
 import urllib.parse
 import threading
+import re
+from streamlit_calendar import calendar
 
 # --- 1. CONFIG & SETTINGS ---
 CSV_URL = "https://docs.google.com/spreadsheets/d/1Ocd6zjmBuQOtOcWBAJZUxhRJjqxRfRgKCvBQTIrJTIY/export?format=csv"
@@ -22,7 +23,7 @@ WA_API_KEY = "7463030"
 
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
-st.set_page_config(page_title="PAICHI TRADING PRO v8.7", layout="wide")
+st.set_page_config(page_title="PAICHI TRADING PRO v8.8", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 # --- 2. 🎨 PREMIUM DESIGN ---
@@ -35,6 +36,10 @@ st.markdown("""
     .purple-box { background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 25px; border: 2px solid rgba(0, 255, 204, 0.3); text-align: center; margin-bottom: 20px; }
     h1, h2, h3, p, label { color: white !important; font-weight: bold !important; }
     .stDataFrame { background: white; border-radius: 10px; color: black; }
+    /* FullCalendar Custom Dark Design to match Upstox Style */
+    .fc { background: rgba(255,255,255,0.02); border-radius: 15px; padding: 10px; }
+    .fc-col-header-cell { background: rgba(0, 255, 204, 0.2); }
+    .fc-daygrid-day { min-height: 90px !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -58,43 +63,14 @@ def send_to_sheet_direct(script, debit, credit):
 
 def get_totals():
     try:
-        # ഗൂഗിൾ ഷീറ്റിൽ നിന്ന് ഫ്രഷ് ഡാറ്റ ലോഡ് ചെയ്യുന്നു
         df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
-        
-        # കോളം പേരുകളിലെ സ്പേസ് ഒഴിവാക്കാൻ ട്രിം ചെയ്യുന്നു
         df.columns = df.columns.str.strip()
-        
-        # ബ്ലാങ്ക് വരികളോ അക്ഷരങ്ങളോ ഉണ്ടെങ്കിൽ അവ ഒഴിവാക്കി തുക മാത്രം കൃത്യമായി കൂട്ടാനുള്ള സുരക്ഷിതമായ ലോജിക്
-        # 3-ാമത്തെ കോളം Debit, 4-ാമത്തെ കോളം Credit
-        t_loss = pd.to_numeric(df.iloc[:, 2], errors='coerce').dropna().fillna(0).sum()
-        t_profit = pd.to_numeric(df.iloc[:, 3], errors='coerce').dropna().fillna(0).sum()
-        
+        t_loss = pd.to_numeric(df.iloc[:, 2], errors='coerce').fillna(0).sum()
+        t_profit = pd.to_numeric(df.iloc[:, 3], errors='coerce').fillna(0).sum()
         net_amt = t_profit - t_loss
         return float(t_profit), float(t_loss), float(net_amt)
     except: 
         return 0.0, 0.0, 0.0
-
-def get_triple_advisor():
-    try:
-        symbols = {"Nifty 50": "^NSEI", "Bank Nifty": "^NSEBANK", "Crude Fut": "CL=F"}
-        results = []
-        for name, sym in symbols.items():
-            df = yf.Ticker(sym).history(period="5d", interval="5m")
-            if df.empty: continue
-            last_p = df['Close'].iloc[-1]
-            h, l, c = df['High'].iloc[-2], df['Low'].iloc[-2], df['Close'].iloc[-2]
-            pivot = (h + l + c) / 3
-            delta = df['Close'].diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-            rsi = 100 - (100 / (1 + (gain / loss).iloc[-1]))
-            if last_p > pivot and rsi > 55: signal, color = "🚀 BUY", "#00FF00"
-            elif last_p < pivot and rsi < 45: signal, color = "📉 SELL", "#FF3131"
-            else: signal, color = "⚖️ WAIT", "#FFFF00"
-            if name == "Crude Fut": last_p = last_p * 83.5 * 1.15
-            results.append({"name": name, "price": last_p, "signal": signal, "rsi": rsi, "color": color})
-        return results
-    except: return None
 
 def create_pdf(df):
     try:
@@ -113,6 +89,17 @@ def create_pdf(df):
         return pdf.output(dest='S').encode('latin-1')
     except: return None
 
+def parse_mixed_dates(date_series):
+    parsed_dates = []
+    for val in date_series:
+        val_str = str(val).strip()
+        dt = pd.NaT
+        try:
+            dt = pd.to_datetime(val_str, errors='coerce')
+        except: pass
+        parsed_dates.append(dt)
+    return pd.Series(parsed_dates)
+
 # --- 4. APP MAIN ---
 if not st.session_state.auth:
     st.title("🔐 PAICHI TRADING LOGIN")
@@ -127,34 +114,21 @@ else:
     curr_user = st.session_state.user
     t_profit, t_loss, net_p_and_l = get_totals()
     
-    # മുകളിൽ തിളങ്ങി നിൽക്കുന്ന ഗോൾഡൻ ബാലൻസ് ഡിസ്പ്ലേ
     st.markdown(f'''<div class="balance-banner">
         <span style="font-size:20px; color: #00FFCC;">Net Trading P&L Balance</span><br>
         <span style="font-size:40px; color:#FFD700; font-weight:bold;">₹{net_p_and_l:,.2f}</span>
     </div>''', unsafe_allow_html=True)
 
     if curr_user == "shabana": 
-        menu_options = ["💰 Add Trade"]
+        menu_options = ["💰 Add Trade", "📅 Calendar"]
     else: 
-        menu_options = ["📊 Advisor", "🏠 Dashboard", "💰 Add Trade", "📊 Report", "🔍 History"]
+        menu_options = ["🏠 Dashboard", "💰 Add Trade", "📅 Calendar", "📊 Report", "🔍 History"]
 
     page = st.sidebar.radio("Menu", menu_options)
     if st.sidebar.button("Logout"): st.session_state.auth = False; st.rerun()
 
     # --- PAGES ---
-    if page == "📊 Advisor":
-        st.title("🚀 Smart Trading Terminal")
-        markets = get_triple_advisor()
-        if markets:
-            for m in markets:
-                st.markdown(f"""<div class="purple-box" style="border-color: {m['color']} !important;">
-                    <h2 style="color:#00FFCC !important;">{m["name"]}</h2>
-                    <h1 style="color:{m["color"]} !important; font-size:55px;">{m["signal"]}</h1>
-                    <h1 style="color:#FFD700 !important; font-size:50px;">₹{m["price"]:,.0f}</h1>
-                    <p>RSI: {m["rsi"]:.1f}</p>
-                </div>""", unsafe_allow_html=True)
-
-    elif page == "🏠 Dashboard":
+    if page == "🏠 Dashboard":
         st.title("Trading Overview")
         st.markdown(f"""<div class="purple-box">
             <h2 style="color: #00FF00;">Total Profits: ₹{t_profit:,.2f}</h2>
@@ -163,9 +137,8 @@ else:
 
     elif page == "💰 Add Trade":
         st.title("Log New Trade 📈")
-        
         with st.form("trade_form", clear_on_submit=True):
-            strike_price = st.text_input("Strike Price / Script Name (e.g., Nifty 22000 CE)")
+            strike_price = st.text_input("Strike Price / Script Name (e.g., Nifty 24000 CE)")
             am_str = st.text_input("Amount (തുക)")
             ty = st.radio("Result Type", ["Profit (Credit)", "Loss (Debit)"], horizontal=True)
             
@@ -174,17 +147,83 @@ else:
                     am = float(am_str.strip().replace(',', ''))
                     if strike_price and am > 0:
                         c_val, d_val = (am, "") if "Profit" in ty else ("", am)
-                        
                         success = send_to_sheet_direct(strike_price, d_val, c_val)
-                        
                         status_icon = "🟢" if "Profit" in ty else "🔴"
                         msg = f"{status_icon} *Paichi Trade Entry*\n📝 Script: {strike_price}\n💰 P&L: ₹{am} ({ty})\n👤 Trader: {curr_user}"
                         threading.Thread(target=send_whatsapp_auto, args=(msg,)).start()
-                        
                         st.success("Trade Logged & WhatsApp Notification Sent! ✅")
                         st.rerun()
                     else: st.error("വിവരങ്ങൾ പൂർണ്ണമായി നൽകുക!")
                 except: st.error("തുക കൃത്യമായി നമ്പർ ആയി നൽകുക!")
+
+    elif page == "📅 Calendar":
+        st.title("P&L Calendar View 📅")
+        try:
+            df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
+            df.columns = df.columns.str.strip()
+            
+            # ഷീറ്റിലെ 1-ാമത്തെ കോളം തീയതിയാണ് (Date)
+            df[df.columns[0]] = parse_mixed_dates(df[df.columns[0]])
+            df = df.dropna(subset=[df.columns[0]])
+            
+            # Debit (2nd index), Credit (3rd index)
+            df.iloc[:, 2] = pd.to_numeric(df.iloc[:, 2], errors='coerce').fillna(0)
+            df.iloc[:, 3] = pd.to_numeric(df.iloc[:, 3], errors='coerce').fillna(0)
+            
+            daily_summary = df.groupby(df.columns[0]).agg({df.columns[2]: 'sum', df.columns[3]: 'sum'}).reset_index()
+            
+            calendar_events = []
+            for _, row in daily_summary.iterrows():
+                date_str = row[df.columns[0]].strftime('%Y-%m-%d')
+                profit = float(row[df.columns[3]])
+                loss = float(row[df.columns[2]])
+                
+                if profit > 0:
+                    calendar_events.append({
+                        "id": f"profit_{date_str}",
+                        "title": f" +₹{profit:,.0f}",
+                        "start": date_str,
+                        "backgroundColor": "#198754",
+                        "borderColor": "#198754",
+                        "textColor": "white"
+                    })
+                if loss > 0:
+                    calendar_events.append({
+                        "id": f"loss_{date_str}",
+                        "title": f" -₹{loss:,.0f}",
+                        "start": date_str,
+                        "backgroundColor": "#dc3545",
+                        "borderColor": "#dc3545",
+                        "textColor": "white"
+                    })
+            
+            calendar_options = {
+                "headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth"},
+                "initialView": "dayGridMonth",
+                "selectable": True,
+            }
+            
+            cal_data = calendar(events=calendar_events, options=calendar_options, key="trading_pnl_calendar")
+            
+            # ബട്ടൺ തൊടുമ്പോൾ ഫുൾ ഡീറ്റെയിൽസ് താഴെ കാണിക്കുന്ന ഭാഗം
+            if cal_data.get("eventClick"):
+                clicked_date = cal_data["eventClick"]["event"]["start"].split("T")[0]
+                clicked_dt = pd.to_datetime(clicked_date)
+                
+                st.markdown("---")
+                st.subheader(f"📋 Trade Breakdown for {clicked_dt.strftime('%d %B %Y')}")
+                
+                day_entries = df[df[df.columns[0]].dt.strftime('%Y-%m-%d') == clicked_date].copy()
+                
+                if not day_entries.empty:
+                    day_entries[df.columns[0]] = day_entries[df.columns[0]].dt.strftime('%d/%m/%Y')
+                    show_df = day_entries[[df.columns[0], df.columns[1], df.columns[2], df.columns[3]]]
+                    show_df.columns = ['Date', 'Script/Strike Price', 'Loss (Debit)', 'Profit (Credit)']
+                    st.dataframe(show_df.reset_index(drop=True), use_container_width=True)
+                else:
+                    st.info("No details found for this day.")
+        except Exception as e:
+            st.error("കലണ്ടർ ഡാറ്റ ലോഡ് ചെയ്യാൻ കഴിഞ്ഞില്ല!")
 
     elif page == "📊 Report":
         st.title("Profit Analysis")
