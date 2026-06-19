@@ -6,3 +6,4 @@ plotly
 streamlit-mic-recorder
 streamlit-autorefresh
 fpdf2
+(streamlit-calendar)
