@@ -1,6 +1,6 @@
 import streamlit as st
 import yt_dlp
-import os
+import io
 
 # ആപ്പിന്റെ പുതിയ തലക്കെട്ട്
 st.title("All-in-One Video Downloader 🚀")
@@ -13,43 +13,38 @@ if st.button("Download Video"):
     if url:
         st.info("വീഡിയോ പ്രോസസ്സ് ചെയ്യുന്നു, ദയവായി കാത്തിരിക്കുക...")
         
-        # എല്ലാ വെബ്‌സൈറ്റുകളെയും സപ്പോർട്ട് ചെയ്യാനും ബ്ലോക്കുകൾ ഒഴിവാക്കാനുമുള്ള അഡ്വാൻസ്ഡ് കോൺഫിഗറേഷൻ
+        # കൂടുതൽ സ്റ്റേബിൾ ആയ കോൺഫിഗറേഷൻ
         ydl_opts = {
-            # സാധ്യമായ ഏറ്റവും മികച്ച സിംഗിൾ ഫയൽ MP4 ഫോർമാറ്റ് തിരഞ്ഞെടുക്കുന്നു
-            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', 
-            'outtmpl': '%(title)s.%(ext)s',
+            # ഒറ്റ ഫയലായി കിട്ടുന്ന ഏറ്റവും നല്ല mp4 ഫോർമാറ്റ് സെലക്ട് ചെയ്യുന്നു (FFmpeg എറർ ഒഴിവാക്കാൻ)
+            'format': 'best[ext=mp4]/best', 
             'nocheckcertificate': True,
-            'ignoreerrors': False,
-            'logtostderr': False,
             'quiet': True,
             'no_warnings': True,
-            'source_address': '0.0.0.0', # സെർവർ ഐപി പ്രശ്നങ്ങൾ കുറയ്ക്കാൻ
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9',
             }
         }
         
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # ലിങ്കിൽ നിന്നുള്ള വീഡിയോ വിവരങ്ങൾ എടുത്ത് ഡൗൺലോഡ് ചെയ്യുന്നു
-                info = ydl.extract_info(url, download=True)
-                filename = ydl.prepare_filename(info)
+                # ഫയൽ സെർവറിലേക്ക് ഡൗൺലോഡ് ചെയ്യാതെ അതിന്റെ വിവരങ്ങൾ മാത്രം എടുക്കുന്നു
+                info = ydl.extract_info(url, download=False)
+                video_url = info.get('url')
+                title = info.get('title', 'video')
                 
-            st.success("വീഡിയോ വിജയകരമായി ഡൗൺലോഡ് ചെയ്തു!")
-            
-            # ഫോണിലേക്ക് സേവ് ചെയ്യാനുള്ള ബട്ടൺ
-            with open(filename, "rb") as file:
-                st.download_button(
-                    label="ഫോണിലേക്ക് സേവ് ചെയ്യുക ⬇️",
-                    data=file,
-                    file_name=filename,
-                    mime="video/mp4"
-                )
+                # വീഡിയോയുടെ ടൈറ്റിൽ ക്ലീൻ ചെയ്ത് ഫയൽ നെയിം ഉണ്ടാക്കുന്നു
+                clean_title = "".join([c for c in title if c.isalpha() or c.isdigit() or c==' ']).rstrip()
+                filename = f"{clean_title}.mp4"
                 
-            # ഉപയോഗത്തിന് ശേഷം സെർവറിലെ താൽക്കാലിക ഫയൽ ഡിലീറ്റ് ചെയ്യുന്നു
-            os.remove(filename)
+            if video_url:
+                st.success("വീഡിയോ റെഡിയായിട്ടുണ്ട്!")
+                # ഡൗൺലോഡ് ലിങ്ക് നേരിട്ട് Streamlit ബട്ടണിലേക്ക് നൽകുന്നു
+                st.video(video_url) # ആപ്പിൽ തന്നെ വീഡിയോ പ്ലേ ചെയ്തു നോക്കാനും സാധിക്കും
+                
+                # ബോണസ്: ക്ലൗഡിൽ പ്രശ്നമില്ലാതെ വർക്ക് ആകാൻ ഒരു ഡൗൺലോഡ് ബട്ടൺ ലിങ്ക് കൂടി നൽകാം
+                st.markdown(f'[ഫോണിലേക്ക് ഡൗൺലോഡ് ചെയ്യാൻ ഇവിടെ ഞെക്കുക ⬇️]({video_url})')
+            else:
+                st.error("വീഡിയോ യുആർഎൽ കണ്ടെത്താൻ കഴിഞ്ഞില്ല.")
                 
         except Exception as e:
             st.error(f"ഡൗൺലോഡ് ചെയ്യാൻ സാധിച്ചില്ല. ലിങ്ക് കൃത്യമാണോ എന്ന് പരിശോധിക്കുക. എറർ: {e}")
