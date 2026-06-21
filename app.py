@@ -17,8 +17,8 @@ if st.button("Download Video"):
         outtmpl_path = 'downloaded_video.%(ext)s'
         
         ydl_opts = {
-            # ഏറ്റവും നല്ല വീഡിയോയും ഓഡിയോയും മെർജ് ചെയ്ത് mp4 ആക്കാൻ പറയുന്നു
-            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            # ഇവിടെ മാറ്റിയിട്ടുണ്ട്: merge ചെയ്യാൻ നിൽക്കാതെ നേരിട്ട് ഒരൊറ്റ mp4 ഫയലായി കിട്ടുന്ന ഏറ്റവും മികച്ച ക്വാളിറ്റി എടുക്കും (ffmpeg ആവശ്യമില്ല)
+            'format': 'best[ext=mp4]/best',
             'outtmpl': outtmpl_path,
             'nocheckcertificate': True,
             'quiet': True,
