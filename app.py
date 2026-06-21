@@ -17,16 +17,23 @@ if st.button("Download Video"):
         outtmpl_path = 'downloaded_video.%(ext)s'
         
         ydl_opts = {
-            # ഇവിടെ മാറ്റിയിട്ടുണ്ട്: merge ചെയ്യാൻ നിൽക്കാതെ നേരിട്ട് ഒരൊറ്റ mp4 ഫയലായി കിട്ടുന്ന ഏറ്റവും മികച്ച ക്വാളിറ്റി എടുക്കും (ffmpeg ആവശ്യമില്ല)
             'format': 'best[ext=mp4]/best',
             'outtmpl': outtmpl_path,
             'nocheckcertificate': True,
             'quiet': True,
+            # YouTube ബ്ലോക്ക് ചെയ്യാതിരിക്കാൻ റാൻഡം യൂസർ ഏജന്റും ഹെഡ്ഡറുകളും നൽകുന്നു
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+            },
+            # ജിയോ-ബ്ലോക്കിങ് ഒഴിവാക്കാൻ സഹായിക്കും
+            'geo_bypass': True,
         }
         
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # വീഡിയോ ഡൗൺലോഡ് ചെയ്യുന്നു
+                # വീഡിയോ വിവരങ്ങൾ എടുക്കുന്നു
                 info = ydl.extract_info(url, download=True)
                 filename = ydl.prepare_filename(info)
                 
