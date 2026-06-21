@@ -1,57 +1,99 @@
-import streamlit as st
+from kivymd.app import MDApp
+from kivymd.uix.screen import MDScreen
+from kivymd.uix.textfield import MDTextField
+from kivymd.uix.button import MDRaisedButton
+from kivymd.uix.label import MDLabel
+from kivymd.uix.boxlayout import MDBoxLayout
 import yt_dlp
+import threading
 import os
 
-# ആപ്പിന്റെ തലക്കെട്ട്
-st.title("Universal Video Downloader 🎬")
-st.write("Instagram Reels, YouTube Shorts, Facebook, Twitter തുടങ്ങി ഏത് വീഡിയോ ലിങ്കും താഴെ പേസ്റ്റ് ചെയ്ത് ഡൗൺലോഡ് ചെയ്യാം.")
+# നിങ്ങളുടെ ഫോണ്ടുകളുടെ പേര് ഇവിടെ കൊടുക്കുക (main.py ഇരിക്കുന്ന അതേ ഫോൾഡറിൽ ഉണ്ടായിരിക്കണം)
+MALAYALAM_FONT = "NotoSansMalayalam-Regular.ttf" # അല്ലെങ്കിൽ "AnjaliOldLipi.ttf"
 
-# ലിങ്ക് വാങ്ങാനുള്ള ബോക്സ്
-url = st.text_input("വീഡിയോ ലിങ്ക് ഇവിടെ പേസ്റ്റ് ചെയ്യുക:")
+class DownloaderApp(MDApp):
+    def build(self):
+        self.theme_cls.primary_palette = "Teal"
+        
+        screen = MDScreen()
+        layout = MDBoxLayout(orientation='vertical', padding=30, spacing=25)
+        
+        # Title
+        layout.add_widget(MDLabel(
+            text="Universal Video Downloader 🎬", 
+            font_style="H4", 
+            halign="center"
+        ))
+        
+        # Subtitle (Malayalam Font Added)
+        layout.add_widget(MDLabel(
+            text="ലിങ്ക് താഴെ പേസ്റ്റ് ചെയ്ത് ഡൗൺലോഡ് ചെയ്യാം", 
+            font_name=MALAYALAM_FONT if os.path.exists(MALAYALAM_FONT) else None,
+            halign="center",
+            theme_text_color="Secondary"
+        ))
+        
+        # Input Box
+        self.url_input = MDTextField(
+            hint_text="വീഡിയോ ലിങ്ക് ഇവിടെ പേസ്റ്റ് ചെയ്യുക", 
+            mode="rectangle"
+        )
+        layout.add_widget(self.url_input)
+        
+        # Status Label (Fixed the error logic here)
+        self.status_label = MDLabel(
+            text="", 
+            font_name=MALAYALAM_FONT if os.path.exists(MALAYALAM_FONT) else None,
+            halign="center", 
+            theme_text_color="Error"
+        )
+        layout.add_widget(self.status_label)
+        
+        # Download Button
+        btn = MDRaisedButton(
+            text="Download Video", 
+            pos_hint={"center_x": .5},
+            padding=15
+        )
+        btn.bind(on_release=self.start_download_thread)
+        layout.add_widget(btn)
+        
+        screen.add_widget(layout)
+        return screen
 
-if st.button("Download Video"):
-    if url:
-        st.info("വീഡിയോ പ്രോസസ്സ് ചെയ്യുന്നു, ദയവായി കാത്തിരിക്കുക...")
+    def start_download_thread(self, instance):
+        threading.Thread(target=self.download_video).start()
+
+    def download_video(self):
+        url = self.url_input.text
+        if not url:
+            self.status_label.text = "ദയവായി ഒരു ലിങ്ക് നൽകുക!"
+            return
+            
+        self.status_label.text = "വീഡിയോ പ്രോസസ്സ് ചെയ്യുന്നു, ദയവായി കാത്തിരിക്കുക..."
         
-        # താൽക്കാലികമായി ഡൗൺലോഡ് ചെയ്യാനുള്ള ഫയൽ നെയിം പാറ്റേൺ
-        outtmpl_path = 'downloaded_video.%(ext)s'
-        
+        # Android Downloads folder path
+        download_folder = '/storage/emulated/0/Download/'
+        if not os.path.exists(download_folder):
+            download_folder = './' 
+            
         ydl_opts = {
             'format': 'best[ext=mp4]/best',
-            'outtmpl': outtmpl_path,
+            'outtmpl': os.path.join(download_folder, 'Downloaded_Video_%(id)s.%(ext)s'),
             'nocheckcertificate': True,
             'quiet': True,
-            # YouTube ബ്ലോക്ക് ചെയ്യാതിരിക്കാൻ റാൻഡം യൂസർ ഏജന്റും ഹെഡ്ഡറുകളും നൽകുന്നു
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9',
-            },
-            # ജിയോ-ബ്ലോക്കിങ് ഒഴിവാക്കാൻ സഹായിക്കും
-            'geo_bypass': True,
         }
         
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # വീഡിയോ വിവരങ്ങൾ എടുക്കുന്നു
-                info = ydl.extract_info(url, download=True)
-                filename = ydl.prepare_filename(info)
-                
-            st.success("വീഡിയോ റെഡിയായിട്ടുണ്ട്!")
-            
-            # ഡൗൺലോഡ് ചെയ്ത ഫയൽ റീഡ് ചെയ്ത് ബട്ടൺ കാണിക്കുന്നു
-            with open(filename, "rb") as file:
-                st.download_button(
-                    label="ഫോണിലേക്ക് സേവ് ചെയ്യുക ⬇️",
-                    data=file,
-                    file_name="video_download.mp4",
-                    mime="video/mp4"
-                )
-                
-            # സെർവറിൽ നിന്ന് ആ താൽക്കാലിക ഫയൽ ഡിലീറ്റ് ചെയ്യുന്നു
-            os.remove(filename)
-                
+                ydl.download([url])
+            self.status_label.theme_text_color = "Custom"
+            self.status_label.text_color = (0, 0.6, 0, 1) # പച്ച നിറം
+            self.status_label.text = "വീഡിയോ Downloads ഫോൾഡറിൽ സേവ് ചെയ്തിട്ടുണ്ട്! ✅"
         except Exception as e:
-            st.error(f"ഡൗൺലോഡ് ചെയ്യാൻ സാധിച്ചില്ല. ലിങ്ക് കൃത്യമാണോ എന്ന് പരിശോധിക്കുക. എറർ: {e}")
-    else:
-        st.warning("ദയവായി ഒരു വീഡിയോ ലിങ്ക് നൽകുക!")
+            self.status_label.theme_text_color = "Error"
+            self.status_label.text = f"ഡൗൺലോഡ് പരാജയപ്പെട്ടു!"
+            print(f"Error: {e}") # യഥാർത്ഥ എറർ ടെർമിനലിൽ പ്രിന്റ് ചെയ്യും
+
+if __name__ == "__main__":
+    DownloaderApp().run()
