@@ -2,11 +2,9 @@ import streamlit as st
 import yt_dlp
 import os
 
-# ആപ്പിന്റെ തലക്കെട്ട് (Title)
 st.title("YouTube Video Downloader 🚀")
 st.write("യൂട്യൂബ് ലിങ്ക് താഴെ പേസ്റ്റ് ചെയ്ത് വീഡിയോ ഡൗൺലോഡ് ചെയ്യാം.")
 
-# വെബ്സൈറ്റിൽ ലിങ്ക് കൊടുക്കാനുള്ള ബോക്സ്
 url = st.text_input("YouTube ലിങ്ക് ഇവിടെ പേസ്റ്റ് ചെയ്യുക:")
 
 if st.button("Download Video"):
@@ -16,24 +14,28 @@ if st.button("Download Video"):
         ydl_opts = {
             'format': 'best',
             'outtmpl': '%(title)s.%(ext)s',
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-            },
+            # ശക്തമായ പുതിയ സുരക്ഷാ ബൈപാസ് കോഡുകൾ:
             'nocheckcertificate': True,
+            'ignoreerrors': False,
+            'logtostderr': False,
             'quiet': True,
+            'no_warnings': True,
+            'referer': 'https://www.youtube.com/',
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Sec-Fetch-Mode': 'navigate',
+            }
         }
         
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # വീഡിയോ വിവരങ്ങൾ എടുക്കുന്നു
                 info = ydl.extract_info(url, download=True)
                 filename = ydl.prepare_filename(info)
                 
             st.success("വീഡിയോ വിജയകരമായി ഡൗൺലോഡ് ചെയ്തു!")
             
-            # ഡൗൺലോഡ് ചെയ്ത ഫയൽ യൂസർക്ക് ഫോണിലേക്ക് സേവ് ചെയ്യാൻ ബട്ടൺ നൽകുന്നു
             with open(filename, "rb") as file:
                 st.download_button(
                     label="ഫോണിലേക്ക് സേവ് ചെയ്യുക ⬇️",
@@ -42,7 +44,6 @@ if st.button("Download Video"):
                     mime="video/mp4"
                 )
                 
-            # ഉപയോഗത്തിന് ശേഷം സെർവറിൽ നിന്ന് ഫയൽ ഡിലീറ്റ് ചെയ്യുന്നു
             os.remove(filename)
                 
         except Exception as e:
