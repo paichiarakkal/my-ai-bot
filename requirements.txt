@@ -6,5 +6,4 @@ plotly
 streamlit-mic-recorder
 streamlit-autorefresh
 fpdf2
-yt-dlp
-kivymd
+yt_dlp
