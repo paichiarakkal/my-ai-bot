@@ -2,20 +2,24 @@ import streamlit as st
 import yt_dlp
 import os
 
-# ആപ്പിന്റെ തലക്കെട്ട് മാറ്റാം
-st.title("Instagram Reels Downloader 🎬")
-st.write("ഇൻസ്റ്റാഗ്രാം റീൽസ് ലിങ്ക് താഴെ പേസ്റ്റ് ചെയ്ത് വീഡിയോ ഫോണിലേക്ക് ഡൗൺലോഡ് ചെയ്യാം.")
+# ആപ്പിന്റെ തലക്കെട്ട്
+st.title("Universal Video Downloader 🎬")
+st.write("Instagram Reels, YouTube Shorts, Facebook, Twitter തുടങ്ങി ഏത് വീഡിയോ ലിങ്കും താഴെ പേസ്റ്റ് ചെയ്ത് ഡൗൺലോഡ് ചെയ്യാം.")
 
-# റീൽസ് ലിങ്ക് വാങ്ങാനുള്ള ബോക്സ്
-url = st.text_input("Instagram Reels ലിങ്ക് ഇവിടെ പേസ്റ്റ് ചെയ്യുക:")
+# ലിങ്ക് വാങ്ങാനുള്ള ബോക്സ്
+url = st.text_input("വീഡിയോ ലിങ്ക് ഇവിടെ പേസ്റ്റ് ചെയ്യുക:")
 
 if st.button("Download Video"):
     if url:
         st.info("വീഡിയോ പ്രോസസ്സ് ചെയ്യുന്നു, ദയവായി കാത്തിരിക്കുക...")
         
+        # താൽക്കാലികമായി ഡൗൺലോഡ് ചെയ്യാനുള്ള ഫയൽ നെയിം പാറ്റേൺ
+        outtmpl_path = 'downloaded_video.%(ext)s'
+        
         ydl_opts = {
-            'format': 'best',
-            'outtmpl': 'insta_video.%(ext)s', # ഫയൽ നെയിം സെറ്റ് ചെയ്യുന്നു
+            # ഏറ്റവും നല്ല വീഡിയോയും ഓഡിയോയും മെർജ് ചെയ്ത് mp4 ആക്കാൻ പറയുന്നു
+            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            'outtmpl': outtmpl_path,
             'nocheckcertificate': True,
             'quiet': True,
         }
@@ -28,19 +32,19 @@ if st.button("Download Video"):
                 
             st.success("വീഡിയോ റെഡിയായിട്ടുണ്ട്!")
             
-            # ഫോണിലേക്ക് സേവ് ചെയ്യാനുള്ള ബട്ടൺ
+            # ഡൗൺലോഡ് ചെയ്ത ഫയൽ റീഡ് ചെയ്ത് ബട്ടൺ കാണിക്കുന്നു
             with open(filename, "rb") as file:
                 st.download_button(
                     label="ഫോണിലേക്ക് സേവ് ചെയ്യുക ⬇️",
                     data=file,
-                    file_name="instagram_reel.mp4",
+                    file_name="video_download.mp4",
                     mime="video/mp4"
                 )
                 
-            # സെർവറിൽ നിന്ന് ഫയൽ ഡിലീറ്റ് ചെയ്യുന്നു
+            # സെർവറിൽ നിന്ന് ആ താൽക്കാലിക ഫയൽ ഡിലീറ്റ് ചെയ്യുന്നു
             os.remove(filename)
                 
         except Exception as e:
             st.error(f"ഡൗൺലോഡ് ചെയ്യാൻ സാധിച്ചില്ല. ലിങ്ക് കൃത്യമാണോ എന്ന് പരിശോധിക്കുക. എറർ: {e}")
     else:
-        st.warning("ദയവായി ഒരു ഇൻസ്റ്റാഗ്രാം ലിങ്ക് നൽകുക!")
+        st.warning("ദയവായി ഒരു വീഡിയോ ലിങ്ക് നൽകുക!")
