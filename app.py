@@ -13,9 +13,8 @@ if st.button("Download Video"):
     if url:
         st.info("വീഡിയോ പ്രോസസ്സ് ചെയ്യുന്നു, ദയവായി കാത്തിരിക്കുക...")
         
-        # കൂടുതൽ സ്റ്റേബിൾ ആയ കോൺഫിഗറേഷൻ
-        ydl_opts = {
-            # ഒറ്റ ഫയലായി കിട്ടുന്ന ഏറ്റവും നല്ല mp4 ഫോർമാറ്റ് സെലക്ട് ചെയ്യുന്നു (FFmpeg എറർ ഒഴിവാക്കാൻ)
+        # നിങ്ങളുടെ പഴയ കോൺഫിഗറേഷൻ (മറ്റ് സോഷ്യൽ മീഡിയകൾക്കായി)
+        ydl_opts_old = {
             'format': 'best[ext=mp4]/best', 
             'nocheckcertificate': True,
             'quiet': True,
@@ -24,6 +23,23 @@ if st.button("Download Video"):
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
             }
         }
+        
+        # YouTube-ൽ നല്ല വ്യക്തതയുള്ള (HD) വീഡിയോകൾക്ക് വേണ്ടിയുള്ള പുതിയ കോൺഫിഗറേഷൻ
+        ydl_opts_hd = {
+            'format': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best',
+            'nocheckcertificate': True,
+            'quiet': True,
+            'no_warnings': True,
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+            }
+        }
+        
+        # ലിങ്ക് YouTube ആണെങ്കിൽ HD ഓപ്ഷൻ എടുക്കുന്നു, അല്ലെങ്കിൽ പഴയ ഓപ്ഷൻ എടുക്കുന്നു
+        if "youtube.com" in url or "youtu.be" in url:
+            ydl_opts = ydl_opts_hd
+        else:
+            ydl_opts = ydl_opts_old
         
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
