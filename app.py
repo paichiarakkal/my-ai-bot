@@ -1,25 +1,22 @@
 import streamlit as st
 import yt_dlp
-import requests
 import io
 
-# --- 1. PAGE CONFIG & THEME ---
-st.set_page_config(page_title="All-in-One Downloader", page_icon="🚀", layout="centered")
-
+# ആപ്പിന്റെ പുതിയ തലക്കെട്ട്
 st.title("All-in-One Video Downloader 🚀")
-st.write("YouTube, Instagram, Facebook തുടങ്ങി ഏത് വീഡിയോ ലിങ്കും താഴെ പേസ്റ്റ് ചെയ്ത് ഡൗൺലോഡ് ചെയ്യാം.")
+st.write("YouTube, Instagram, Facebook, TikTok തുടങ്ങി ഏത് വീഡിയോ ലിങ്കും താഴെ പേസ്റ്റ് ചെയ്ത് ഡൗൺലോഡ് ചെയ്യാം.")
 
-# --- 2. USER INPUT ---
-url = st.text_input("വീഡിയോ ലിങ്ക് ഇവിടെ പേസ്റ്റ് ചെയ്യുക:", placeholder="https://...")
+# ലിങ്ക് വാങ്ങാനുള്ള ബോക്സ്
+url = st.text_input("വീഡിയോ ലിങ്ക് ഇവിടെ പേസ്റ്റ് ചെയ്യുക:")
 
-# --- 3. DOWNLOAD LOGIC ---
-if st.button("Download Video", use_container_width=True):
+if st.button("Download Video"):
     if url:
-        st.info("വീഡിയോ പ്രോസസ്സ് ചെയ്യുന്നു, ദയവായി காത്തിരിക്കുക...")
+        st.info("വീഡിയോ പ്രോസസ്സ് ചെയ്യുന്നു, ദയവായി കാത്തിരിക്കുക...")
         
-        # yt_dlp കോൺഫിഗറേഷൻ
+        # കൂടുതൽ സ്റ്റേബിൾ ആയ കോൺഫിഗറേഷൻ
         ydl_opts = {
-            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            # ഒറ്റ ഫയലായി കിട്ടുന്ന ഏറ്റവും നല്ല mp4 ഫോർമാറ്റ് സെലക്ട് ചെയ്യുന്നു (FFmpeg എറർ ഒഴിവാക്കാൻ)
+            'format': 'best[ext=mp4]/best', 
             'nocheckcertificate': True,
             'quiet': True,
             'no_warnings': True,
@@ -30,41 +27,26 @@ if st.button("Download Video", use_container_width=True):
         
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # ഫയൽ ഡൗൺലോഡ് ചെയ്യാതെ ലിങ്ക് മാത്രം എക്സ്ട്രാക്റ്റ് ചെയ്യുന്നു
+                # ഫയൽ സെർവറിലേക്ക് ഡൗൺലോഡ് ചെയ്യാതെ അതിന്റെ വിവരങ്ങൾ മാത്രം എടുക്കുന്നു
                 info = ydl.extract_info(url, download=False)
                 video_url = info.get('url')
                 title = info.get('title', 'video')
                 
-                # ഫയൽ നെയിമിലെ സ്പെഷ്യൽ ക്യാരക്ടറുകൾ ഒഴിവാക്കുന്നു
+                # വീഡിയോയുടെ ടൈറ്റിൽ ക്ലീൻ ചെയ്ത് ഫയൽ നെയിം ഉണ്ടാക്കുന്നു
                 clean_title = "".join([c for c in title if c.isalpha() or c.isdigit() or c==' ']).rstrip()
                 filename = f"{clean_title}.mp4"
                 
             if video_url:
-                # വീഡിയോ ലിങ്കിൽ നിന്ന് ഡാറ്റ മെമ്മറിയിലേക്ക് ഡൗൺലോഡ് ചെയ്യുന്നു
-                with st.spinner("ഡൗൺലോഡ് ബട്ടൺ തയ്യാറാക്കുന്നു..."):
-                    response = requests.get(video_url, stream=True, timeout=30)
-                    video_bytes = io.BytesIO(response.content)
+                st.success("വീഡിയോ റെഡിയായിട്ടുണ്ട്!")
+                # ഡൗൺലോഡ് ലിങ്ക് നേരിട്ട് Streamlit ബട്ടണിലേക്ക് നൽകുന്നു
+                st.video(video_url) # ആപ്പിൽ തന്നെ വീഡിയോ പ്ലേ ചെയ്തു നോക്കാനും സാധിക്കും
                 
-                st.success("🎬 വീഡിയോ വിജയകരമായി പ്രോസസ്സ് ചെയ്തു!")
-                
-                # ആപ്പിൽ പ്ലേ ചെയ്യാനുള്ള പ്ലെയർ
-                st.video(video_bytes)
-                
-                st.markdown("---")
-                
-                # ഫോണിലേക്ക് നേരിട്ട് സേവ് ചെയ്യാനുള്ള ഒഫീഷ്യൽ ബട്ടൺ
-                st.download_button(
-                    label="📥 ഫോണിലേക്ക് ഡൗൺലോഡ് ചെയ്യാം (Save Video)",
-                    data=video_bytes,
-                    file_name=filename,
-                    mime="video/mp4",
-                    use_container_width=True
-                )
+                # ബോണസ്: ക്ലൗഡിൽ പ്രശ്നമില്ലാതെ വർക്ക് ആകാൻ ഒരു ഡൗൺലോഡ് ബട്ടൺ ലിങ്ക് കൂടി നൽകാം
+                st.markdown(f'[ഫോണിലേക്ക് ഡൗൺലോഡ് ചെയ്യാൻ ഇവിടെ ഞെക്കുക ⬇️]({video_url})')
             else:
-                st.error("വീഡിയോ യുആർഎൽ കണ്ടെത്താൻ കഴിഞ്ഞില്ല. ലിങ്ക് ഒരിക്കൽ കൂടി പരിശോധിക്കുക.")
+                st.error("വീഡിയോ യുആർഎൽ കണ്ടെത്താൻ കഴിഞ്ഞില്ല.")
                 
         except Exception as e:
-            st.error("ഡൗൺലോഡ് ചെയ്യാൻ സാധിച്ചില്ല! ഇൻസ്റ്റാഗ്രാം പ്രൈവറ്റ് ലിങ്ക് ആണോ അതോ ലിങ്ക് മാറിയതാണോ എന്ന് പരിശോധിക്കുക.")
-            st.info("ശ്രദ്ധിക്കുക: Render-ൽ ഹോസ്റ്റ് ചെയ്യുമ്പോൾ ഇൻസ്റ്റാഗ്രാം ചിലപ്പോൾ ഐപി ബ്ലോക്ക് ചെയ്യാൻ സാധ്യതയുണ്ട്.")
+            st.error(f"ഡൗൺലോഡ് ചെയ്യാൻ സാധിച്ചില്ല. ലിങ്ക് കൃത്യമാണോ എന്ന് പരിശോധിക്കുക. എറർ: {e}")
     else:
         st.warning("ദയവായി ഒരു വീഡിയോ ലിങ്ക് നൽകുക!")
