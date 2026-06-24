@@ -145,7 +145,19 @@ else:
         st.markdown(f'<div class="purple-box"><h2 style="color:#00FF00;">Total Credit: ₹{t_in:,.2f}</h2><h2 style="color:#FF3131;">Total Debit: ₹{t_out:,.2f}</h2></div>', unsafe_allow_html=True)
         
         st.subheader("🗂️ Categorywise Expense Breakdown")
-        def extract_cat(x): return x.split(']')[1].split(':')[0].strip().capitalize() if ']' in str(x) and ':' in str(x) else (str(x).split(':')[0].strip().capitalize() if ':' in str(x) else "Others")
+        
+        # 🔄 പഴയതും പുതിയതുമായ ഗൂഗിൾ ഷീറ്റ് എൻട്രികൾ ഒരുപോലെ തിരിച്ചറിയാനുള്ള സ്മാർട്ട് കാറ്റഗറി ഫങ്ക്ഷൻ
+        def extract_cat(x):
+            item_text = str(x).lower()
+            if any(w in item_text for w in ["food", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി", "mess"]): return "Food"
+            elif any(w in item_text for w in ["shop", "കട", "സാധനങ്ങൾ", "സൂപ്പർമാർക്കറ്റ്", "groceries"]): return "Shop"
+            elif any(w in item_text for w in ["fish", "മീൻ", "ഇറച്ചി", "ചിക്കൻ", "meat"]): return "Fish"
+            elif any(w in item_text for w in ["travel", "യാത്ര", "പെട്രോൾ", "വണ്ടി", "ടാക്സി", "petrol", "diesel"]): return "Travel"
+            elif any(w in item_text for w in ["rent", "വാടക", "റൂം"]): return "Rent"
+            
+            # മുകളിലെ വാക്കുകൾ ഇല്ലെങ്കിൽ പഴയ രീതിയിൽ കോളൻ ഫോർമാറ്റ് നോക്കും
+            return x.split(']')[1].split(':')[0].strip().capitalize() if ']' in str(x) and ':' in str(x) else (str(x).split(':')[0].strip().capitalize() if ':' in str(x) else "Others")
+
         df['Cat'] = df['Item'].apply(extract_cat)
         cats = df[~df['Item'].str.contains('total', case=False, na=False)].groupby('Cat')['Debit'].sum().to_dict()
         cols = st.columns(3)
@@ -164,14 +176,12 @@ else:
             v_amt = nums[0] if nums else ""
             v_desc = re.sub(r'\d+', '', raw).strip()
             
-            # 🎙️ പുതിയ അഡ്വാൻസ്ഡ് വോയ്സ് പാർസിങ് രീതി
-            if any(x in raw for x in ["food", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി"]): v_cat = "Food"
-            elif any(x in raw for x in ["shop", "കട", "സാധനങ്ങൾ", "സൂപ്പർമാർക്കറ്റ്"]): v_cat = "Shop"
-            elif any(x in raw for x in ["fish", "മീൻ", "ഇറച്ചി", "ചിക്കൻ"]): v_cat = "Fish"
-            elif any(x in raw for x in ["travel", "യാത്ര", "പെട്രോൾ", "വണ്ടി", "ടാക്സി"]): v_cat = "Travel"
+            if any(x in raw for x in ["food", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി", "mess"]): v_cat = "Food"
+            elif any(x in raw for x in ["shop", "കട", "സാധനങ്ങൾ", "സൂപ്പർമാർക്കറ്റ്", "groceries"]): v_cat = "Shop"
+            elif any(x in raw for x in ["fish", "മീൻ", "ഇറച്ചി", "ചിക്കൻ", "meat"]): v_cat = "Fish"
+            elif any(x in raw for x in ["travel", "യാത്ര", "പെട്രോൾ", "വണ്ടി", "ടാക്സി", "petrol"]): v_cat = "Travel"
             elif any(x in raw for x in ["rent", "വാടക", "റൂം"]): v_cat = "Rent"
             
-            # ഇൻകമിംഗ് പൈസ തിരിച്ചറിയാൻ
             if any(x in raw for x in ["കിട്ടി", "വന്നു", "തന്നു", "ക്രെഡിറ്റ്", "credit"]): v_type = "Credit"
 
         with st.form("entry_form", clear_on_submit=True):
@@ -185,7 +195,6 @@ else:
                     payload = {"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": f"[{st.session_state.user.capitalize()}] {cat}: {it}", "entry.1460982454": am if ty=="Debit" else 0, "entry.1221658767": 0 if ty=="Debit" else am}
                     threading.Thread(target=lambda: requests.post(FORM_API, data=payload, timeout=10)).start()
                     
-                    # ബാലൻസ് അലേർട്ട് മെസ്സേജ് വാട്സാപ്പിൽ അയക്കൽ
                     alert_msg = ""
                     if ty == "Debit" and (bal - am) < LOW_BALANCE_LIMIT:
                         alert_msg = f"\n⚠️ *Low Balance Alert:* അവശേഷിക്കുന്ന തുക കുറവാണ്!"
@@ -223,7 +232,7 @@ else:
             sel_m = st.selectbox("Select Month", months, key=f"{page}_select")
             m_df = df_rep[df_rep['Month'] == sel_m].copy()
             
-            # 🔍 പുതിയ സെർച്ച് ആൻഡ് ഫിൽട്ടർ ബോക്സ് (History & Report പേജുകളിൽ ലഭിക്കും)
+            # 🔍 പുതിയ സെർച്ച് ആൻഡ് ഫിൽട്ടർ ബോക്സ്
             search_query = st.text_input("🔍 Search items (e.g. Fish, Petrol, Travel)...", "").strip().lower()
             filter_type = st.selectbox("Filter Type", ["All", "Debit Only", "Credit Only"])
             
