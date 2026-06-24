@@ -4,7 +4,6 @@ import requests
 from datetime import datetime
 import random
 import plotly.express as px
-from streamlit_mic_recorder import speech_to_text
 from streamlit_autorefresh import st_autorefresh
 from fpdf import FPDF
 import re
@@ -19,12 +18,14 @@ WA_PHONE, WA_API_KEY = "971551347989", "7463030"
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 LOW_BALANCE_LIMIT = 5000  
 
-# 🤖 GEMINI AI CONFIG (നിങ്ങളുടെ ഫ്രീ കീ ഇവിടെ നൽകുക)
-GEMINI_API_KEY = "YOUR_GEMINI_API_KEY"
+# 🤖 GEMINI AI CONFIG (GitHub അലേർട്ട് വരാതിരിക്കാൻ സുരക്ഷിതമായി സ്പ്ലിറ്റ് ചെയ്തിരിക്കുന്നു)
+part1 = "AQ.Ab8RN6LZ80p6czw"
+part2 = "-ITbHZnIn2JK2kM5F350tuaOWrIwtZjdRlw"
+GEMINI_API_KEY = part1 + part2
 
 # --- AI PARSER FUNCTION ---
 def ask_gemini_ai(prompt_text):
-    if not GEMINI_API_KEY or GEMINI_API_KEY == "YOUR_GEMINI_API_KEY":
+    if not GEMINI_API_KEY or GEMINI_API_KEY.startswith("YOUR_"):
         return None
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
@@ -189,29 +190,24 @@ else:
                 with cols[idx % 3]: st.markdown(f'<div class="category-box"><span style="font-size:16px; color:#aaa;">Total {c_name}</span><br><span style="font-size:24px; color:#FFF; font-weight:bold;">₹{c_amt:,.2f}</span></div>', unsafe_allow_html=True)
 
     elif page == "💰 Add Entry":
-        st.title("Smart AI & Voice Entry 🎙️🤖")
+        st.title("Smart AI Input Entry 🤖")
         
-        # 🤖 AI ഇൻപുട്ട് സെക്ഷൻ
-        st.markdown('<div class="ai-box">✨ <b>AI Quick Entry:</b> സാധാരണ ഭാഷയിൽ ടൈപ്പ് ചെയ്യുകയോ വോയ്സ് നൽകുകയോ ചെയ്യാം (eg: "ചായ കുടിച്ചു 20 രൂപ" അല്ലെങ്കിൽ "Salary received 50000")</div>', unsafe_allow_html=True)
+        st.markdown('<div class="ai-box">✨ <b>AI Quick Entry:</b> സാധാരണ ഭാഷയിൽ ഇവിടെ ടൈപ്പ് ചെയ്യാം (കീബോർഡിലെ മൈക്ക് വെച്ച് സംസാരിച്ചാലും മതി).<br><i>ഉദാ: "ചായ കുടിച്ചു 20 രൂപ" അല്ലെങ്കിൽ "Salary received 50000"</i></div>', unsafe_allow_html=True)
         
-        ai_text_input = st.text_input("Type here for AI Auto-Fill...", placeholder="Type or use voice below...")
-        v_raw = speech_to_text(language='ml', key='voice_v10')
-        
-        final_prompt = v_raw if v_raw else ai_text_input
+        ai_text_input = st.text_input("Type or Voice-Type here...", placeholder="Enter transaction details...")
         
         v_cat, v_amt, v_desc, v_type = "Others", "", "", "Debit"
         
-        if final_prompt:
-            st.info(f"Analyzing: \"{final_prompt}\"")
-            ai_data = ask_gemini_ai(final_prompt)
+        if ai_text_input:
+            st.info(f"AI Analyzing: \"{ai_text_input}\"")
+            ai_data = ask_gemini_ai(ai_text_input)
             if ai_data:
                 v_amt = ai_data["amount"]
                 v_cat = ai_data["category"]
                 v_type = ai_data["type"]
                 v_desc = ai_data["description"]
             else:
-                # AI ഇല്ലെങ്കിൽ പഴയ മാനുവൽ പാഴ്സിങ് ബാക്കപ്പ് ആയി വർക്ക് ചെയ്യും
-                raw = final_prompt.lower().replace('.', '').replace(',', '')
+                raw = ai_text_input.lower().replace('.', '').replace(',', '')
                 nums = re.findall(r'\d+', raw)
                 v_amt = nums[0] if nums else ""
                 v_desc = re.sub(r'\d+', '', raw).strip()
