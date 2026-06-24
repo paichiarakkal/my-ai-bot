@@ -1,3 +1,8 @@
 streamlit
-yt-dlp
+pandas
 requests
+plotly
+streamlit-mic-recorder
+streamlit-autorefresh
+fpdf
+streamlit-calendar
