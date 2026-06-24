@@ -17,7 +17,33 @@ CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR
 FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSfLySolQSiRXV0wELNPhUBlKJh77RnJKWc2-uqAM0TPNG3Q5A/formResponse"
 WA_PHONE, WA_API_KEY = "971551347989", "7463030"
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
-LOW_BALANCE_LIMIT = 5000  # ⚠️ അലേർട്ട് നൽകേണ്ട കുറഞ്ഞ ബാലൻസ് തുക
+LOW_BALANCE_LIMIT = 5000  
+
+# 🤖 GEMINI AI CONFIG (നിങ്ങളുടെ ഫ്രീ കീ ഇവിടെ നൽകുക)
+GEMINI_API_KEY = "YOUR_GEMINI_API_KEY"
+
+# --- AI PARSER FUNCTION ---
+def ask_gemini_ai(prompt_text):
+    if not GEMINI_API_KEY or GEMINI_API_KEY == "YOUR_GEMINI_API_KEY":
+        return None
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+        headers = {'Content-Type': 'application/json'}
+        system_instruction = (
+            "You are a smart expense manager assistant. Analyze the user text (can be Malayalam, English, or Manglish) "
+            "and extract: Amount (number only), Category (Choose strictly from: Food, Shop, Fish, Travel, Rent, Others), "
+            "Type (Debit or Credit), and Description (short English/Malayalam text). "
+            "Reply strictly in this format: Amount|Category|Type|Description"
+        )
+        data = {"contents": [{"parts": [{"text": f"{system_instruction}\n\nUser text: {prompt_text}"}]}]}
+        response = requests.post(url, headers=headers, json=data, timeout=5)
+        if response.status_code == 200:
+            result = response.json()['contents'][0]['parts'][0]['text'].strip()
+            parts = result.split('|')
+            if len(parts) == 4:
+                return {"amount": parts[0], "category": parts[1], "type": parts[2], "description": parts[3]}
+    except: pass
+    return None
 
 # --- TWILIO WHATSAPP RECEIVER ---
 try:
@@ -45,7 +71,7 @@ try:
 except: pass
 
 # --- STREAMLIT UI & THEME ---
-st.set_page_config(page_title="PAICHI EXPENSES v2.7", layout="wide")
+st.set_page_config(page_title="PAICHI EXPENSES v3.0 AI", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 st.markdown("""<style>
@@ -57,6 +83,7 @@ st.markdown("""<style>
     .purple-box { background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 25px; border: 2px solid rgba(255, 215, 0, 0.3); text-align: center; margin-bottom: 20px; }
     .category-box { background: rgba(255, 255, 255, 0.08); padding: 15px; border-radius: 15px; text-align: center; border-bottom: 4px solid #FFD700; margin-bottom: 15px; }
     .alert-banner { background-color: #ff4d4d; color: white; padding: 10px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 20px; }
+    .ai-box { background: rgba(0, 255, 200, 0.1); padding: 15px; border-radius: 15px; border: 1px solid #00ffc8; margin-bottom: 20px; }
     h1, h2, h3, p, label { color: white !important; font-weight: bold !important; }
     .stDataFrame { background: white; border-radius: 10px; color: black; }
 </style>""", unsafe_allow_html=True)
@@ -128,7 +155,6 @@ else:
     t_in, t_out = (df['Credit'].sum(), df['Debit'].sum()) if not df.empty else (0.0, 0.0)
     bal = t_in - t_out
     
-    # ⚠️ അലേർട്ട് സിസ്റ്റം കാണിക്കൽ
     if bal < LOW_BALANCE_LIMIT:
         st.markdown(f'<div class="alert-banner">⚠️ ശ്രദ്ധിക്കുക: അക്കൗണ്ട് ബാലൻസ് കുറവാണ് (₹{bal:,.2f})! അത്യാവശ്യ കാര്യങ്ങൾക്കായി ഫണ്ട് സൂക്ഷിക്കുക.</div>', unsafe_allow_html=True)
 
@@ -146,7 +172,6 @@ else:
         
         st.subheader("🗂️ Categorywise Expense Breakdown")
         
-        # 🔄 പഴയതും പുതിയതുമായ ഗൂഗിൾ ഷീറ്റ് എൻട്രികൾ ഒരുപോലെ തിരിച്ചറിയാനുള്ള സ്മാർട്ട് കാറ്റഗറി ഫങ്ക്ഷൻ
         def extract_cat(x):
             item_text = str(x).lower()
             if any(w in item_text for w in ["food", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി", "mess"]): return "Food"
@@ -154,8 +179,6 @@ else:
             elif any(w in item_text for w in ["fish", "മീൻ", "ഇറച്ചി", "ചിക്കൻ", "meat"]): return "Fish"
             elif any(w in item_text for w in ["travel", "യാത്ര", "പെട്രോൾ", "വണ്ടി", "ടാക്സി", "petrol", "diesel"]): return "Travel"
             elif any(w in item_text for w in ["rent", "വാടക", "റൂം"]): return "Rent"
-            
-            # മുകളിലെ വാക്കുകൾ ഇല്ലെങ്കിൽ പഴയ രീതിയിൽ കോളൻ ഫോർമാറ്റ് നോക്കും
             return x.split(']')[1].split(':')[0].strip().capitalize() if ']' in str(x) and ':' in str(x) else (str(x).split(':')[0].strip().capitalize() if ':' in str(x) else "Others")
 
         df['Cat'] = df['Item'].apply(extract_cat)
@@ -166,23 +189,37 @@ else:
                 with cols[idx % 3]: st.markdown(f'<div class="category-box"><span style="font-size:16px; color:#aaa;">Total {c_name}</span><br><span style="font-size:24px; color:#FFF; font-weight:bold;">₹{c_amt:,.2f}</span></div>', unsafe_allow_html=True)
 
     elif page == "💰 Add Entry":
-        st.title("Smart Voice Entry 🎙️")
-        v_raw = speech_to_text(language='ml', key='voice_v9')
+        st.title("Smart AI & Voice Entry 🎙️🤖")
+        
+        # 🤖 AI ഇൻപുട്ട് സെക്ഷൻ
+        st.markdown('<div class="ai-box">✨ <b>AI Quick Entry:</b> സാധാരണ ഭാഷയിൽ ടൈപ്പ് ചെയ്യുകയോ വോയ്സ് നൽകുകയോ ചെയ്യാം (eg: "ചായ കുടിച്ചു 20 രൂപ" അല്ലെങ്കിൽ "Salary received 50000")</div>', unsafe_allow_html=True)
+        
+        ai_text_input = st.text_input("Type here for AI Auto-Fill...", placeholder="Type or use voice below...")
+        v_raw = speech_to_text(language='ml', key='voice_v10')
+        
+        final_prompt = v_raw if v_raw else ai_text_input
+        
         v_cat, v_amt, v_desc, v_type = "Others", "", "", "Debit"
         
-        if v_raw:
-            raw = v_raw.lower().replace('.', '').replace(',', '')
-            nums = re.findall(r'\d+', raw)
-            v_amt = nums[0] if nums else ""
-            v_desc = re.sub(r'\d+', '', raw).strip()
-            
-            if any(x in raw for x in ["food", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി", "mess"]): v_cat = "Food"
-            elif any(x in raw for x in ["shop", "കട", "സാധനങ്ങൾ", "സൂപ്പർമാർക്കറ്റ്", "groceries"]): v_cat = "Shop"
-            elif any(x in raw for x in ["fish", "മീൻ", "ഇറച്ചി", "ചിക്കൻ", "meat"]): v_cat = "Fish"
-            elif any(x in raw for x in ["travel", "യാത്ര", "പെട്രോൾ", "വണ്ടി", "ടാക്സി", "petrol"]): v_cat = "Travel"
-            elif any(x in raw for x in ["rent", "വാടക", "റൂം"]): v_cat = "Rent"
-            
-            if any(x in raw for x in ["കിട്ടി", "വന്നു", "തന്നു", "ക്രെഡിറ്റ്", "credit"]): v_type = "Credit"
+        if final_prompt:
+            st.info(f"Analyzing: \"{final_prompt}\"")
+            ai_data = ask_gemini_ai(final_prompt)
+            if ai_data:
+                v_amt = ai_data["amount"]
+                v_cat = ai_data["category"]
+                v_type = ai_data["type"]
+                v_desc = ai_data["description"]
+            else:
+                # AI ഇല്ലെങ്കിൽ പഴയ മാനുവൽ പാഴ്സിങ് ബാക്കപ്പ് ആയി വർക്ക് ചെയ്യും
+                raw = final_prompt.lower().replace('.', '').replace(',', '')
+                nums = re.findall(r'\d+', raw)
+                v_amt = nums[0] if nums else ""
+                v_desc = re.sub(r'\d+', '', raw).strip()
+                if any(x in raw for x in ["food", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി"]): v_cat = "Food"
+                elif any(x in raw for x in ["shop", "കട", "സാധനങ്ങൾ"]): v_cat = "Shop"
+                elif any(x in raw for x in ["fish", "മീൻ"]): v_cat = "Fish"
+                elif any(x in raw for x in ["travel", "യാത്ര", "പെട്രോൾ"]): v_cat = "Travel"
+                if any(x in raw for x in ["കിട്ടി", "വന്നു", "ക്രെഡിറ്റ്"]): v_type = "Credit"
 
         with st.form("entry_form", clear_on_submit=True):
             it = st.text_input("Description", value=v_desc)
@@ -232,8 +269,7 @@ else:
             sel_m = st.selectbox("Select Month", months, key=f"{page}_select")
             m_df = df_rep[df_rep['Month'] == sel_m].copy()
             
-            # 🔍 പുതിയ സെർച്ച് ആൻഡ് ഫിൽട്ടർ ബോക്സ്
-            search_query = st.text_input("🔍 Search items (e.g. Fish, Petrol, Travel)...", "").strip().lower()
+            search_query = st.text_input("🔍 Search items...", "").strip().lower()
             filter_type = st.selectbox("Filter Type", ["All", "Debit Only", "Credit Only"])
             
             if search_query:
