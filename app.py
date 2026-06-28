@@ -47,7 +47,7 @@ def ask_gemini_ai(prompt_text):
     except: pass
     return None
 
-# --- 📸 AI RECEIPT & UPI SCREENSHOT SCANNER (UPDATED PROMPT) ---
+# --- 📸 AI RECEIPT & UPI SCREENSHOT SCANNER ---
 def scan_receipt_with_gemini(image_bytes, mime_type="image/jpeg"):
     if not GEMINI_API_KEY:
         return None
@@ -56,7 +56,6 @@ def scan_receipt_with_gemini(image_bytes, mime_type="image/jpeg"):
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
         headers = {'Content-Type': 'application/json'}
         
-        # ഗൂഗിൾ പേ ട്രാൻസാക്ഷൻ സ്ക്രീൻഷോട്ടുകൾ കൂടി കൃത്യമായി വായിക്കാനുള്ള പുതിയ അപ്ഡേറ്റഡ് പ്രോംപ്റ്റ്
         prompt = (
             "Analyze this image. It can be a shopping receipt or a bank transaction screenshot (like Google Pay/UPI). "
             "Identify the main paid amount or total bill amount. Extract only the raw number (do not include currency symbols, spaces, or commas). "
@@ -194,7 +193,7 @@ else:
     bal = t_in - t_out
     
     if bal < LOW_BALANCE_LIMIT:
-        st.markdown(f'<div class="alert-banner">⚠️ ശ്രദ്ധിക്കുക: അക്കൗണ്ട് ബാലൻസ് കുറവാണ് (₹{bal:,.2f})! അത്യാവശ്യ കാര്യങ്ങൾക്കായി ফണ്ട് സൂക്ഷിക്കുക.</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="alert-banner">⚠️ ശ്രദ്ധിക്കുക: അക്കൗണ്ട് ബാലൻസ് കുറവാണ് (₹{bal:,.2f})! അത്യാവശ്യ കാര്യങ്ങൾക്കായി ഫണ്ട് സൂക്ഷിക്കുക.</div>', unsafe_allow_html=True)
 
     st.markdown(f'<div class="balance-banner"><span style="font-size:20px; color:#E0B0FF;">Available Balance</span><br><span style="font-size:40px; color:#FFD700; font-weight:bold;">₹{bal:,.2f}</span></div>', unsafe_allow_html=True)
     
@@ -231,7 +230,6 @@ else:
         
         tab_text, tab_scan = st.tabs(["📝 Text / Voice Entry", "📸 AI Receipt Scanner"])
         
-        # കാഷ് സെഷൻ ലോക്ക് എററുകൾ വരാതിരിക്കാൻ
         if "v_amt" not in st.session_state: st.session_state.v_amt = ""
         if "v_cat" not in st.session_state: st.session_state.v_cat = "Others"
         if "v_desc" not in st.session_state: st.session_state.v_desc = ""
@@ -273,7 +271,6 @@ else:
                 else:
                     st.warning("⚠️ ചിത്രം വ്യക്തമായി വായിക്കാൻ പറ്റിയില്ല, താഴെ മാനുവലായി നൽകാം ഭായ്.")
 
-        # ഫൈനൽ വെരിഫിക്കേഷൻ ഫോം
         st.markdown("### 📋 Verify & Save Entry")
         with st.form("entry_form", clear_on_submit=True):
             it = st.text_input("Description", value=st.session_state.v_desc)
@@ -347,4 +344,7 @@ else:
             if page == "📊 Report":
                 st.title("Monthly Expense Analysis")
                 c1, c2, c3 = st.columns(3)
-                c1.markdown(f'<div class="purple-box"><h3 style="color:#00FF00;">Total Credit</h3><h1 style="color:#00FF00;">₹{m_crd:,.2f}</h1>
+                
+                # ഫിക്സ് ചെയ്ത സുരക്ഷിതമായ HTML .format() ബോക്സുകൾ
+                c1.markdown('<div class="purple-box"><h3 style="color:#00FF00;">Total Credit</h3><h1 style="color:#00FF00;">₹{:,.2f}</h1></div>'.format(m_crd), unsafe_allow_html=True)
+                c2.markdown('<div class="purple-box"><h3 style="color:#FF313
