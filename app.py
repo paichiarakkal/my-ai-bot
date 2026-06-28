@@ -47,32 +47,28 @@ def ask_gemini_ai(prompt_text):
     except: pass
     return None
 
-# --- 📸 AI RECEIPT SCANNER (PATCHED FIX) ---
+# --- 📸 AI RECEIPT & UPI SCREENSHOT SCANNER (UPDATED PROMPT) ---
 def scan_receipt_with_gemini(image_bytes, mime_type="image/jpeg"):
     if not GEMINI_API_KEY:
         return None
     try:
-        # ഇമേജ് ബൈറ്റ്സ് കൃത്യമായി ബേസ്64-ലേക്ക് മാറ്റുന്നു
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
         headers = {'Content-Type': 'application/json'}
         
+        # ഗൂഗിൾ പേ ട്രാൻസാക്ഷൻ സ്ക്രീൻഷോട്ടുകൾ കൂടി കൃത്യമായി വായിക്കാനുള്ള പുതിയ അപ്ഡേറ്റഡ് പ്രോംപ്റ്റ്
         prompt = (
-            "Analyze this receipt image. Extract the total bill amount (number only, do not include symbols like currency or commas), "
-            "determine the best category (Choose strictly from: Food, Shop, Fish, Travel, Rent, Others), "
-            "and create a short description like 'Bill from Shop'. "
+            "Analyze this image. It can be a shopping receipt or a bank transaction screenshot (like Google Pay/UPI). "
+            "Identify the main paid amount or total bill amount. Extract only the raw number (do not include currency symbols, spaces, or commas). "
+            "Determine the best category (Choose strictly from: Food, Shop, Fish, Travel, Rent, Others). "
+            "Create a short description like 'Paid to [Name/Shop/Service]'. "
             "Reply strictly in this format: Amount|Category|Description"
         )
         
         data = {
             "contents": [{
                 "parts": [
-                    {
-                        "inline_data": {
-                            "mime_type": mime_type,
-                            "data": base64_image
-                        }
-                    },
+                    {"inline_data": {"mime_type": mime_type, "data": base64_image}},
                     {"text": prompt}
                 ]
             }]
@@ -80,7 +76,6 @@ def scan_receipt_with_gemini(image_bytes, mime_type="image/jpeg"):
         response = requests.post(url, headers=headers, json=data, timeout=12)
         if response.status_code == 200:
             result = response.json()['contents'][0]['parts'][0]['text'].strip()
-            # എക്സ്ട്രാ സ്പേസുകളോ ബ്രേക്കുകളോ ഉണ്ടെങ്കിൽ ക്ലീൻ ചെയ്യുന്നു
             result = result.replace("\n", "").replace("\r", "")
             parts = result.split('|')
             if len(parts) == 3:
@@ -114,7 +109,7 @@ try:
 except: pass
 
 # --- STREAMLIT UI & THEME ---
-st.set_page_config(page_title="PAICHI EXPENSES v3.5 AI", layout="wide")
+st.set_page_config(page_title="PAICHI EXPENSES v3.6 AI", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 st.markdown("""<style>
@@ -199,7 +194,7 @@ else:
     bal = t_in - t_out
     
     if bal < LOW_BALANCE_LIMIT:
-        st.markdown(f'<div class="alert-banner">⚠️ ശ്രദ്ധിക്കുക: അക്കൗണ്ട് ബാലൻസ് കുറവാണ് (₹{bal:,.2f})! അത്യാവശ്യ കാര്യങ്ങൾക്കായി ഫണ്ട് സൂക്ഷിക്കുക.</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="alert-banner">⚠️ ശ്രദ്ധിക്കുക: അക്കൗണ്ട് ബാലൻസ് കുറവാണ് (₹{bal:,.2f})! അത്യാവശ്യ കാര്യങ്ങൾക്കായി ফണ്ട് സൂക്ഷിക്കുക.</div>', unsafe_allow_html=True)
 
     st.markdown(f'<div class="balance-banner"><span style="font-size:20px; color:#E0B0FF;">Available Balance</span><br><span style="font-size:40px; color:#FFD700; font-weight:bold;">₹{bal:,.2f}</span></div>', unsafe_allow_html=True)
     
@@ -236,7 +231,7 @@ else:
         
         tab_text, tab_scan = st.tabs(["📝 Text / Voice Entry", "📸 AI Receipt Scanner"])
         
-        # സെഷൻ സ്റ്റേറ്റ് ലോക്ക് - ക്യാമറ ക്രാഷ് തടയാൻ
+        # കാഷ് സെഷൻ ലോക്ക് എററുകൾ വരാതിരിക്കാൻ
         if "v_amt" not in st.session_state: st.session_state.v_amt = ""
         if "v_cat" not in st.session_state: st.session_state.v_cat = "Others"
         if "v_desc" not in st.session_state: st.session_state.v_desc = ""
@@ -255,19 +250,17 @@ else:
                     st.session_state.v_desc = ai_data["description"]
 
         with tab_scan:
-            st.markdown('<div class="ai-box">📸 <b>AI Receipt Scanner:</b> ബില്ലിന്റെ ഫോട്ടോ എടുക്കുകയോ ഫയൽ അപ്‌ലോഡ് ചെയ്യുകയോ ചെയ്യുക. Gemini തനിയെ തുക കണ്ടെത്തും!</div>', unsafe_allow_html=True)
+            st.markdown('<div class="ai-box">📸 <b>AI Receipt Scanner:</b> ബില്ലിന്റെയോ ഗൂഗിൾ പേ ട്രാൻസാക്ഷൻ സ്ക്രീൻഷോട്ടിന്റെയോ ഫോട്ടോ വെക്കുക!</div>', unsafe_allow_html=True)
             
-            uploaded_receipt = st.file_uploader("Upload Receipt Image", type=["jpg", "jpeg", "png"])
+            uploaded_receipt = st.file_uploader("Upload Receipt / UPI Screenshot", type=["jpg", "jpeg", "png"])
             camera_receipt = st.camera_input("Or Take a Photo of the Receipt")
             
             active_receipt = camera_receipt if camera_receipt else uploaded_receipt
             
             if active_receipt:
-                # ഫയൽ ടൈപ്പ് നിർണ്ണയിക്കുന്നു
                 m_type = "image/png" if active_receipt.name.endswith("png") else "image/jpeg"
                 
-                # പ്രൊസസ്സിംഗ് ഇൻഡിക്കേറ്റർ
-                with st.spinner("⚡ Gemini Vision സ്കാൻ ചെയ്തുകൊണ്ടിരിക്കുന്നു..."):
+                with st.spinner("⚡ Gemini Vision പ്രൊസസ്സ് ചെയ്തുകൊണ്ടിരിക്കുന്നു..."):
                     receipt_bytes = active_receipt.read()
                     receipt_data = scan_receipt_with_gemini(receipt_bytes, mime_type=m_type)
                 
@@ -276,9 +269,9 @@ else:
                     st.session_state.v_cat = receipt_data["category"]
                     st.session_state.v_desc = receipt_data["description"]
                     st.session_state.v_type = "Debit"
-                    st.success("✨ Receipt Scanned Successfully! Details filled below.")
+                    st.success("✨ Scanned Successfully! Details filled below.")
                 else:
-                    st.warning("⚠️ ബില്ല് വായിക്കാൻ പറ്റിയില്ല, താഴെ മാനുവലായി ടൈപ്പ് ചെയ്യാം ഭായ്.")
+                    st.warning("⚠️ ചിത്രം വ്യക്തമായി വായിക്കാൻ പറ്റിയില്ല, താഴെ മാനുവലായി നൽകാം ഭായ്.")
 
         # ഫൈനൽ വെരിഫിക്കേഷൻ ഫോം
         st.markdown("### 📋 Verify & Save Entry")
@@ -286,7 +279,6 @@ else:
             it = st.text_input("Description", value=st.session_state.v_desc)
             am_str = st.text_input("Amount", value=str(st.session_state.v_amt))
             
-            # ഇൻഡെക്സ് ഔട്ട് എറർ വരാതിരിക്കാൻ ഡിഫെൻസീവ് കോഡിംഗ്
             try: cat_idx = ["Food", "Shop", "Fish", "Travel", "Rent", "Others"].index(st.session_state.v_cat)
             except: cat_idx = 5
                 
@@ -299,7 +291,6 @@ else:
                     payload = {"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": f"[{st.session_state.user.capitalize()}] {cat}: {it}", "entry.1460982454": am if ty=="Debit" else 0, "entry.1221658767": 0 if ty=="Debit" else am}
                     threading.Thread(target=lambda: requests.post(FORM_API, data=payload, timeout=10)).start()
                     
-                    # സ്റ്റേറ്റ് ക്ലിയർ ചെയ്യൽ
                     st.cache_data.clear()
                     for key in ["v_amt", "v_cat", "v_desc", "v_type"]:
                         if key in st.session_state: del st.session_state[key]
@@ -354,4 +345,6 @@ else:
             m_deb, m_crd = m_df['Debit'].sum(), m_df['Credit'].sum()
             
             if page == "📊 Report":
-                st.title
+                st.title("Monthly Expense Analysis")
+                c1, c2, c3 = st.columns(3)
+                c1.markdown(f'<div class="purple-box"><h3 style="color:#00FF00;">Total Credit</h3><h1 style="color:#00FF00;">₹{m_crd:,.2f}</h1>
