@@ -347,4 +347,26 @@ else:
                 
                 # ഫിക്സ് ചെയ്ത സുരക്ഷിതമായ HTML .format() ബോക്സുകൾ
                 c1.markdown('<div class="purple-box"><h3 style="color:#00FF00;">Total Credit</h3><h1 style="color:#00FF00;">₹{:,.2f}</h1></div>'.format(m_crd), unsafe_allow_html=True)
-                c2.markdown('<div class="purple-box"><h3 style="color:#FF313
+                c2.markdown('<div class="purple-box"><h3 style="color:#FF3131;">₹{:,.2f}</h1></div>'.format(m_deb), unsafe_allow_html=True)
+                c3.markdown('<div class="purple-box"><h3 style="color:#FFD700;">Net Savings</h3><h1 style="color:#FFD700;">₹{:,.2f}</h1></div>'.format(m_crd - m_deb), unsafe_allow_html=True)
+                
+                if m_deb > 0:
+                    m_df['Cat'] = m_df['Item'].apply(lambda x: x.split(':')[0] if ':' in str(x) else 'Others')
+                    st.plotly_chart(px.pie(m_df[m_df['Debit'] > 0], values='Debit', names='Cat', hole=0.4, title=f"{sel_m} Expense Split").update_traces(textposition='inside', textinfo='percent+label'), use_container_width=True)
+
+            clean_df = m_df.drop(columns=['Month'], errors='ignore')
+            pdf_df = clean_df.copy()
+            pdf_df['Date'] = pdf_df['Date'].dt.strftime('%d/%m/%Y')
+            csv_bytes = clean_df.to_csv(index=False).encode('utf-8')
+            
+            if page == "📊 Report":
+                st.download_button("📥 Download Excel/CSV Report", csv_bytes, f"Report_{sel_m.replace(' ', '_')}.csv", "text/csv")
+            else:
+                st.title("Transaction History")
+                col_p, col_c = st.columns(2)
+                pdf_b = create_pdf(pdf_df)
+                if pdf_b: col_p.download_button(f"📄 Download PDF", pdf_b, f"History_{sel_m.replace(' ', '_')}.pdf", "application/pdf")
+                col_c.download_button("📥 Download CSV (Excel)", csv_bytes, f"History_{sel_m.replace(' ', '_')}.csv", "text/csv")
+            
+            clean_df['Date'] = clean_df['Date'].dt.strftime('%d/%m/%Y')
+            st.dataframe(clean_df.iloc[::-1], use_container_width=True)
