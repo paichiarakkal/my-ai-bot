@@ -1,11 +1,4 @@
-streamlit
-pandas
-requests
-plotly
-streamlit-mic-recorder
-streamlit-autorefresh
-fpdf
-streamlit-calendarimport streamlit as st
+import streamlit as st
 import pandas as pd
 import requests
 from datetime import datetime
@@ -116,16 +109,7 @@ def send_telegram_with_inline_buttons(message_text, asset_name):
     except: pass
 
 # --- 4. 🎨 DESIGN & STYLES ---
-st.markdown("""
-    <style>
-    .stApp { background: linear-gradient(135deg, #05000c, #10001e, #020005); color: #fff; }
-    [data-testid="stSidebar"] { background: rgba(0,0,0,0.95) !important; }
-    .stButton>button { background-color: #FFD700; color: #000; border-radius: 10px; font-weight: bold; }
-    .terminal-banner { background: rgba(255, 255, 255, 0.03); padding: 15px; border-radius: 15px; border-left: 10px solid #FFD700; text-align: center; }
-    .purple-box { background: rgba(255, 255, 255, 0.03); padding: 20px; border-radius: 20px; border: 2px solid rgba(255, 215, 0, 0.15); text-align: center; margin-bottom: 15px; }
-    h1, h2, h3, p, label { color: white !important; font-weight: bold !important; }
-    </style>
-    """, unsafe_allow_html=True)
+st.markdown(""" <style> .stApp { background: linear-gradient(135deg, #05000c, #10001e, #020005); color: #fff; } [data-testid="stSidebar"] { background: rgba(0,0,0,0.95) !important; } .stButton>button { background-color: #FFD700; color: #000; border-radius: 10px; font-weight: bold; } .terminal-banner { background: rgba(255, 255, 255, 0.03); padding: 15px; border-radius: 15px; border-left: 10px solid #FFD700; text-align: center; } .purple-box { background: rgba(255, 255, 255, 0.03); padding: 20px; border-radius: 20px; border: 2px solid rgba(255, 215, 0, 0.15); text-align: center; margin-bottom: 15px; } h1, h2, h3, p, label { color: white !important; font-weight: bold !important; } </style> """, unsafe_allow_html=True)
 
 if 'auth' not in st.session_state: st.session_state.auth = False
 if 'user' not in st.session_state: st.session_state.user = ""
@@ -191,10 +175,7 @@ if not st.session_state.auth:
             if USERS.get(u) == p: st.session_state.auth, st.session_state.user = True, u; st.rerun()
             else: st.error("Access Denied!")
 else:
-    st.markdown(f'''<div class="terminal-banner">
-        <span style="font-size:24px; color: #FFD700; font-weight:bold;">🚀 PAICHI AUTOMATIC TRADING TERMINAL v12.4</span><br>
-        <span style="font-size:14px; color:#9bf4ff;">🤖 TELEGRAM AUTOPILOT CONNECTED & ONLINE</span>
-    </div>''', unsafe_allow_html=True)
+    st.markdown(f'''<div class="terminal-banner"> <span style="font-size:24px; color: #FFD700; font-weight:bold;">🚀 PAICHI AUTOMATIC TRADING TERMINAL v12.4</span><br> <span style="font-size:14px; color:#9bf4ff;">🤖 TELEGRAM AUTOPILOT CONNECTED & ONLINE</span> </div>''', unsafe_allow_html=True)
 
     # Sidebar settings
     st.sidebar.markdown("<h2>🛠️ Settings</h2>", unsafe_allow_html=True)
@@ -238,12 +219,7 @@ else:
             cols = st.columns(3)
             for i, m in enumerate(markets):
                 with cols[i]:
-                    st.markdown(f"""<div class="purple-box" style="border-color: {m['color']} !important;">
-                        <h3>{m["name"]}</h3>
-                        <h1 style="color:{m["color"]}; font-size:40px;">{m["signal"]}</h1>
-                        <h2 style="color:#FFD700;">₹{m["price"]:,.2f}</h2>
-                        <p style="color:#aaa; font-size:13px;">RSI: {m["rsi"]:.1f}</p>
-                    </div>""", unsafe_allow_html=True)
+                    st.markdown(f"""<div class="purple-box" style="border-color: {m['color']} !important;"> <h3>{m["name"]}</h3> <h1 style="color:{m["color"]}; font-size:40px;">{m["signal"]}</h1> <h2 style="color:#FFD700;">₹{m["price"]:,.2f}</h2> <p style="color:#aaa; font-size:13px;">RSI: {m["rsi"]:.1f}</p> </div>""", unsafe_allow_html=True)
 
     with tab2:
         if markets:
@@ -275,4 +251,3 @@ else:
                 if not os.path.exists(ALERT_FILE): alert_df.to_csv(ALERT_FILE, index=False)
                 else: alert_df.to_csv(ALERT_FILE, mode='a', header=False, index=False)
                 st.success("Alert Active!")
-                
