@@ -47,36 +47,44 @@ def ask_gemini_ai(prompt_text):
     except: pass
     return None
 
-# --- 📸 AI RECEIPT SCANNER (VISION ENGINE) ---
+# --- 📸 AI RECEIPT SCANNER (PATCHED FIX) ---
 def scan_receipt_with_gemini(image_bytes, mime_type="image/jpeg"):
     if not GEMINI_API_KEY:
         return None
     try:
+        # ഇമേജ് ബൈറ്റ്സ് കൃത്യമായി ബേസ്64-ലേക്ക് മാറ്റുന്നു
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
         headers = {'Content-Type': 'application/json'}
         
         prompt = (
-            "Analyze this receipt image. Extract the total bill amount (number only), "
+            "Analyze this receipt image. Extract the total bill amount (number only, do not include symbols like currency or commas), "
             "determine the best category (Choose strictly from: Food, Shop, Fish, Travel, Rent, Others), "
-            "and create a short description like 'Bill from [Shop Name]'. "
+            "and create a short description like 'Bill from Shop'. "
             "Reply strictly in this format: Amount|Category|Description"
         )
         
         data = {
             "contents": [{
                 "parts": [
-                    {"inline_data": {"mime_type": mime_type, "data": base64_image}},
+                    {
+                        "inline_data": {
+                            "mime_type": mime_type,
+                            "data": base64_image
+                        }
+                    },
                     {"text": prompt}
                 ]
             }]
         }
-        response = requests.post(url, headers=headers, json=data, timeout=10)
+        response = requests.post(url, headers=headers, json=data, timeout=12)
         if response.status_code == 200:
             result = response.json()['contents'][0]['parts'][0]['text'].strip()
+            # എക്സ്ട്രാ സ്പേസുകളോ ബ്രേക്കുകളോ ഉണ്ടെങ്കിൽ ക്ലീൻ ചെയ്യുന്നു
+            result = result.replace("\n", "").replace("\r", "")
             parts = result.split('|')
             if len(parts) == 3:
-                return {"amount": parts[0], "category": parts[1], "description": parts[2]}
+                return {"amount": parts[0].strip(), "category": parts[1].strip(), "description": parts[2].strip()}
     except: pass
     return None
 
@@ -226,10 +234,13 @@ else:
     elif page == "💰 Add Entry":
         st.title("Smart AI Input Entry 🤖")
         
-        # ടാബുകൾ വേർതിരിച്ചു - ഒന്നിൽ ടെക്സ്റ്റ്/വോയ്‌സ്, മറ്റൊന്നിൽ ക്യാമറ/ബില്ല് സ്കാനർ
         tab_text, tab_scan = st.tabs(["📝 Text / Voice Entry", "📸 AI Receipt Scanner"])
         
-        v_cat, v_amt, v_desc, v_type = "Others", "", "", "Debit"
+        # സെഷൻ സ്റ്റേറ്റ് ലോക്ക് - ക്യാമറ ക്രാഷ് തടയാൻ
+        if "v_amt" not in st.session_state: st.session_state.v_amt = ""
+        if "v_cat" not in st.session_state: st.session_state.v_cat = "Others"
+        if "v_desc" not in st.session_state: st.session_state.v_desc = ""
+        if "v_type" not in st.session_state: st.session_state.v_type = "Debit"
         
         with tab_text:
             st.markdown('<div class="ai-box">✨ <b>AI Quick Entry:</b> സാധാരണ ഭാഷയിൽ ടൈപ്പ് ചെയ്യുകയോ വോയ്‌സ് ടൈപ്പ് ചെയ്യുകയോ ചെയ്യാം.</div>', unsafe_allow_html=True)
@@ -238,41 +249,49 @@ else:
                 st.info(f"AI Analyzing: \"{ai_text_input}\"")
                 ai_data = ask_gemini_ai(ai_text_input)
                 if ai_data:
-                    v_amt = ai_data["amount"]
-                    v_cat = ai_data["category"]
-                    v_type = ai_data["type"]
-                    v_desc = ai_data["description"]
+                    st.session_state.v_amt = ai_data["amount"]
+                    st.session_state.v_cat = ai_data["category"]
+                    st.session_state.v_type = ai_data["type"]
+                    st.session_state.v_desc = ai_data["description"]
 
         with tab_scan:
             st.markdown('<div class="ai-box">📸 <b>AI Receipt Scanner:</b> ബില്ലിന്റെ ഫോട്ടോ എടുക്കുകയോ ഫയൽ അപ്‌ലോഡ് ചെയ്യുകയോ ചെയ്യുക. Gemini തനിയെ തുക കണ്ടെത്തും!</div>', unsafe_allow_html=True)
             
-            # മൊബൈൽ ക്യാമറ ഇൻപുട്ടും അപ്‌ലോഡറും ഒന്നിച്ച്
             uploaded_receipt = st.file_uploader("Upload Receipt Image", type=["jpg", "jpeg", "png"])
             camera_receipt = st.camera_input("Or Take a Photo of the Receipt")
             
             active_receipt = camera_receipt if camera_receipt else uploaded_receipt
             
             if active_receipt:
-                st.info("⚡ AI Scanning Receipt... Please wait...")
-                receipt_bytes = active_receipt.read()
-                receipt_data = scan_receipt_with_gemini(receipt_bytes)
+                # ഫയൽ ടൈപ്പ് നിർണ്ണയിക്കുന്നു
+                m_type = "image/png" if active_receipt.name.endswith("png") else "image/jpeg"
+                
+                # പ്രൊസസ്സിംഗ് ഇൻഡിക്കേറ്റർ
+                with st.spinner("⚡ Gemini Vision സ്കാൻ ചെയ്തുകൊണ്ടിരിക്കുന്നു..."):
+                    receipt_bytes = active_receipt.read()
+                    receipt_data = scan_receipt_with_gemini(receipt_bytes, mime_type=m_type)
                 
                 if receipt_data:
-                    v_amt = receipt_data["amount"]
-                    v_cat = receipt_data["category"]
-                    v_desc = receipt_data["description"]
-                    v_type = "Debit"
+                    st.session_state.v_amt = receipt_data["amount"]
+                    st.session_state.v_cat = receipt_data["category"]
+                    st.session_state.v_desc = receipt_data["description"]
+                    st.session_state.v_type = "Debit"
                     st.success("✨ Receipt Scanned Successfully! Details filled below.")
                 else:
-                    st.error("Could not read receipt clearly. Please enter details manually.")
+                    st.warning("⚠️ ബില്ല് വായിക്കാൻ പറ്റിയില്ല, താഴെ മാനുവലായി ടൈപ്പ് ചെയ്യാം ഭായ്.")
 
-        # ഫൈനൽ വെരിഫിക്കേഷൻ ഫോം (AI ഡാറ്റ ഓട്ടോമാറ്റിക്കായി ഇവിടെ ഫിൽ ആകും)
+        # ഫൈനൽ വെരിഫിക്കേഷൻ ഫോം
         st.markdown("### 📋 Verify & Save Entry")
         with st.form("entry_form", clear_on_submit=True):
-            it = st.text_input("Description", value=v_desc)
-            am_str = st.text_input("Amount", value=str(v_amt))
-            cat = st.selectbox("Category", ["Food", "Shop", "Fish", "Travel", "Rent", "Others"], index=["Food", "Shop", "Fish", "Travel", "Rent", "Others"].index(v_cat))
-            ty = st.radio("Type", ["Debit", "Credit"], horizontal=True, index=0 if v_type == "Debit" else 1)
+            it = st.text_input("Description", value=st.session_state.v_desc)
+            am_str = st.text_input("Amount", value=str(st.session_state.v_amt))
+            
+            # ഇൻഡെക്സ് ഔട്ട് എറർ വരാതിരിക്കാൻ ഡിഫെൻസീവ് കോഡിംഗ്
+            try: cat_idx = ["Food", "Shop", "Fish", "Travel", "Rent", "Others"].index(st.session_state.v_cat)
+            except: cat_idx = 5
+                
+            cat = st.selectbox("Category", ["Food", "Shop", "Fish", "Travel", "Rent", "Others"], index=cat_idx)
+            ty = st.radio("Type", ["Debit", "Credit"], horizontal=True, index=0 if st.session_state.v_type == "Debit" else 1)
             
             if st.form_submit_button("SAVE & NOTIFY"):
                 try:
@@ -280,7 +299,10 @@ else:
                     payload = {"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": f"[{st.session_state.user.capitalize()}] {cat}: {it}", "entry.1460982454": am if ty=="Debit" else 0, "entry.1221658767": 0 if ty=="Debit" else am}
                     threading.Thread(target=lambda: requests.post(FORM_API, data=payload, timeout=10)).start()
                     
-                    st.cache_data.clear() # ഡാറ്റാ വേഗത്തിൽ അപ്ഡേറ്റ് ആകാൻ കാഷെ ക്ലിയർ ചെയ്യുന്നു
+                    # സ്റ്റേറ്റ് ക്ലിയർ ചെയ്യൽ
+                    st.cache_data.clear()
+                    for key in ["v_amt", "v_cat", "v_desc", "v_type"]:
+                        if key in st.session_state: del st.session_state[key]
                     
                     alert_msg = ""
                     if ty == "Debit" and (bal - am) < LOW_BALANCE_LIMIT:
@@ -332,18 +354,4 @@ else:
             m_deb, m_crd = m_df['Debit'].sum(), m_df['Credit'].sum()
             
             if page == "📊 Report":
-                st.title("Monthly Expense Analysis")
-                c1, c2, c3 = st.columns(3)
-                c1.markdown(f'<div class="purple-box"><h3 style="color:#00FF00;">Total Credit</h3><h1 style="color:#00FF00;">₹{m_crd:,.2f}</h1></div>', unsafe_allow_html=True)
-                c2.markdown(f'<div class="purple-box"><h3 style="color:#FF3131;">Total Expense</h3><h1 style="color:#FF3131;">₹{m_deb:,.2f}</h1></div>', unsafe_allow_html=True)
-                c3.markdown(f'<div class="purple-box"><h3 style="color:#FFD700;">Net Savings</h3><h1 style="color:#FFD700;">₹{m_crd - m_deb:,.2f}</h1></div>', unsafe_allow_html=True)
-                if m_deb > 0:
-                    m_df['Cat'] = m_df['Item'].apply(lambda x: x.split(':')[0] if ':' in str(x) else 'Others')
-                    st.plotly_chart(px.pie(m_df[m_df['Debit'] > 0], values='Debit', names='Cat', hole=0.4, title=f"{sel_m} Expense Split").update_traces(textposition='inside', textinfo='percent+label'), use_container_width=True)
-
-            clean_df = m_df.drop(columns=['Month'], errors='ignore')
-            pdf_df = clean_df.copy()
-            pdf_df['Date'] = pdf_df['Date'].dt.strftime('%d/%m/%Y')
-            csv_bytes = clean_df.to_csv(index=False).encode('utf-8')
-            
-           
+                st.title
