@@ -37,11 +37,11 @@ st.markdown("""<style>
 
 if 'auth' not in st.session_state: st.session_state.auth, st.session_state.user = False, ""
 
-# --- DYNAMIC APP SETTINGS (ആപ്പിൽ നിന്ന് മാറ്റാൻ) ---
-if 'rent_amt' not in st.session_state: st.session_state.rent_amt = 9000
-if 'kuri_amt' not in st.session_state: st.session_state.kuri_amt = 12500
-if 'exp_amt' not in st.session_state: st.session_state.exp_amt = 7500
-if 'low_limit' not in st.session_state: st.session_state.low_limit = 5000
+# --- DYNAMIC APP SETTINGS (ആപ്പിൽ നിന്ന് തത്സമയം മാറ്റാൻ) ---
+if 'custom_alert_text' not in st.session_state: 
+    st.session_state.custom_alert_text = "rent 9000, kuri 12500, expenses 7500"
+if 'low_limit' not in st.session_state: 
+    st.session_state.low_limit = 5000
 
 # --- HELPER FUNCTIONS ---
 def send_whatsapp_auto(msg):
@@ -80,16 +80,14 @@ else:
     t_in, t_out = (df['Credit'].sum(), df['Debit'].sum()) if not df.empty else (0.0, 0.0)
     bal = t_in - t_out
     
-    # ⚙️ SIDEBAR SETTINGS (ആപ്പിൽ നിന്ന് തന്നെ മാറ്റാൻ)
+    # ⚙️ SIDEBAR SETTINGS (ആപ്പിൽ നിന്ന് സ്വന്തമായി അടിച്ചു നൽകാൻ)
     with st.sidebar.expander("⚙️ Alert & Expense Settings"):
-        st.session_state.rent_amt = st.number_input("Rent Amount", value=st.session_state.rent_amt)
-        st.session_state.kuri_amt = st.number_input("Kuri Amount", value=st.session_state.kuri_amt)
-        st.session_state.exp_amt = st.number_input("Est. Expenses", value=st.session_state.exp_amt)
-        st.session_state.low_limit = st.number_input("Low Balance Limit", value=st.session_state.low_limit)
+        st.session_state.custom_alert_text = st.text_area("Custom Alert Message (നിങ്ങൾക്ക് ഇഷ്ടമുള്ളത് ടൈപ്പ് ചെയ്യുക)", value=st.session_state.custom_alert_text)
+        st.session_state.low_limit = st.number_input("Low Balance Limit (₹)", value=st.session_state.low_limit)
     
-    # ⚠️ അലേർട്ട് സിസ്റ്റം
+    # ⚠️ അലേർട്ട് സിസ്റ്റം (നിങ്ങൾ ടൈപ്പ് ചെയ്യുന്ന സന്ദേശം കാണിക്കും)
     if bal < st.session_state.low_limit:
-        st.markdown(f'<div class="alert-banner">⚠️ ശ്രദ്ധിക്കുക: അക്കൗണ്ട് ബാലൻസ് കുറവാണ് rent {st.session_state.rent_amt}, kuri {st.session_state.kuri_amt}, expenses {st.session_state.exp_amt} (₹{bal:,.2f})! അത്യാവശ്യ കാര്യങ്ങൾക്കായി ഫണ്ട് സൂക്ഷിക്കുക.</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="alert-banner">⚠️ ശ്രദ്ധിക്കുക: അക്കൗണ്ട് ബാലൻസ് കുറവാണ് {st.session_state.custom_alert_text} (₹{bal:,.2f})! അത്യാവശ്യ കാര്യങ്ങൾക്കായി ഫണ്ട് സൂക്ഷിക്കുക.</div>', unsafe_allow_html=True)
 
     st.markdown(f'<div class="balance-banner"><span style="font-size:20px; color:#E0B0FF;">Available Balance</span><br><span style="font-size:40px; color:#FFD700; font-weight:bold;">₹{bal:,.2f}</span></div>', unsafe_allow_html=True)
     
