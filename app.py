@@ -64,9 +64,9 @@ if 'auth' not in st.session_state: st.session_state.auth, st.session_state.user 
 
 # --- DYNAMIC APP SETTINGS ---
 if 'custom_alert_text' not in st.session_state: 
-    st.session_state.custom_alert_text = "rent 9000, kuri 12500, expenses 7500"
+    st.session_state.custom_alert_text = "Shop kuri book"
 if 'low_limit' not in st.session_state: 
-    st.session_state.low_limit = 5000
+    st.session_state.low_limit = 6000
 
 # --- HELPER FUNCTIONS ---
 def send_whatsapp_auto(msg):
@@ -133,13 +133,14 @@ else:
     t_in, t_out = (df['Credit'].sum(), df['Debit'].sum()) if not df.empty else (0.0, 0.0)
     bal = t_in - t_out
     
-    # ⚙️ SIDEBAR SETTINGS
-    with st.sidebar.expander("⚙️ Alert & Expense Settings"):
-        st.session_state.custom_alert_text = st.text_area("Custom Alert Message", value=st.session_state.custom_alert_text)
-        st.session_state.low_limit = st.number_input("Low Balance Limit (₹)", value=st.session_state.low_limit)
+    # ⚙️ SIDEBAR SETTINGS (ഷബാന ഒഴികെയുള്ളവർക്ക് മാത്രം)
+    if st.session_state.user != "shabana":
+        with st.sidebar.expander("⚙️ Alert & Expense Settings"):
+            st.session_state.custom_alert_text = st.text_area("Custom Alert Message", value=st.session_state.custom_alert_text)
+            st.session_state.low_limit = st.number_input("Low Balance Limit (₹)", value=st.session_state.low_limit)
     
-    # ⚠️ ALERT BANNER
-    if bal < st.session_state.low_limit:
+    # ⚠️ ALERT BANNER (ഷബാന ലോഗിൻ ചെയ്യുമ്പോൾ കാണിക്കില്ല)
+    if st.session_state.user != "shabana" and bal < st.session_state.low_limit:
         st.markdown(f'<div class="alert-banner">⚠️ ശ്രദ്ധിക്കുക: അക്കൗണ്ട് ബാലൻസ് കുറവാണ് {st.session_state.custom_alert_text} (₹{bal:,.2f})! അത്യാവശ്യ കാര്യങ്ങൾക്കായി ഫണ്ട് സൂക്ഷിക്കുക.</div>', unsafe_allow_html=True)
 
     st.markdown(f'<div class="balance-banner"><span style="font-size:20px; color:#E0B0FF;">Available Balance</span><br><span style="font-size:40px; color:#FFD700; font-weight:bold;">₹{bal:,.2f}</span></div>', unsafe_allow_html=True)
