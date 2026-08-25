@@ -11,7 +11,6 @@ import re
 import urllib.parse
 import threading
 from streamlit_calendar import calendar
-import base64
 
 # --- CONFIG & SETTINGS ---
 CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
@@ -24,6 +23,9 @@ USER_PINS = {
     "shabana": "1230",
     "admin": "7860"
 }
+
+# 🖼️ PERMANENT BACKGROUND PHOTO FROM GITHUB
+BG_IMAGE_URL = "https://raw.githubusercontent.com/paichiarakkal/paichiarakkal/main/profile.jpg"
 
 # --- TWILIO WHATSAPP RECEIVER ---
 try:
@@ -54,59 +56,36 @@ except: pass
 st.set_page_config(page_title="PAICHI EXPENSES v3.0", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
-# --- GALLERY IMAGE UPLOADER IN SIDEBAR ---
-bg_style = ""
-with st.sidebar.expander("🖼️ Change Background Photo"):
-    uploaded_file = st.file_uploader("Choose a photo from Gallery", type=["jpg", "jpeg", "png"])
-    if uploaded_file is not None:
-        bytes_data = uploaded_file.getvalue()
-        base64_img = base64.b64encode(bytes_data).decode()
-        bg_style = f"""
-        <style>
-        [data-testid="stAppViewContainer"] {{
-            background-image: linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65)), url("data:image/png;base64,{base64_img}");
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
-        }}
-        </style>
-        """
-
-# DEFAULT FALLBACK STYLE IF NO PHOTO UPLOADED
-if not bg_style:
-    bg_style = """
+# INJECT CSS WITH PERMANENT BACKGROUND
+st.markdown(f"""
     <style>
-    [data-testid="stAppViewContainer"] {
-        background: linear-gradient(135deg, #1f1c2c, #928dab);
-    }
-    </style>
-    """
-
-# INJECT CSS
-st.markdown(bg_style, unsafe_allow_html=True)
-st.markdown("""
-    <style>
-    [data-testid="stHeader"] {
+    [data-testid="stAppViewContainer"] {{
+        background-image: linear-gradient(rgba(0, 0, 0, 0.70), rgba(0, 0, 0, 0.70)), url("{BG_IMAGE_URL}");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+    }}
+    [data-testid="stHeader"] {{
         background-color: rgba(0,0,0,0);
-    }
-    [data-testid="stSidebar"] {
+    }}
+    [data-testid="stSidebar"] {{
         background: rgba(0, 0, 0, 0.85) !important;
-    }
-    .stButton>button {
+    }}
+    .stButton>button {{
         background-color: #FFD700;
         color: #000;
         border-radius: 10px;
         font-weight: bold;
         width: 100%;
         transition: 0.3s;
-    }
-    .stButton>button:hover {
+    }}
+    .stButton>button:hover {{
         background-color: #FFF;
         color: #000;
         box-shadow: 0px 0px 10px #FFD700;
-    }
-    .balance-banner {
+    }}
+    .balance-banner {{
         background: rgba(0, 0, 0, 0.65);
         backdrop-filter: blur(10px);
         padding: 25px;
@@ -115,8 +94,8 @@ st.markdown("""
         margin-bottom: 25px;
         text-align: center;
         box-shadow: 0px 4px 15px rgba(0,0,0,0.5);
-    }
-    .purple-box {
+    }}
+    .purple-box {{
         background: rgba(0, 0, 0, 0.65);
         backdrop-filter: blur(10px);
         padding: 20px;
@@ -124,8 +103,8 @@ st.markdown("""
         border: 2px solid rgba(255, 215, 0, 0.3);
         text-align: center;
         margin-bottom: 20px;
-    }
-    .category-box {
+    }}
+    .category-box {{
         background: rgba(0, 0, 0, 0.65);
         backdrop-filter: blur(10px);
         padding: 15px;
@@ -133,8 +112,8 @@ st.markdown("""
         text-align: center;
         border-bottom: 4px solid #FFD700;
         margin-bottom: 15px;
-    }
-    .alert-banner {
+    }}
+    .alert-banner {{
         background-color: #ff4d4d;
         color: white;
         padding: 10px;
@@ -142,8 +121,8 @@ st.markdown("""
         text-align: center;
         font-weight: bold;
         margin-bottom: 20px;
-    }
-    .login-card {
+    }}
+    .login-card {{
         background: rgba(0, 0, 0, 0.7);
         backdrop-filter: blur(10px);
         padding: 25px;
@@ -153,23 +132,23 @@ st.markdown("""
         max-width: 450px;
         margin: auto;
         margin-top: 30px;
-    }
-    .login-title {
+    }}
+    .login-title {{
         text-align: center;
         font-size: 22px;
         font-weight: bold;
         color: #FFD700 !important;
         margin-bottom: 15px;
-    }
-    h1, h2, h3, p, label {
+    }}
+    h1, h2, h3, p, label {{
         color: white !important;
         font-weight: bold !important;
-    }
-    .stDataFrame {
+    }}
+    .stDataFrame {{
         background: white;
         border-radius: 10px;
         color: black;
-    }
+    }}
     </style>
 """, unsafe_allow_html=True)
 
