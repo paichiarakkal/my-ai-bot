@@ -24,8 +24,8 @@ USER_PINS = {
     "admin": "7860"
 }
 
-# 🖼️ GITHUB PROFILE PHOTO URL
-BG_IMAGE_URL = "https://avatars.githubusercontent.com/u/paichiarakkal"
+# 🖼️ DIRECT WORKING BACKGROUND IMAGE URL
+BG_IMAGE_URL = "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=1000&auto=format&fit=crop"
 
 # --- TWILIO WHATSAPP RECEIVER ---
 try:
@@ -56,23 +56,70 @@ except: pass
 st.set_page_config(page_title="PAICHI EXPENSES v3.0", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
-st.markdown(f"""<style>
+st.markdown(f"""
+    <style>
     .stApp {{
-        background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url("{BG_IMAGE_URL}");
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
-        color: #fff;
+        background-image: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url("{BG_IMAGE_URL}") !important;
+        background-size: cover !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+        background-attachment: fixed !important;
     }}
-    [data-testid="stSidebar"] {{ background: rgba(0,0,0,0.85) !important; }}
-    .stButton>button {{ background-color: #FFD700; color: #000; border-radius: 10px; font-weight: bold; width: 100%; transition: 0.3s; }}
-    .stButton>button:hover {{ background-color: #FFF; color: #000; box-shadow: 0px 0px 10px #FFD700; }}
-    .balance-banner {{ background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(10px); padding: 25px; border-radius: 15px; border-left: 10px solid #FFD700; margin-bottom: 25px; text-align: center; box-shadow: 0px 4px 15px rgba(0,0,0,0.5); }}
-    .purple-box {{ background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(10px); padding: 20px; border-radius: 25px; border: 2px solid rgba(255, 215, 0, 0.3); text-align: center; margin-bottom: 20px; }}
-    .category-box {{ background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(10px); padding: 15px; border-radius: 15px; text-align: center; border-bottom: 4px solid #FFD700; margin-bottom: 15px; }}
-    .alert-banner {{ background-color: #ff4d4d; color: white; padding: 10px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 20px; }}
-    .login-card {{
+    [data-testid="stSidebar"] {{
+        background: rgba(0, 0, 0, 0.85) !important;
+    }}
+    .stButton>button {{
+        background-color: #FFD700;
+        color: #000;
+        border-radius: 10px;
+        font-weight: bold;
+        width: 100%;
+        transition: 0.3s;
+    }}
+    .stButton>button:hover {{
+        background-color: #FFF;
+        color: #000;
+        box-shadow: 0px 0px 10px #FFD700;
+    }}
+    .balance-banner {{
         background: rgba(0, 0, 0, 0.65);
+        backdrop-filter: blur(10px);
+        padding: 25px;
+        border-radius: 15px;
+        border-left: 10px solid #FFD700;
+        margin-bottom: 25px;
+        text-align: center;
+        box-shadow: 0px 4px 15px rgba(0,0,0,0.5);
+    }}
+    .purple-box {{
+        background: rgba(0, 0, 0, 0.65);
+        backdrop-filter: blur(10px);
+        padding: 20px;
+        border-radius: 25px;
+        border: 2px solid rgba(255, 215, 0, 0.3);
+        text-align: center;
+        margin-bottom: 20px;
+    }}
+    .category-box {{
+        background: rgba(0, 0, 0, 0.65);
+        backdrop-filter: blur(10px);
+        padding: 15px;
+        border-radius: 15px;
+        text-align: center;
+        border-bottom: 4px solid #FFD700;
+        margin-bottom: 15px;
+    }}
+    .alert-banner {{
+        background-color: #ff4d4d;
+        color: white;
+        padding: 10px;
+        border-radius: 10px;
+        text-align: center;
+        font-weight: bold;
+        margin-bottom: 20px;
+    }}
+    .login-card {{
+        background: rgba(0, 0, 0, 0.7);
         backdrop-filter: blur(10px);
         padding: 25px;
         border-radius: 20px;
@@ -89,9 +136,17 @@ st.markdown(f"""<style>
         color: #FFD700 !important;
         margin-bottom: 15px;
     }}
-    h1, h2, h3, p, label {{ color: white !important; font-weight: bold !important; }}
-    .stDataFrame {{ background: white; border-radius: 10px; color: black; }}
-</style>""", unsafe_allow_html=True)
+    h1, h2, h3, p, label {{
+        color: white !important;
+        font-weight: bold !important;
+    }}
+    .stDataFrame {{
+        background: white;
+        border-radius: 10px;
+        color: black;
+    }}
+    </style>
+""", unsafe_allow_html=True)
 
 if 'auth' not in st.session_state: st.session_state.auth, st.session_state.user = False, ""
 
