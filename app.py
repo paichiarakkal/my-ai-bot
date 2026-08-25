@@ -24,6 +24,9 @@ USER_PINS = {
     "admin": "7860"
 }
 
+# 🖼️ GITHUB PROFILE PHOTO URL
+BG_IMAGE_URL = "https://avatars.githubusercontent.com/u/paichiarakkal"
+
 # --- TWILIO WHATSAPP RECEIVER ---
 try:
     from flask import Flask, request
@@ -49,37 +52,45 @@ try:
         threading.Thread(target=lambda: flask_app.run(port=5000, host="0.0.0.0", debug=False, use_reloader=False), name="FlaskThread", daemon=True).start()
 except: pass
 
-# --- STREAMLIT UI & THEME ---
-st.set_page_config(page_title="PAICHI EXPENSES v2.9", layout="wide")
+# --- STREAMLIT UI & BACKGROUND PHOTO THEME ---
+st.set_page_config(page_title="PAICHI EXPENSES v3.0", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
-st.markdown("""<style>
-    .stApp { background: linear-gradient(135deg, #1A0521, #310062, #0D0214); color: #fff; }
-    [data-testid="stSidebar"] { background: rgba(0,0,0,0.9) !important; }
-    .stButton>button { background-color: #FFD700; color: #000; border-radius: 10px; font-weight: bold; width: 100%; transition: 0.3s; }
-    .stButton>button:hover { background-color: #FFF; color: #000; box-shadow: 0px 0px 10px #FFD700; }
-    .balance-banner { background: rgba(255, 255, 255, 0.07); padding: 25px; border-radius: 15px; border-left: 10px solid #FFD700; margin-bottom: 25px; text-align: center; box-shadow: 0px 4px 15px rgba(0,0,0,0.3); }
-    .purple-box { background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 25px; border: 2px solid rgba(255, 215, 0, 0.3); text-align: center; margin-bottom: 20px; }
-    .category-box { background: rgba(255, 255, 255, 0.08); padding: 15px; border-radius: 15px; text-align: center; border-bottom: 4px solid #FFD700; margin-bottom: 15px; }
-    .alert-banner { background-color: #ff4d4d; color: white; padding: 10px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 20px; }
-    .login-card {
-        background: rgba(255, 255, 255, 0.08);
+st.markdown(f"""<style>
+    .stApp {{
+        background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url("{BG_IMAGE_URL}");
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+        color: #fff;
+    }}
+    [data-testid="stSidebar"] {{ background: rgba(0,0,0,0.85) !important; }}
+    .stButton>button {{ background-color: #FFD700; color: #000; border-radius: 10px; font-weight: bold; width: 100%; transition: 0.3s; }}
+    .stButton>button:hover {{ background-color: #FFF; color: #000; box-shadow: 0px 0px 10px #FFD700; }}
+    .balance-banner {{ background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(10px); padding: 25px; border-radius: 15px; border-left: 10px solid #FFD700; margin-bottom: 25px; text-align: center; box-shadow: 0px 4px 15px rgba(0,0,0,0.5); }}
+    .purple-box {{ background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(10px); padding: 20px; border-radius: 25px; border: 2px solid rgba(255, 215, 0, 0.3); text-align: center; margin-bottom: 20px; }}
+    .category-box {{ background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(10px); padding: 15px; border-radius: 15px; text-align: center; border-bottom: 4px solid #FFD700; margin-bottom: 15px; }}
+    .alert-banner {{ background-color: #ff4d4d; color: white; padding: 10px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 20px; }}
+    .login-card {{
+        background: rgba(0, 0, 0, 0.65);
         backdrop-filter: blur(10px);
         padding: 25px;
         border-radius: 20px;
-        border: 1px solid rgba(255, 215, 0, 0.2);
-        box-shadow: 0px 8px 32px 0 rgba(0, 0, 0, 0.37);
-        margin-top: 20px;
-    }
-    .login-title {
+        border: 1px solid rgba(255, 215, 0, 0.4);
+        box-shadow: 0px 8px 32px 0 rgba(0, 0, 0, 0.7);
+        max-width: 450px;
+        margin: auto;
+        margin-top: 30px;
+    }}
+    .login-title {{
         text-align: center;
         font-size: 22px;
         font-weight: bold;
         color: #FFD700 !important;
         margin-bottom: 15px;
-    }
-    h1, h2, h3, p, label { color: white !important; font-weight: bold !important; }
-    .stDataFrame { background: white; border-radius: 10px; color: black; }
+    }}
+    h1, h2, h3, p, label {{ color: white !important; font-weight: bold !important; }}
+    .stDataFrame {{ background: white; border-radius: 10px; color: black; }}
 </style>""", unsafe_allow_html=True)
 
 if 'auth' not in st.session_state: st.session_state.auth, st.session_state.user = False, ""
@@ -142,7 +153,7 @@ def create_pdf(df):
         return bytes(pdf.output())
     except: return None
 
-# --- 🔒 NEW DESIGN PIN LOGIN ---
+# --- 🔒 PIN LOGIN SCREEN ---
 if not st.session_state.auth:
     st.markdown('<div class="login-card"><div class="login-title">🔐 PAICHI EXPENSES</div>', unsafe_allow_html=True)
     
