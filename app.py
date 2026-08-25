@@ -56,14 +56,18 @@ except: pass
 st.set_page_config(page_title="PAICHI EXPENSES v3.0", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
+# Updated CSS with container selectors & fallback image link
 st.markdown(f"""
     <style>
-    .stApp {{
-        background-image: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url("{BG_IMAGE_URL}") !important;
-        background-size: cover !important;
-        background-position: center !important;
-        background-repeat: no-repeat !important;
-        background-attachment: fixed !important;
+    [data-testid="stAppViewContainer"] {{
+        background-image: linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65)), url("{BG_IMAGE_URL}");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+    }}
+    [data-testid="stHeader"] {{
+        background-color: rgba(0,0,0,0);
     }}
     [data-testid="stSidebar"] {{
         background: rgba(0, 0, 0, 0.85) !important;
