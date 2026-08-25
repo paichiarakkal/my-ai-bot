@@ -50,7 +50,7 @@ try:
 except: pass
 
 # --- STREAMLIT UI & THEME ---
-st.set_page_config(page_title="PAICHI EXPENSES v2.8", layout="wide")
+st.set_page_config(page_title="PAICHI EXPENSES v2.9", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 st.markdown("""<style>
@@ -62,6 +62,22 @@ st.markdown("""<style>
     .purple-box { background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 25px; border: 2px solid rgba(255, 215, 0, 0.3); text-align: center; margin-bottom: 20px; }
     .category-box { background: rgba(255, 255, 255, 0.08); padding: 15px; border-radius: 15px; text-align: center; border-bottom: 4px solid #FFD700; margin-bottom: 15px; }
     .alert-banner { background-color: #ff4d4d; color: white; padding: 10px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 20px; }
+    .login-card {
+        background: rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(10px);
+        padding: 25px;
+        border-radius: 20px;
+        border: 1px solid rgba(255, 215, 0, 0.2);
+        box-shadow: 0px 8px 32px 0 rgba(0, 0, 0, 0.37);
+        margin-top: 20px;
+    }
+    .login-title {
+        text-align: center;
+        font-size: 22px;
+        font-weight: bold;
+        color: #FFD700 !important;
+        margin-bottom: 15px;
+    }
     h1, h2, h3, p, label { color: white !important; font-weight: bold !important; }
     .stDataFrame { background: white; border-radius: 10px; color: black; }
 </style>""", unsafe_allow_html=True)
@@ -126,22 +142,22 @@ def create_pdf(df):
         return bytes(pdf.output())
     except: return None
 
-# --- 🔒 4-DIGIT PIN LOGIN ---
+# --- 🔒 NEW DESIGN PIN LOGIN ---
 if not st.session_state.auth:
-    st.title("🔢 QUICK PIN LOGIN")
+    st.markdown('<div class="login-card"><div class="login-title">🔐 PAICHI EXPENSES</div>', unsafe_allow_html=True)
     
-    col1, col2 = st.columns([1, 2])
-    with col1:
-        u = st.selectbox("Select User", ["faisal", "shabana", "admin"]).lower()
-    with col2:
-        pin = st.text_input("Enter 4-Digit PIN", type="password", max_chars=4)
-        
+    u = st.selectbox("👤 Select User", ["faisal", "shabana", "admin"]).lower()
+    pin = st.text_input("🔑 Enter 4-Digit PIN", type="password", max_chars=4)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
     if st.button("UNLOCK APP 🔓"):
         if USER_PINS.get(u) == pin:
             st.session_state.auth, st.session_state.user = True, u
             st.rerun()
         else:
-            st.error("Incorrect PIN! Try again.")
+            st.error("❌ Incorrect PIN! Try again.")
+            
+    st.markdown('</div>', unsafe_allow_html=True)
 else:
     df = load_data()
     t_in, t_out = (df['Credit'].sum(), df['Debit'].sum()) if not df.empty else (0.0, 0.0)
