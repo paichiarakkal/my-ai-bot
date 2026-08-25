@@ -16,7 +16,13 @@ from streamlit_calendar import calendar
 CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
 FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSfLySolQSiRXV0wELNPhUBlKJh77RnJKWc2-uqAM0TPNG3Q5A/formResponse"
 WA_PHONE, WA_API_KEY = "971551347989", "7463030"
-USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
+
+# 🔑 USERS & 4-DIGIT PIN SETTINGS
+USER_PINS = {
+    "faisal": "1470",
+    "shabana": "1230",
+    "admin": "7860"
+}
 
 # --- TWILIO WHATSAPP RECEIVER ---
 try:
@@ -44,7 +50,7 @@ try:
 except: pass
 
 # --- STREAMLIT UI & THEME ---
-st.set_page_config(page_title="PAICHI EXPENSES v2.7", layout="wide")
+st.set_page_config(page_title="PAICHI EXPENSES v2.8", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 st.markdown("""<style>
@@ -120,26 +126,34 @@ def create_pdf(df):
         return bytes(pdf.output())
     except: return None
 
-# --- AUTH LOGIN ---
+# --- 🔒 4-DIGIT PIN LOGIN ---
 if not st.session_state.auth:
-    st.title("🔐 PAICHI EXPENSES LOGIN")
-    u, p = st.text_input("Username").lower(), st.text_input("Password", type="password")
-    if st.button("LOGIN") and USERS.get(u) == p:
-        st.session_state.auth, st.session_state.user = True, u
-        st.rerun()
-    elif p: st.error("Access Denied!")
+    st.title("🔢 QUICK PIN LOGIN")
+    
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        u = st.selectbox("Select User", ["faisal", "shabana", "admin"]).lower()
+    with col2:
+        pin = st.text_input("Enter 4-Digit PIN", type="password", max_chars=4)
+        
+    if st.button("UNLOCK APP 🔓"):
+        if USER_PINS.get(u) == pin:
+            st.session_state.auth, st.session_state.user = True, u
+            st.rerun()
+        else:
+            st.error("Incorrect PIN! Try again.")
 else:
     df = load_data()
     t_in, t_out = (df['Credit'].sum(), df['Debit'].sum()) if not df.empty else (0.0, 0.0)
     bal = t_in - t_out
     
-    # ⚙️ SIDEBAR SETTINGS (ഷബാന ഒഴികെയുള്ളവർക്ക് മാത്രം സെറ്റിങ്സ് മാറ്റാം)
+    # ⚙️ SIDEBAR SETTINGS
     if st.session_state.user != "shabana":
         with st.sidebar.expander("⚙️ Alert & Expense Settings"):
             st.session_state.custom_alert_text = st.text_area("Custom Alert Message", value=st.session_state.custom_alert_text)
             st.session_state.low_limit = st.number_input("Low Balance Limit (₹)", value=st.session_state.low_limit)
     
-    # ⚠️ ALERT BANNER (ഷബാന ഉൾപ്പെടെ എല്ലാവർക്കും ഒരുപോലെ കാണാം)
+    # ⚠️ ALERT BANNER
     if bal < st.session_state.low_limit:
         st.markdown(f'<div class="alert-banner">⚠️ ശ്രദ്ധിക്കുക: അക്കൗണ്ട് ബാലൻസ് കുറവാണ് {st.session_state.custom_alert_text} (₹{bal:,.2f})! അത്യാവശ്യ കാര്യങ്ങൾക്കായി ഫണ്ട് സൂക്ഷിക്കുക.</div>', unsafe_allow_html=True)
 
