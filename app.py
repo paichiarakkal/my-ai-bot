@@ -25,7 +25,7 @@ USER_PINS = {
 }
 
 # 🖼️ DIRECT WORKING BACKGROUND IMAGE URL
-BG_IMAGE_URL = "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=1000&auto=format&fit=crop"
+BG_IMAGE_URL = "https://raw.githubusercontent.com/paichiarakkal/paichiarakkal/main/profile.jpg"
 
 # --- TWILIO WHATSAPP RECEIVER ---
 try:
