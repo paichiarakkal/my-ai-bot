@@ -15,6 +15,7 @@ from streamlit_calendar import calendar
 # --- CONFIG & SETTINGS ---
 CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
 FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSfLySolQSiRXV0wELNPhUBlKJh77RnJKWc2-uqAM0TPNG3Q5A/formResponse"
+WA_PHONE, WA_API_KEY = "971551347989", "7463030"
 
 # 🔑 USERS & 4-DIGIT PIN SETTINGS
 USER_PINS = {
@@ -25,6 +26,31 @@ USER_PINS = {
 
 # 🖼️ PERMANENT BACKGROUND PHOTO FROM GITHUB
 BG_IMAGE_URL = "https://raw.githubusercontent.com/paichiarakkal/paichiarakkal/main/profile.jpg"
+
+# --- TWILIO WHATSAPP RECEIVER ---
+try:
+    from flask import Flask, request
+    from twilio.twiml.messaging_response import MessagingResponse
+    flask_app = Flask(__name__)
+
+    @flask_app.route("/whatsapp", methods=['POST'])
+    def whatsapp_reply():
+        incoming = request.values.get('Body', '').lower().strip()
+        resp = MessagingResponse()
+        msg = resp.message()
+        if "balance" in incoming or "ബാലൻസ്" in incoming:
+            try:
+                df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
+                t_in = pd.to_numeric(df.iloc[:, 3], errors='coerce').fillna(0).sum()
+                t_out = pd.to_numeric(df.iloc[:, 2], errors='coerce').fillna(0).sum()
+                msg.body(f"📊 *Paichi Finance Update*\n\n💰 Total Credit: ₹{t_in:,.2f}\n📉 Total Debit: ₹{t_out:,.2f}\n💵 *Available Balance: ₹{t_in - t_out:,.2f}*")
+            except: msg.body("⚠️ ഡാറ്റ എടുക്കാൻ കഴിഞ്ഞില്ല.")
+        else: msg.body("🤖 ഹലോ! ബാലൻസ് അറിയാൻ *Balance* എന്ന് അയക്കൂ.")
+        return str(resp)
+
+    if not any(t.name == "FlaskThread" for t in threading.enumerate()):
+        threading.Thread(target=lambda: flask_app.run(port=5000, host="0.0.0.0", debug=False, use_reloader=False), name="FlaskThread", daemon=True).start()
+except: pass
 
 # --- STREAMLIT UI SETUP ---
 st.set_page_config(page_title="PAICHI EXPENSES v3.0", layout="wide")
@@ -59,6 +85,16 @@ st.markdown(f"""
         color: #000;
         box-shadow: 0px 0px 10px #FFD700;
     }}
+    .balance-banner {{
+        background: rgba(0, 0, 0, 0.65);
+        backdrop-filter: blur(10px);
+        padding: 25px;
+        border-radius: 15px;
+        border-left: 10px solid #FFD700;
+        margin-bottom: 25px;
+        text-align: center;
+        box-shadow: 0px 4px 15px rgba(0,0,0,0.5);
+    }}
     .purple-box {{
         background: rgba(0, 0, 0, 0.65);
         backdrop-filter: blur(10px);
@@ -76,6 +112,15 @@ st.markdown(f"""
         text-align: center;
         border-bottom: 4px solid #FFD700;
         margin-bottom: 15px;
+    }}
+    .alert-banner {{
+        background-color: #ff4d4d;
+        color: white;
+        padding: 10px;
+        border-radius: 10px;
+        text-align: center;
+        font-weight: bold;
+        margin-bottom: 20px;
     }}
     .login-card {{
         background: rgba(0, 0, 0, 0.7);
@@ -107,10 +152,18 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-if 'auth' not in st.session_state: 
-    st.session_state.auth, st.session_state.user = False, ""
+if 'auth' not in st.session_state: st.session_state.auth, st.session_state.user = False, ""
+
+# --- DYNAMIC APP SETTINGS ---
+if 'custom_alert_text' not in st.session_state: 
+    st.session_state.custom_alert_text = "Shop kuri book"
+if 'low_limit' not in st.session_state: 
+    st.session_state.low_limit = 6000
 
 # --- HELPER FUNCTIONS ---
+def send_whatsapp_auto(msg):
+    threading.Thread(target=lambda: requests.get(f"https://api.callmebot.com/whatsapp.php?phone={WA_PHONE}&text={urllib.parse.quote(msg)}&apikey={WA_API_KEY}", timeout=10)).start()
+
 def parse_mixed_dates(date_series):
     parsed = []
     for val in date_series:
@@ -178,6 +231,19 @@ if not st.session_state.auth:
 else:
     df = load_data()
     t_in, t_out = (df['Credit'].sum(), df['Debit'].sum()) if not df.empty else (0.0, 0.0)
+    bal = t_in - t_out
+    
+    # ⚙️ SIDEBAR SETTINGS
+    if st.session_state.user != "shabana":
+        with st.sidebar.expander("⚙️ Alert & Expense Settings"):
+            st.session_state.custom_alert_text = st.text_area("Custom Alert Message", value=st.session_state.custom_alert_text)
+            st.session_state.low_limit = st.number_input("Low Balance Limit (₹)", value=st.session_state.low_limit)
+    
+    # ⚠️ ALERT BANNER
+    if bal < st.session_state.low_limit:
+        st.markdown(f'<div class="alert-banner">⚠️ ശ്രദ്ധിക്കുക: അക്കൗണ്ട് ബാലൻസ് കുറവാണ് {st.session_state.custom_alert_text} (₹{bal:,.2f})! അത്യാവശ്യ കാര്യങ്ങൾക്കായി ഫണ്ട് സൂക്ഷിക്കുക.</div>', unsafe_allow_html=True)
+
+    st.markdown(f'<div class="balance-banner"><span style="font-size:20px; color:#E0B0FF;">Available Balance</span><br><span style="font-size:40px; color:#FFD700; font-weight:bold;">₹{bal:,.2f}</span></div>', unsafe_allow_html=True)
     
     menu = ["💰 Add Entry", "📅 Calendar", "📊 Report", "🔍 History", "🤝 Debt Tracker"]
     if st.session_state.user != "shabana": menu.insert(0, "🏠 Dashboard")
@@ -233,12 +299,13 @@ else:
             am_str = st.text_input("Amount", value=str(v_amt))
             cat = st.selectbox("Category", ["Food", "Shop", "Fish", "Travel", "Rent", "Others"], index=["Food", "Shop", "Fish", "Travel", "Rent", "Others"].index(v_cat))
             ty = st.radio("Type", ["Debit", "Credit"], horizontal=True, index=0 if v_type == "Debit" else 1)
-            if st.form_submit_button("SAVE"):
+            if st.form_submit_button("SAVE & NOTIFY"):
                 try:
                     am = float(am_str.strip().replace(',', ''))
                     payload = {"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": f"[{st.session_state.user.capitalize()}] {cat}: {it}", "entry.1460982454": am if ty=="Debit" else 0, "entry.1221658767": 0 if ty=="Debit" else am}
                     threading.Thread(target=lambda: requests.post(FORM_API, data=payload, timeout=10)).start()
                     
+                    send_whatsapp_auto(f"✅ *Paichi Entry*\n📝 Item: {it}\n💰 Amt: ₹{am}\n👤 User: {st.session_state.user}")
                     st.success("Saved! ✅"); st.rerun()
                 except: st.error("Error! Valid amount required.")
 
@@ -256,7 +323,7 @@ else:
         if cal_data.get("eventClick"):
             dt_click = cal_data["eventClick"]["event"]["start"].split("T")[0]
             st.markdown("---"); st.subheader(f"📋 Details for {pd.to_datetime(dt_click).strftime('%d %B %Y')}")
-            day_df = df_cal[df_cal['Date'].dt.strftime('%Y-%m-%d'] == dt_click].copy()
+            day_df = df_cal[df_cal['Date'].dt.strftime('%Y-%m-%d') == dt_click].copy()
             if not day_df.empty:
                 day_df['Date'] = day_df['Date'].dt.strftime('%d/%m/%Y')
                 st.download_button("📥 Download This Day's Data", day_df[['Date', 'Item', 'Debit', 'Credit']].to_csv(index=False).encode('utf-8'), f"Transactions_{dt_click}.csv", "text/csv")
