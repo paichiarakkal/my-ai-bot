@@ -27,6 +27,11 @@ USER_PINS = {
 # 🖼️ PERMANENT BACKGROUND PHOTO FROM GITHUB
 BG_IMAGE_URL = "https://raw.githubusercontent.com/paichiarakkal/paichiarakkal/main/profile.jpg"
 
+# 📱 TWILIO SETTINGS (നിങ്ങളുടെ Twilio വിവരങ്ങൾ നൽകുക)
+TWILIO_ACCOUNT_SID = "YOUR_TWILIO_ACCOUNT_SID"
+TWILIO_AUTH_TOKEN = "YOUR_TWILIO_AUTH_TOKEN"
+TWILIO_WHATSAPP_NUMBER = "whatsapp:+14155238886"
+
 # --- TWILIO WHATSAPP RECEIVER ---
 try:
     from flask import Flask, request
@@ -44,13 +49,16 @@ try:
                 t_in = pd.to_numeric(df.iloc[:, 3], errors='coerce').fillna(0).sum()
                 t_out = pd.to_numeric(df.iloc[:, 2], errors='coerce').fillna(0).sum()
                 msg.body(f"📊 *Paichi Finance Update*\n\n💰 Total Credit: ₹{t_in:,.2f}\n📉 Total Debit: ₹{t_out:,.2f}\n💵 *Available Balance: ₹{t_in - t_out:,.2f}*")
-            except: msg.body("⚠️ ഡാറ്റ എടുക്കാൻ കഴിഞ്ഞില്ല.")
-        else: msg.body("🤖 ഹലോ! ബാലൻസ് അറിയാൻ *Balance* എന്ന് അയക്കൂ.")
+            except: 
+                msg.body("⚠️ ഡാറ്റ എടുക്കാൻ കഴിഞ്ഞില്ല.")
+        else: 
+            msg.body("🤖 ഹലോ! ബാലൻസ് അറിയാൻ *Balance* എന്ന് അയക്കൂ.")
         return str(resp)
 
     if not any(t.name == "FlaskThread" for t in threading.enumerate()):
         threading.Thread(target=lambda: flask_app.run(port=5000, host="0.0.0.0", debug=False, use_reloader=False), name="FlaskThread", daemon=True).start()
-except: pass
+except: 
+    pass
 
 # --- STREAMLIT UI SETUP ---
 st.set_page_config(page_title="PAICHI EXPENSES v3.0", layout="wide")
@@ -152,7 +160,8 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-if 'auth' not in st.session_state: st.session_state.auth, st.session_state.user = False, ""
+if 'auth' not in st.session_state: 
+    st.session_state.auth, st.session_state.user = False, ""
 
 # --- DYNAMIC APP SETTINGS ---
 if 'custom_alert_text' not in st.session_state: 
@@ -162,14 +171,30 @@ if 'low_limit' not in st.session_state:
 
 # --- HELPER FUNCTIONS ---
 def send_whatsapp_auto(msg):
+    # CallMeBot വാട്ട്‌സ്ആപ്പ് അറിയിപ്പ്
     threading.Thread(target=lambda: requests.get(f"https://api.callmebot.com/whatsapp.php?phone={WA_PHONE}&text={urllib.parse.quote(msg)}&apikey={WA_API_KEY}", timeout=10)).start()
+
+def send_twilio_whatsapp(to_number, msg_body):
+    # Twilio വഴിയുള്ള വാട്ട്‌സ്ആപ്പ് അറിയിപ്പ്
+    try:
+        from twilio.rest import Client
+        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        client.messages.create(
+            from_=TWILIO_WHATSAPP_NUMBER,
+            body=msg_body,
+            to=f"whatsapp:{to_number}"
+        )
+    except:
+        pass
 
 def parse_mixed_dates(date_series):
     parsed = []
     for val in date_series:
         dt = pd.to_datetime(str(val).strip(), errors='coerce')
-        if not pd.isna(dt) and dt.year == 2026 and dt.month < 4: dt = datetime(2026, dt.day, dt.month)
-        if pd.isna(dt): dt = pd.to_datetime(str(val).strip(), dayfirst=True, errors='coerce')
+        if not pd.isna(dt) and dt.year == 2026 and dt.month < 4: 
+            dt = datetime(2026, dt.day, dt.month)
+        if pd.isna(dt): 
+            dt = pd.to_datetime(str(val).strip(), dayfirst=True, errors='coerce')
         parsed.append(dt)
     return pd.Series(parsed)
 
@@ -182,7 +207,8 @@ def load_data():
         df['Debit'] = pd.to_numeric(df['Debit'], errors='coerce').fillna(0)
         df['Credit'] = pd.to_numeric(df['Credit'], errors='coerce').fillna(0)
         return df
-    except: return pd.DataFrame()
+    except: 
+        return pd.DataFrame()
 
 def create_pdf(df):
     try:
@@ -193,11 +219,13 @@ def create_pdf(df):
         pdf.ln(10)
         pdf.set_font("Arial", 'B', 10)
         widths = {"Date": 30, "Item": 85, "Debit": 35, "Credit": 35}
-        for col in widths: pdf.cell(widths[col], 10, txt=col, border=1, align='C')
+        for col in widths: 
+            pdf.cell(widths[col], 10, txt=col, border=1, align='C')
         pdf.ln()
         pdf.set_font("Arial", size=9)
         for _, row in df.iterrows():
-            if pdf.get_y() > 260: pdf.add_page()
+            if pdf.get_y() > 260: 
+                pdf.add_page()
             y_start = pdf.get_y()
             pdf.cell(30, 10, txt=str(row['Date']), border=0)
             x_after_date = pdf.get_x()
@@ -207,10 +235,12 @@ def create_pdf(df):
             pdf.cell(35, h, txt=str(row['Debit']), border=0, align='R')
             pdf.cell(35, h, txt=str(row['Credit']), border=0, align='R')
             pdf.set_xy(10, y_start)
-            for w in widths.values(): pdf.cell(w, h, txt="", border=1)
+            for w in widths.values(): 
+                pdf.cell(w, h, txt="", border=1)
             pdf.set_y(y_start + h)
         return bytes(pdf.output())
-    except: return None
+    except: 
+        return None
 
 # --- 🔒 PIN LOGIN SCREEN ---
 if not st.session_state.auth:
@@ -246,9 +276,12 @@ else:
     st.markdown(f'<div class="balance-banner"><span style="font-size:20px; color:#E0B0FF;">Available Balance</span><br><span style="font-size:40px; color:#FFD700; font-weight:bold;">₹{bal:,.2f}</span></div>', unsafe_allow_html=True)
     
     menu = ["💰 Add Entry", "📅 Calendar", "📊 Report", "🔍 History", "🤝 Debt Tracker"]
-    if st.session_state.user != "shabana": menu.insert(0, "🏠 Dashboard")
+    if st.session_state.user != "shabana": 
+        menu.insert(0, "🏠 Dashboard")
     page = st.sidebar.radio("Menu", menu)
-    if st.sidebar.button("Logout"): st.session_state.auth = False; st.rerun()
+    if st.sidebar.button("Logout"): 
+        st.session_state.auth = False
+        st.rerun()
 
     # --- DASHBOARD ---
     if page == "🏠 Dashboard" and not df.empty:
@@ -272,7 +305,8 @@ else:
         cols = st.columns(3)
         for idx, (c_name, c_amt) in enumerate(cats.items()):
             if c_amt > 0:
-                with cols[idx % 3]: st.markdown(f'<div class="category-box"><span style="font-size:16px; color:#aaa;">Total {c_name}</span><br><span style="font-size:24px; color:#FFF; font-weight:bold;">₹{c_amt:,.2f}</span></div>', unsafe_allow_html=True)
+                with cols[idx % 3]: 
+                    st.markdown(f'<div class="category-box"><span style="font-size:16px; color:#aaa;">Total {c_name}</span><br><span style="font-size:24px; color:#FFF; font-weight:bold;">₹{c_amt:,.2f}</span></div>', unsafe_allow_html=True)
 
     # --- ADD ENTRY ---
     elif page == "💰 Add Entry":
@@ -305,9 +339,14 @@ else:
                     payload = {"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": f"[{st.session_state.user.capitalize()}] {cat}: {it}", "entry.1460982454": am if ty=="Debit" else 0, "entry.1221658767": 0 if ty=="Debit" else am}
                     threading.Thread(target=lambda: requests.post(FORM_API, data=payload, timeout=10)).start()
                     
-                    send_whatsapp_auto(f"✅ *Paichi Entry*\n📝 Item: {it}\n💰 Amt: ₹{am}\n👤 User: {st.session_state.user}")
-                    st.success("Saved! ✅"); st.rerun()
-                except: st.error("Error! Valid amount required.")
+                    # വാട്ട്‌സ്ആപ്പ് നോട്ടിഫിക്കേഷൻ അയക്കുന്നു
+                    wa_msg = f"✅ *Paichi Entry*\n📝 Item: {it}\n💰 Amt: ₹{am}\n👤 User: {st.session_state.user}"
+                    send_whatsapp_auto(wa_msg)
+                    
+                    st.success("Saved! ✅")
+                    st.rerun()
+                except: 
+                    st.error("Error! Valid amount required.")
 
     # --- CALENDAR ---
     elif page == "📅 Calendar" and not df.empty:
@@ -316,13 +355,16 @@ else:
         summary = df_cal.groupby(df_cal['Date'].dt.strftime('%Y-%m-%d')).agg({'Debit': 'sum', 'Credit': 'sum'}).reset_index()
         events = []
         for _, row in summary.iterrows():
-            if row['Credit'] > 0: events.append({"title": f" +₹{row['Credit']:,.0f}", "start": row['Date'], "backgroundColor": "#198754", "borderColor": "#198754", "textColor": "white"})
-            if row['Debit'] > 0: events.append({"title": f" -₹{row['Debit']:,.0f}", "start": row['Date'], "backgroundColor": "#dc3545", "borderColor": "#dc3545", "textColor": "white"})
+            if row['Credit'] > 0: 
+                events.append({"title": f" +₹{row['Credit']:,.0f}", "start": row['Date'], "backgroundColor": "#198754", "borderColor": "#198754", "textColor": "white"})
+            if row['Debit'] > 0: 
+                events.append({"title": f" -₹{row['Debit']:,.0f}", "start": row['Date'], "backgroundColor": "#dc3545", "borderColor": "#dc3545", "textColor": "white"})
         
         cal_data = calendar(events=events, options={"headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth"}, "initialView": "dayGridMonth", "selectable": True}, key="pnl_calendar")
         if cal_data.get("eventClick"):
             dt_click = cal_data["eventClick"]["event"]["start"].split("T")[0]
-            st.markdown("---"); st.subheader(f"📋 Details for {pd.to_datetime(dt_click).strftime('%d %B %Y')}")
+            st.markdown("---")
+            st.subheader(f"📋 Details for {pd.to_datetime(dt_click).strftime('%d %B %Y')}")
             day_df = df_cal[df_cal['Date'].dt.strftime('%Y-%m-%d') == dt_click].copy()
             if not day_df.empty:
                 day_df['Date'] = day_df['Date'].dt.strftime('%d/%m/%Y')
@@ -335,7 +377,8 @@ else:
         df_rep['Month'] = df_rep['Date'].dt.strftime('%B %Y')
         months = df_rep.dropna(subset=['Month']).sort_values(by='Date', ascending=False)['Month'].unique()
         
-        if len(months) == 0: st.warning("No data found from April 2026 onwards!")
+        if len(months) == 0: 
+            st.warning("No data found from April 2026 onwards!")
         else:
             sel_m = st.selectbox("Select Month", months, key=f"{page}_select")
             m_df = df_rep[df_rep['Month'] == sel_m].copy()
@@ -373,7 +416,8 @@ else:
                 st.title("Transaction History")
                 col_p, col_c = st.columns(2)
                 pdf_b = create_pdf(pdf_df)
-                if pdf_b: col_p.download_button(f"📄 Download PDF", pdf_b, f"History_{sel_m.replace(' ', '_')}.pdf", "application/pdf")
+                if pdf_b: 
+                    col_p.download_button(f"📄 Download PDF", pdf_b, f"History_{sel_m.replace(' ', '_')}.pdf", "application/pdf")
                 col_c.download_button("📥 Download CSV (Excel)", csv_bytes, f"History_{sel_m.replace(' ', '_')}.csv", "text/csv")
             
             clean_df['Date'] = clean_df['Date'].dt.strftime('%d/%m/%Y')
@@ -382,4 +426,4 @@ else:
     # --- DEBT TRACKER ---
     elif page == "🤝 Debt Tracker":
         st.title("🤝 Debt Tracker & Summary")
-        st.info("ഇവിടെ നിങ്ങളുടെ കടം വാങ്ങിയതും നൽകിയതുമായവിവരങ്ങൾ കാണാം.")
+        st.info("ഇവിടെ നിങ്ങളുടെ കടം വാങ്ങിയതും നൽകിയതുമായ വിവരങ്ങൾ കാണാം.")
