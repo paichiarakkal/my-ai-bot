@@ -418,7 +418,7 @@ if prompt := st.sidebar.chat_input("Ask about your expenses..."):
             try:
                 # Gemini API ഓൺ ചെയ്യുന്നു
                 genai.configure(api_key=GEMINI_API_KEY)
-                model = genai.GenerativeModel('gemini-2.5-flash')
+                model = genai.GenerativeModel('gemini-3.8-flash')
                 
                 # ഷീറ്റിലെ ഡാറ്റ AI-ക്ക് മനസ്സിലാകുന്ന രീതിയിൽ ടെക്സ്റ്റ് ആക്കുന്നു (Summary)
                 # വളരെ വലിയ ഡാറ്റ ആണെങ്കിൽ ഇത് കുറച്ച് മാറ്റേണ്ടി വരും.
