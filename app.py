@@ -384,3 +384,71 @@ else:
     elif page == "🤝 Debt Tracker":
         st.title("🤝 Debt Tracker & Summary")
         st.info("ഇവിടെ നിങ്ങളുടെ കടം വാങ്ങിയതും നൽകിയതുമായവിവരങ്ങൾ കാണാം.")
+# ============================================
+# 🤖 AI AGENT CHATBOT (ഏറ്റവും അവസാനം ചേർക്കുക)
+# ============================================
+
+# Sidebar-ൽ AI ചാറ്റ് വേണ്ടി ഒരു ഓപ്ഷൻ
+st.sidebar.markdown("---")
+st.sidebar.subheader("🤖 Ask AI Agent")
+# നിങ്ങൾ നേരത്തെ എടുത്ത Gemini API Key ഇവിടെ നൽകുക (അല്ലെങ്കിൽ st.secrets-ൽ നിന്ന് എടുക്കാം)
+GEMINI_API_KEY = "നിങ്ങളുടെ_GEMINI_API_KEY_ഇവിടെ_നൽകുക" 
+
+# ചാറ്റ് ഹിസ്റ്ററി സൂക്ഷിക്കാൻ session_state ഉപയോഗിക്കുന്നു
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Sidebar-ൽ ചാറ്റ് ബോക്സ് കാണിക്കുന്നു
+for message in st.session_state.messages:
+    with st.sidebar.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# യൂസർ മെസ്സേജ് ടൈപ്പ് ചെയ്യാൻ ഉള്ള ഇൻപുട്ട്
+if prompt := st.sidebar.chat_input("Ask about your expenses..."):
+    # യൂസർ മെസ്സേജ് സേവ് ചെയ്യുക
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.sidebar.chat_message("user"):
+        st.markdown(prompt)
+
+    # AI-ക്ക് മറുപടി നൽകാൻ ഡാറ്റ തയ്യാറാക്കുന്നു
+    if df.empty:
+        st.sidebar.warning("ഡാറ്റ ലഭ്യമല്ല. ദയവായി റിഫ്രെഷ് ചെയ്യുക.")
+    else:
+        with st.sidebar.spinner("AI ആലോചിക്കുന്നു..."):
+            try:
+                # Gemini API ഓൺ ചെയ്യുന്നു
+                genai.configure(api_key=GEMINI_API_KEY)
+                model = genai.GenerativeModel('gemini-pro')
+                
+                # ഷീറ്റിലെ ഡാറ്റ AI-ക്ക് മനസ്സിലാകുന്ന രീതിയിൽ ടെക്സ്റ്റ് ആക്കുന്നു (Summary)
+                # വളരെ വലിയ ഡാറ്റ ആണെങ്കിൽ ഇത് കുറച്ച് മാറ്റേണ്ടി വരും.
+                df_summary = df[['Date', 'Item', 'Debit', 'Credit']].tail(50).to_string()
+                
+                # AI-ക്ക് നൽകുന്ന നിർദ്ദേശം (Prompt)
+                system_prompt = f"""
+                നീ ഒരു സ്മാർട്ട് ഫിനാൻസ് അസിസ്റ്റന്റ് ആണ്. 
+                താഴെ തന്നിരിക്കുന്നത് യൂസറുടെ അവസാനത്തെ 50 ഇടപാടുകളുടെ (Transactions) വിവരങ്ങളാണ്.
+                
+                Data:
+                {df_summary}
+                
+                Total Income (Credit): {t_in} AED
+                Total Expense (Debit): {t_out} AED
+                Current Balance: {bal} AED
+                
+                യൂസറുടെ ചോദ്യം: "{prompt}"
+                
+                മുകളിലുള്ള ഡാറ്റ മാത്രം ഉപയോഗിച്ച്, മലയാളത്തിൽ വ്യക്തമായി മറുപടി നൽകുക. ഇംഗ്ലീഷ് വാക്കുകൾ ആവശ്യമെങ്കിൽ മാത്രം ഉപയോഗിക്കുക.
+                """
+                
+                # AI-യിൽ നിന്ന് മറുപടി എടുക്കുന്നു
+                response = model.generate_content(system_prompt)
+                ai_reply = response.text
+                
+                # AI മറുപടി സേവ് ചെയ്ത് കാണിക്കുന്നു
+                st.session_state.messages.append({"role": "assistant", "content": ai_reply})
+                with st.sidebar.chat_message("assistant"):
+                    st.markdown(ai_reply)
+                    
+            except Exception as e:
+                st.sidebar.error(f"AI Error: {e}")
