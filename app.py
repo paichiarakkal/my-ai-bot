@@ -392,7 +392,7 @@ else:
 st.sidebar.markdown("---")
 st.sidebar.subheader("🤖 Ask AI Agent")
 # നിങ്ങൾ നേരത്തെ എടുത്ത Gemini API Key ഇവിടെ നൽകുക (അല്ലെങ്കിൽ st.secrets-ൽ നിന്ന് എടുക്കാം)
-GEMINI_API_KEY = "നിങ്ങളുടെ_GEMINI_API_KEY_ഇവിടെ_നൽകുക" 
+GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 
 # ചാറ്റ് ഹിസ്റ്ററി സൂക്ഷിക്കാൻ session_state ഉപയോഗിക്കുന്നു
 if "messages" not in st.session_state:
