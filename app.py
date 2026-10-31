@@ -386,18 +386,72 @@ else:
         st.title("🤝 Debt Tracker & Summary")
         st.info("ഇവിടെ നിങ്ങളുടെ കടം വാങ്ങിയതും നൽകിയതുമായവിവരങ്ങൾ കാണാം.")
 # ============================================
+# 🤖 AI AGENT WITH TOOLS (FUNCTION CALLING)
 # ============================================
-# 🤖 AI AGENT CHATBOT (GROQ VERSION)
-# ============================================
-st.sidebar.markdown("---")
-st.sidebar.subheader("🤖 Ask AI Agent")
+import json
+from groq import Groq
 
-# Groq API Key സീക്രെറ്റ്സിൽ നിന്ന് എടുക്കുന്നു
+st.sidebar.markdown("---")
+st.sidebar.subheader("🤖 AI Agent (Actionable)")
+
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
 
 if not GROQ_API_KEY:
     st.sidebar.error("API Key ലഭ്യമല്ല! ദയവായി Secrets പരിശോധിക്കുക.")
 
+# 1. AI-ക്ക് നൽകാൻ പോകുന്ന ടൂളുകൾ (Functions) ഡിഫൈൻ ചെയ്യുന്നു
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "add_new_entry",
+            "description": "ഒരു പുതിയ ചെലവോ (Debit) വരുമാനമോ (Credit) Google Sheet-ൽ ചേർക്കുക.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "item": {
+                        "type": "string",
+                        "description": "ചെലവിന്റെ പേര് (ഉദാ: Biriyani, Petrol, Rent)"
+                    },
+                    "amount": {
+                        "type": "number",
+                        "description": "തുക (ഉദാ: 150, 5000)"
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": ["Debit", "Credit"],
+                        "description": "ചെലവാണെങ്കിൽ Debit, വരുമാനമാണെങ്കിൽ Credit"
+                    }
+                },
+                "required": ["item", "amount", "type"]
+            }
+        }
+    }
+]
+
+# 2. ടൂൾ പ്രവർത്തിപ്പിക്കാനുള്ള യഥാർത്ഥ ഫംഗ്ഷൻ (നിങ്ങളുടെ പഴയ ഫോം സബ്മിറ്റ് ലോജിക്)
+def execute_add_entry(item, amount, entry_type):
+    try:
+        # നിങ്ങളുടെ പഴയ Google Form API ലേക്ക് ഡാറ്റ അയക്കുന്നു
+        payload = {
+            "entry.1044099436": datetime.now().strftime("%Y-%m-%d"),
+            "entry.2013476337": f"[{st.session_state.user.capitalize()}] Others: {item}",
+            "entry.1460982454": amount if entry_type == "Debit" else 0,
+            "entry.1221658767": 0 if entry_type == "Debit" else amount,
+        }
+        requests.post(FORM_API, data=payload, timeout=10)
+        
+        # WhatsApp നോട്ടിഫിക്കേഷൻ അയക്കുന്നു
+        wa_msg = f"✅ *AI Agent Entry*\n📝 Item: {item}\n💰 Amt: {amount}\n👤 User: {st.session_state.user}"
+        send_whatsapp_auto(wa_msg)
+        
+        # ഡാറ്റ റിഫ്രെഷ് ചെയ്യാൻ കാഷെ ക്ലിയർ ചെയ്യുന്നു
+        st.cache_data.clear()
+        return "Success"
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+# 3. ചാറ്റ് ഹിസ്റ്ററി സൂക്ഷിക്കാൻ
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -405,51 +459,72 @@ for message in st.session_state.messages:
     with st.sidebar.chat_message(message["role"]):
         st.markdown(message["content"])
 
-if prompt := st.sidebar.chat_input("Ask about your expenses..."):
+# 4. യൂസർ ഇൻപുട്ട്
+if prompt := st.sidebar.chat_input("Ask or tell me to add an expense..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.sidebar.chat_message("user"):
         st.markdown(prompt)
 
-    if df.empty:
-        st.sidebar.warning("ഡാറ്റ ലഭ്യമല്ല. ദയവായി റിഫ്രെഷ് ചെയ്യുക.")
-    else:
-        with st.sidebar.spinner("AI ആലോചിക്കുന്നു..."):
-            try:
-                # Groq API ഉപയോഗിച്ച് മറുപടി ഉണ്ടാക്കുന്നു
-                client = Groq(api_key=GROQ_API_KEY)
+    with st.sidebar.spinner("AI Agent ആലോചിക്കുന്നു..."):
+        try:
+            client = Groq(api_key=GROQ_API_KEY)
+            
+            # AI-ക്ക് നൽകാനുള്ള കോൺടെക്സ്റ്റ് (ഡാറ്റ + മുൻകാല സന്ദേശങ്ങൾ)
+            df_summary = df[['Date', 'Item', 'Debit', 'Credit']].tail(20).to_string() if not df.empty else "No data"
+            
+            system_instruction = f"""
+            നീ ഒരു സ്മാർട്ട് ഫിനാൻസ് AI ഏജന്റ് ആണ്. 
+            നിലവിലെ ബാലൻസ്: {bal} AED. 
+            അവസാനത്തെ 20 ഇടപാടുകൾ:
+            {df_summary}
+            
+            യൂസർ എന്തെങ്കിലും ചെലവ് ചേർക്കാൻ പറഞ്ഞാൽ (ഉദാ: 'ബിരിയാണി 150'), നീ add_new_entry എന്ന ടൂൾ ഉപയോഗിക്കണം. 
+            ചോദ്യങ്ങൾക്ക് മാത്രം മലയാളത്തിൽ മറുപടി നൽകുക.
+            """
+
+            messages_for_api = [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": prompt}
+            ]
+
+            # AI-യെ വിളിക്കുന്നു (ടൂളുകൾ നൽകി)
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile", # ടൂൾസ് സപ്പോർട്ട് ചെയ്യുന്ന മികച്ച മോഡൽ
+                messages=messages_for_api,
+                tools=tools,
+                tool_choice="auto"
+            )
+
+            response_message = response.choices[0].message
+            tool_calls = response_message.tool_calls
+
+            # AI ടൂൾ ഉപയോഗിക്കാൻ തീരുമാനിച്ചാൽ
+            if tool_calls:
+                for tool_call in tool_calls:
+                    if tool_call.function.name == "add_new_entry":
+                        args = json.loads(tool_call.function.arguments)
+                        item = args.get("item")
+                        amount = args.get("amount")
+                        entry_type = args.get("type")
+                        
+                        # ഫംഗ്ഷൻ എക്സിക്യൂട്ട് ചെയ്യുന്നു
+                        result = execute_add_entry(item, amount, entry_type)
+                        
+                        if result == "Success":
+                            ai_reply = f"✅ ചേട്ടാ, {item}-ന് വേണ്ടി {amount} AED ഞാൻ ഷീറ്റിൽ എൻട്രി ഇട്ടിട്ടുണ്ട്! (Action Completed)"
+                        else:
+                            ai_reply = f"❌ എൻട്രി ഇടാൻ പറ്റിയില്ല: {result}"
+            else:
+                # ടൂൾ വേണ്ട, വെറും ചോദ്യമാണെങ്കിൽ നേരിട്ട് മറുപടി
+                ai_reply = response_message.content
+
+            st.session_state.messages.append({"role": "assistant", "content": ai_reply})
+            with st.sidebar.chat_message("assistant"):
+                st.markdown(ai_reply)
                 
-                df_summary = df[['Date', 'Item', 'Debit', 'Credit']].tail(50).to_string()
-                
-                system_prompt = f"""
-                നീ ഒരു സ്മാർട്ട് ഫിനാൻസ് അസിസ്റ്റന്റ് ആണ്. 
-                താഴെ തന്നിരിക്കുന്നത് യൂസറുടെ അവസാനത്തെ 50 ഇടപാടുകളുടെ വിവരങ്ങളാണ്.
-                
-                Data:
-                {df_summary}
-                
-                Total Income (Credit): {t_in} AED
-                Total Expense (Debit): {t_out} AED
-                Current Balance: {bal} AED
-                
-                യൂസറുടെ ചോദ്യം: "{prompt}"
-                
-                മുകളിലുള്ള ഡാറ്റ മാത്രം ഉപയോഗിച്ച്, മലയാളത്തിൽ വ്യക്തമായി മറുപടി നൽകുക.
-                """
-                
-                # Llama 3.1 മോഡൽ ഉപയോഗിച്ച് മറുപടി എടുക്കുന്നു (വളരെ വേഗതയുള്ളതാണ്)
-                chat_completion = client.chat.completions.create(
-                    messages=[
-                        {"role": "system", "content": "You are a helpful financial assistant."},
-                        {"role": "user", "content": system_prompt}
-                    ],
-                    model="qwen/qwen3.8-27b", # അല്ലെങ്കിൽ "openai/gpt-oss-120b"
-                )
-                
-                ai_reply = chat_completion.choices[0].message.content
-                
-                st.session_state.messages.append({"role": "assistant", "content": ai_reply})
-                with st.sidebar.chat_message("assistant"):
-                    st.markdown(ai_reply)
-                    
-            except Exception as e:
-                st.sidebar.error(f"AI Error: {str(e)}")
+            # സക്സസ് ആയാൽ ആപ്പ് റീഫ്രെഷ് ചെയ്ത് പുതിയ ബാലൻസ് കാണിക്കാൻ
+            if tool_calls and result == "Success":
+                st.rerun()
+
+        except Exception as e:
+            st.sidebar.error(f"AI Error: {str(e)}")
