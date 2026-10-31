@@ -442,7 +442,7 @@ if prompt := st.sidebar.chat_input("Ask about your expenses..."):
                         {"role": "system", "content": "You are a helpful financial assistant."},
                         {"role": "user", "content": system_prompt}
                     ],
-                    model="llama-3.1-8b-instant", # അല്ലെങ്കിൽ "llama-3.3-70b-versatile"
+                    model="qwen/qwen3.8-27b", # അല്ലെങ്കിൽ "openai/gpt-oss-120b"
                 )
                 
                 ai_reply = chat_completion.choices[0].message.content
@@ -453,7 +453,3 @@ if prompt := st.sidebar.chat_input("Ask about your expenses..."):
                     
             except Exception as e:
                 st.sidebar.error(f"AI Error: {str(e)}")
-from groq import Groq
-client = Groq(api_key="YOUR_GROQ_API_KEY")
-for model in client.models.list().data:
-    print(model.id)
