@@ -489,7 +489,7 @@ if prompt := st.sidebar.chat_input("Ask or tell me to add an expense..."):
 
             # AI-യെ വിളിക്കുന്നു (ടൂളുകൾ നൽകി)
             response = client.chat.completions.create(
-                model="qwen/qwen3-32b",  # അല്ലെങ്കിൽ "openai/gpt-oss-120b",   # ടൂൾസ് സപ്പോർട്ട് ചെയ്യുന്ന മികച്ച മോഡൽ
+                model="openai/gpt-oss-120b",  # അല്ലെങ്കിൽ "openai/gpt-oss-120b",   # ടൂൾസ് സപ്പോർട്ട് ചെയ്യുന്ന മികച്ച മോഡൽ
                 messages=messages_for_api,
                 tools=tools,
                 tool_choice="auto"
