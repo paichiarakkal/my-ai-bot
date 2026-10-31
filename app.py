@@ -11,6 +11,7 @@ from fpdf import FPDF
 import re
 import urllib.parse
 import threading
+from groq import Groq
 from streamlit_calendar import calendar
 
 # --- CONFIG & SETTINGS ---
