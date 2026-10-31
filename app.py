@@ -453,3 +453,7 @@ if prompt := st.sidebar.chat_input("Ask about your expenses..."):
                     
             except Exception as e:
                 st.sidebar.error(f"AI Error: {str(e)}")
+from groq import Groq
+client = Groq(api_key="YOUR_GROQ_API_KEY")
+for model in client.models.list().data:
+    print(model.id)
