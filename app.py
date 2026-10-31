@@ -489,7 +489,7 @@ if prompt := st.sidebar.chat_input("Ask or tell me to add an expense..."):
 
             # AI-യെ വിളിക്കുന്നു (ടൂളുകൾ നൽകി)
             response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile", # ടൂൾസ് സപ്പോർട്ട് ചെയ്യുന്ന മികച്ച മോഡൽ
+                model="llama-3.1-70b-versatile",  # ടൂൾസ് സപ്പോർട്ട് ചെയ്യുന്ന മികച്ച മോഡൽ
                 messages=messages_for_api,
                 tools=tools,
                 tool_choice="auto"
