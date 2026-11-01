@@ -2,7 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 import pandas as pd
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 import random
 import plotly.express as px
 from streamlit_mic_recorder import speech_to_text
@@ -11,6 +11,7 @@ from fpdf import FPDF
 import re
 import urllib.parse
 import threading
+import json
 from groq import Groq
 from streamlit_calendar import calendar
 
@@ -18,149 +19,30 @@ from streamlit_calendar import calendar
 CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
 FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSfLySolQSiRXV0wELNPhUBlKJh77RnJKWc2-uqAM0TPNG3Q5A/formResponse"
 WA_PHONE, WA_API_KEY = "971551347989", "7463030"
-
-# 🔑 USERS & 4-DIGIT PIN SETTINGS
-USER_PINS = {
-    "faisal": "1470",
-    "shabana": "1230",
-    "admin": "7860"
-}
-
-# 🖼️ PERMANENT BACKGROUND PHOTO FROM GITHUB
+USER_PINS = {"faisal": "1470", "shabana": "1230", "admin": "7860"}
 BG_IMAGE_URL = "https://raw.githubusercontent.com/paichiarakkal/paichiarakkal/main/profile.jpg"
 
-# --- TWILIO WHATSAPP RECEIVER ---
-try:
-    from flask import Flask, request
-    from twilio.twiml.messaging_response import MessagingResponse
-    flask_app = Flask(__name__)
-
-    @flask_app.route("/whatsapp", methods=['POST'])
-    def whatsapp_reply():
-        incoming = request.values.get('Body', '').lower().strip()
-        resp = MessagingResponse()
-        msg = resp.message()
-        if "balance" in incoming or "ബാലൻസ്" in incoming:
-            try:
-                df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
-                t_in = pd.to_numeric(df.iloc[:, 3], errors='coerce').fillna(0).sum()
-                t_out = pd.to_numeric(df.iloc[:, 2], errors='coerce').fillna(0).sum()
-                msg.body(f"📊 *Paichi Finance Update*\n\n💰 Total Credit: ₹{t_in:,.2f}\n📉 Total Debit: ₹{t_out:,.2f}\n💵 *Available Balance: ₹{t_in - t_out:,.2f}*")
-            except: msg.body("⚠️ ഡാറ്റ എടുക്കാൻ കഴിഞ്ഞില്ല.")
-        else: msg.body("🤖 ഹലോ! ബാലൻസ് അറിയാൻ *Balance* എന്ന് അയക്കൂ.")
-        return str(resp)
-
-    if not any(t.name == "FlaskThread" for t in threading.enumerate()):
-        threading.Thread(target=lambda: flask_app.run(port=5000, host="0.0.0.0", debug=False, use_reloader=False), name="FlaskThread", daemon=True).start()
-except: pass
-
 # --- STREAMLIT UI SETUP ---
-st.set_page_config(page_title="PAICHI EXPENSES v3.0", layout="wide")
+st.set_page_config(page_title="PAICHI EXPENSES v5.0", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
-# INJECT CSS WITH PERMANENT BACKGROUND
 st.markdown(f"""
     <style>
-    [data-testid="stAppViewContainer"] {{
-        background-image: linear-gradient(rgba(0, 0, 0, 0.70), rgba(0, 0, 0, 0.70)), url("{BG_IMAGE_URL}");
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-        background-attachment: fixed;
-    }}
-    [data-testid="stHeader"] {{
-        background-color: rgba(0,0,0,0);
-    }}
-    [data-testid="stSidebar"] {{
-        background: rgba(0, 0, 0, 0.85) !important;
-    }}
-    .stButton>button {{
-        background-color: #FFD700;
-        color: #000;
-        border-radius: 10px;
-        font-weight: bold;
-        width: 100%;
-        transition: 0.3s;
-    }}
-    .stButton>button:hover {{
-        background-color: #FFF;
-        color: #000;
-        box-shadow: 0px 0px 10px #FFD700;
-    }}
-    .balance-banner {{
-        background: rgba(0, 0, 0, 0.65);
-        backdrop-filter: blur(10px);
-        padding: 25px;
-        border-radius: 15px;
-        border-left: 10px solid #FFD700;
-        margin-bottom: 25px;
-        text-align: center;
-        box-shadow: 0px 4px 15px rgba(0,0,0,0.5);
-    }}
-    .purple-box {{
-        background: rgba(0, 0, 0, 0.65);
-        backdrop-filter: blur(10px);
-        padding: 20px;
-        border-radius: 25px;
-        border: 2px solid rgba(255, 215, 0, 0.3);
-        text-align: center;
-        margin-bottom: 20px;
-    }}
-    .category-box {{
-        background: rgba(0, 0, 0, 0.65);
-        backdrop-filter: blur(10px);
-        padding: 15px;
-        border-radius: 15px;
-        text-align: center;
-        border-bottom: 4px solid #FFD700;
-        margin-bottom: 15px;
-    }}
-    .alert-banner {{
-        background-color: #ff4d4d;
-        color: white;
-        padding: 10px;
-        border-radius: 10px;
-        text-align: center;
-        font-weight: bold;
-        margin-bottom: 20px;
-    }}
-    .login-card {{
-        background: rgba(0, 0, 0, 0.7);
-        backdrop-filter: blur(10px);
-        padding: 25px;
-        border-radius: 20px;
-        border: 1px solid rgba(255, 215, 0, 0.4);
-        box-shadow: 0px 8px 32px 0 rgba(0, 0, 0, 0.7);
-        max-width: 450px;
-        margin: auto;
-        margin-top: 30px;
-    }}
-    .login-title {{
-        text-align: center;
-        font-size: 22px;
-        font-weight: bold;
-        color: #FFD700 !important;
-        margin-bottom: 15px;
-    }}
-    h1, h2, h3, p, label {{
-        color: white !important;
-        font-weight: bold !important;
-    }}
-    .stDataFrame {{
-        background: white;
-        border-radius: 10px;
-        color: black;
-    }}
+    [data-testid="stAppViewContainer"] {{ background-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.75)), url("{BG_IMAGE_URL}"); background-size: cover; background-attachment: fixed; }}
+    [data-testid="stSidebar"] {{ background: rgba(0, 0, 0, 0.85) !important; }}
+    .stButton>button {{ background-color: #FFD700; color: #000; border-radius: 10px; font-weight: bold; width: 100%; }}
+    .balance-banner {{ background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(10px); padding: 25px; border-radius: 15px; border-left: 10px solid #FFD700; text-align: center; margin-bottom: 25px; }}
+    .purple-box {{ background: rgba(0, 0, 0, 0.7); padding: 20px; border-radius: 25px; border: 2px solid rgba(255, 215, 0, 0.3); text-align: center; margin-bottom: 20px; }}
+    .category-box {{ background: rgba(0, 0, 0, 0.7); padding: 15px; border-radius: 15px; text-align: center; border-bottom: 4px solid #FFD700; margin-bottom: 15px; }}
+    .alert-banner {{ background-color: #ff4d4d; color: white; padding: 10px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 20px; }}
+    .login-card {{ background: rgba(0, 0, 0, 0.8); padding: 25px; border-radius: 20px; max-width: 450px; margin: auto; margin-top: 50px; }}
+    h1, h2, h3, p, label {{ color: white !important; font-weight: bold !important; }}
     </style>
 """, unsafe_allow_html=True)
 
 if 'auth' not in st.session_state: st.session_state.auth, st.session_state.user = False, ""
-
-# --- DYNAMIC APP SETTINGS ---
-if 'custom_alert_text' not in st.session_state: 
-    st.session_state.custom_alert_text = "Shop kuri book"
-if 'low_limit' not in st.session_state: 
-    st.session_state.low_limit = 6000
+if 'custom_alert_text' not in st.session_state: st.session_state.custom_alert_text = "Shop kuri book"
+if 'low_limit' not in st.session_state: st.session_state.low_limit = 6000
 
 # --- HELPER FUNCTIONS ---
 def send_whatsapp_auto(msg):
@@ -214,40 +96,73 @@ def create_pdf(df):
         return bytes(pdf.output())
     except: return None
 
-# --- 🔒 PIN LOGIN SCREEN ---
+# --- GROQ AI AGENT SETUP ---
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
+if not GROQ_API_KEY: st.sidebar.error("Groq API Key ലഭ്യമല്ല!")
+
+def add_new_entry(item, amount, category="Others", type="Debit"):
+    try:
+        payload = {
+            "entry.1044099436": datetime.now().strftime("%Y-%m-%d"), 
+            "entry.2013476337": f"[{st.session_state.user.capitalize()}] {category}: {item}", 
+            "entry.1460982454": amount if type.lower() == "debit" else 0, 
+            "entry.1221658767": 0 if type.lower() == "debit" else amount
+        }
+        requests.post(FORM_API, data=payload, timeout=10)
+        send_whatsapp_auto(f"✅ *AI Entry Added*\n📝 Item: {item}\n💰 Amt: ₹{amount}")
+        st.cache_data.clear()
+        return f"Success: {item} - ₹{amount} ({type})"
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+tools = [{
+    "type": "function",
+    "function": {
+        "name": "add_new_entry",
+        "description": "Add a new expense or income to Google Sheet.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "item": {"type": "string", "description": "Item name (e.g., Tea, Petrol)"},
+                "amount": {"type": "number", "description": "Amount (e.g., 50, 500)"},
+                "category": {"type": "string", "description": "Food, Shop, Fish, Travel, Rent, Others"},
+                "type": {"type": "string", "enum": ["Debit", "Credit"], "description": "Debit for expense, Credit for income"}
+            },
+            "required": ["item", "amount"]
+        }
+    }
+}]
+
+# --- 🔒 LOGIN SCREEN ---
 if not st.session_state.auth:
-    st.markdown('<div class="login-card"><div class="login-title">🔐 PAICHI EXPENSES</div>', unsafe_allow_html=True)
-    
+    st.markdown('<div class="login-card">', unsafe_allow_html=True)
+    st.subheader("🔐 PAICHI EXPENSES LOGIN")
     u = st.selectbox("👤 Select User", ["faisal", "shabana", "admin"]).lower()
     pin = st.text_input("🔑 Enter 4-Digit PIN", type="password", max_chars=4)
-    
-    st.markdown("<br>", unsafe_allow_html=True)
     if st.button("UNLOCK APP 🔓"):
         if USER_PINS.get(u) == pin:
             st.session_state.auth, st.session_state.user = True, u
             st.rerun()
-        else:
-            st.error("❌ Incorrect PIN! Try again.")
-            
+        else: st.error("❌ Incorrect PIN!")
     st.markdown('</div>', unsafe_allow_html=True)
+
 else:
     df = load_data()
     t_in, t_out = (df['Credit'].sum(), df['Debit'].sum()) if not df.empty else (0.0, 0.0)
     bal = t_in - t_out
     
-    # ⚙️ SIDEBAR SETTINGS
+    # SIDEBAR SETTINGS
     if st.session_state.user != "shabana":
-        with st.sidebar.expander("⚙️ Alert & Expense Settings"):
-            st.session_state.custom_alert_text = st.text_area("Custom Alert Message", value=st.session_state.custom_alert_text)
+        with st.sidebar.expander("⚙️ Settings"):
+            st.session_state.custom_alert_text = st.text_area("Alert Message", value=st.session_state.custom_alert_text)
             st.session_state.low_limit = st.number_input("Low Balance Limit (₹)", value=st.session_state.low_limit)
     
-    # ⚠️ ALERT BANNER
     if bal < st.session_state.low_limit:
-        st.markdown(f'<div class="alert-banner">⚠️ ശ്രദ്ധിക്കുക: അക്കൗണ്ട് ബാലൻസ് കുറവാണ് {st.session_state.custom_alert_text} (₹{bal:,.2f})! അത്യാവശ്യ കാര്യങ്ങൾക്കായി ഫണ്ട് സൂക്ഷിക്കുക.</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="alert-banner">⚠️ ബാലൻസ് കുറവാണ്: {st.session_state.custom_alert_text} (₹{bal:,.2f})!</div>', unsafe_allow_html=True)
 
-    st.markdown(f'<div class="balance-banner"><span style="font-size:20px; color:#E0B0FF;">Available Balance</span><br><span style="font-size:40px; color:#FFD700; font-weight:bold;">₹{bal:,.2f}</span></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="balance-banner"><span style="font-size:20px; color:#E0B0FF;">Available Balance</span><br><span style="font-size:40px; color:#FFD700;">₹{bal:,.2f}</span></div>', unsafe_allow_html=True)
     
-    menu = ["💰 Add Entry", "📅 Calendar", "📊 Report", "🔍 History", "🤝 Debt Tracker"]
+    menu = ["💰 Add Entry", "📅 Calendar", "📊 Report", "🔍 History", "🤝 Debt Tracker", "🤖 AI Chat", "🧠 My AI Buddy"]
     if st.session_state.user != "shabana": menu.insert(0, "🏠 Dashboard")
     page = st.sidebar.radio("Menu", menu)
     if st.sidebar.button("Logout"): st.session_state.auth = False; st.rerun()
@@ -255,26 +170,21 @@ else:
     # --- DASHBOARD ---
     if page == "🏠 Dashboard" and not df.empty:
         st.title("Financial Overview")
-        st.markdown(f'<div class="purple-box"><h2 style="color:#00FF00;">Total Credit: ₹{t_in:,.2f}</h2><h2 style="color:#FF3131;">Total Debit: ₹{t_out:,.2f}</h2></div>', unsafe_allow_html=True)
-        
-        st.subheader("🗂️ Categorywise Expense Breakdown")
-        
+        st.markdown(f'<div class="purple-box"><h2 style="color:#00FF00;">Credit: ₹{t_in:,.2f}</h2><h2 style="color:#FF3131;">Debit: ₹{t_out:,.2f}</h2></div>', unsafe_allow_html=True)
         def extract_cat(x):
             item_text = str(x).lower()
-            if any(w in item_text for w in ["food", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി", "mess"]): return "Food"
-            elif any(w in item_text for w in ["shop", "കട", "സാധനങ്ങൾ", "സൂപ്പർമാർക്കറ്റ്", "groceries"]): return "Shop"
-            elif any(w in item_text for w in ["fish", "മീൻ", "ഇറച്ചി", "ചിക്കൻ", "meat"]): return "Fish"
-            elif any(w in item_text for w in ["travel", "യാത്ര", "പെട്രോൾ", "വണ്ടി", "ടാക്സി", "petrol", "diesel"]): return "Travel"
+            if any(w in item_text for w in ["food", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി"]): return "Food"
+            elif any(w in item_text for w in ["shop", "കട", "സാധനങ്ങൾ", "സൂപ്പർമാർക്കറ്റ്"]): return "Shop"
+            elif any(w in item_text for w in ["fish", "മീൻ", "ഇറച്ചി", "ചിക്കൻ"]): return "Fish"
+            elif any(w in item_text for w in ["travel", "യാത്ര", "പെട്രോൾ", "വണ്ടി", "ടാക്സി"]): return "Travel"
             elif any(w in item_text for w in ["rent", "വാടക", "റൂം"]): return "Rent"
-            
-            return x.split(']')[1].split(':')[0].strip().capitalize() if ']' in str(x) and ':' in str(x) else (str(x).split(':')[0].strip().capitalize() if ':' in str(x) else "Others")
-
+            return "Others"
         df['Cat'] = df['Item'].apply(extract_cat)
-        cats = df[~df['Item'].str.contains('total', case=False, na=False)].groupby('Cat')['Debit'].sum().to_dict()
+        cats = df.groupby('Cat')['Debit'].sum().to_dict()
         cols = st.columns(3)
         for idx, (c_name, c_amt) in enumerate(cats.items()):
             if c_amt > 0:
-                with cols[idx % 3]: st.markdown(f'<div class="category-box"><span style="font-size:16px; color:#aaa;">Total {c_name}</span><br><span style="font-size:24px; color:#FFF; font-weight:bold;">₹{c_amt:,.2f}</span></div>', unsafe_allow_html=True)
+                with cols[idx % 3]: st.markdown(f'<div class="category-box"><span style="color:#aaa;">Total {c_name}</span><br><span style="font-size:24px; color:#FFF;">₹{c_amt:,.2f}</span></div>', unsafe_allow_html=True)
 
     # --- ADD ENTRY ---
     elif page == "💰 Add Entry":
@@ -287,14 +197,11 @@ else:
             nums = re.findall(r'\d+', raw)
             v_amt = nums[0] if nums else ""
             v_desc = re.sub(r'\d+', '', raw).strip()
-            
-            if any(x in raw for x in ["food", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി", "mess"]): v_cat = "Food"
-            elif any(x in raw for x in ["shop", "കട", "സാധനങ്ങൾ", "സൂപ്പർമാർക്കറ്റ്", "groceries"]): v_cat = "Shop"
-            elif any(x in raw for x in ["fish", "മീൻ", "ഇറച്ചി", "ചിക്കൻ", "meat"]): v_cat = "Fish"
-            elif any(x in raw for x in ["travel", "യാത്ര", "പെട്രോൾ", "വണ്ടി", "ടാക്സി", "petrol"]): v_cat = "Travel"
-            elif any(x in raw for x in ["rent", "വാടക", "റൂം"]): v_cat = "Rent"
-            
-            if any(x in raw for x in ["കിട്ടി", "വന്നു", "തന്നു", "ക്രെഡിറ്റ്", "credit"]): v_type = "Credit"
+            if any(x in raw for x in ["food", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി"]): v_cat = "Food"
+            elif any(x in raw for x in ["shop", "കട"]): v_cat = "Shop"
+            elif any(x in raw for x in ["fish", "മീൻ", "ചിക്കൻ"]): v_cat = "Fish"
+            elif any(x in raw for x in ["travel", "പെട്രോൾ", "വണ്ടി"]): v_cat = "Travel"
+            if any(x in raw for x in ["കിട്ടി", "വന്നു", "തന്നു"]): v_type = "Credit"
 
         with st.form("entry_form", clear_on_submit=True):
             it = st.text_input("Description", value=v_desc)
@@ -305,9 +212,8 @@ else:
                 try:
                     am = float(am_str.strip().replace(',', ''))
                     payload = {"entry.1044099436": datetime.now().strftime("%Y-%m-%d"), "entry.2013476337": f"[{st.session_state.user.capitalize()}] {cat}: {it}", "entry.1460982454": am if ty=="Debit" else 0, "entry.1221658767": 0 if ty=="Debit" else am}
-                    threading.Thread(target=lambda: requests.post(FORM_API, data=payload, timeout=10)).start()
-                    
-                    send_whatsapp_auto(f"✅ *Paichi Entry*\n📝 Item: {it}\n💰 Amt: ₹{am}\n👤 User: {st.session_state.user}")
+                    requests.post(FORM_API, data=payload, timeout=10)
+                    send_whatsapp_auto(f"✅ *Paichi Entry*\n📝 {it}\n💰 ₹{am}")
                     st.success("Saved! ✅"); st.rerun()
                 except: st.error("Error! Valid amount required.")
 
@@ -318,18 +224,21 @@ else:
         summary = df_cal.groupby(df_cal['Date'].dt.strftime('%Y-%m-%d')).agg({'Debit': 'sum', 'Credit': 'sum'}).reset_index()
         events = []
         for _, row in summary.iterrows():
-            if row['Credit'] > 0: events.append({"title": f" +₹{row['Credit']:,.0f}", "start": row['Date'], "backgroundColor": "#198754", "borderColor": "#198754", "textColor": "white"})
-            if row['Debit'] > 0: events.append({"title": f" -₹{row['Debit']:,.0f}", "start": row['Date'], "backgroundColor": "#dc3545", "borderColor": "#dc3545", "textColor": "white"})
+            if row['Credit'] > 0: events.append({"title": f" +₹{row['Credit']:,.0f}", "start": row['Date'], "backgroundColor": "#198754"})
+            if row['Debit'] > 0: events.append({"title": f" -₹{row['Debit']:,.0f}", "start": row['Date'], "backgroundColor": "#dc3545"})
         
-        cal_data = calendar(events=events, options={"headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth"}, "initialView": "dayGridMonth", "selectable": True}, key="pnl_calendar")
-        if cal_data.get("eventClick"):
-            dt_click = cal_data["eventClick"]["event"]["start"].split("T")[0]
-            st.markdown("---"); st.subheader(f"📋 Details for {pd.to_datetime(dt_click).strftime('%d %B %Y')}")
-            day_df = df_cal[df_cal['Date'].dt.strftime('%Y-%m-%d') == dt_click].copy()
-            if not day_df.empty:
-                day_df['Date'] = day_df['Date'].dt.strftime('%d/%m/%Y')
-                st.download_button("📥 Download This Day's Data", day_df[['Date', 'Item', 'Debit', 'Credit']].to_csv(index=False).encode('utf-8'), f"Transactions_{dt_click}.csv", "text/csv")
-                st.dataframe(day_df[['Date', 'Item', 'Debit', 'Credit']], use_container_width=True)
+        cal_data = calendar(events=events, options={"headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth"}, "initialView": "dayGridMonth"}, key="pnl_calendar")
+        
+        # തിരുത്തിയ ഭാഗം (callback)
+        if cal_data and cal_data.get("callback") == "eventClick":
+            event_data = cal_data.get("eventClick", {}).get("event", {})
+            dt_click = event_data.get("start", "").split("T")[0]
+            if dt_click:
+                st.markdown("---"); st.subheader(f"📋 Details for {pd.to_datetime(dt_click).strftime('%d %B %Y')}")
+                day_df = df_cal[df_cal['Date'].dt.strftime('%Y-%m-%d') == dt_click].copy()
+                if not day_df.empty:
+                    day_df['Date'] = day_df['Date'].dt.strftime('%d/%m/%Y')
+                    st.dataframe(day_df[['Date', 'Item', 'Debit', 'Credit']], use_container_width=True)
 
     # --- REPORT & HISTORY ---
     elif (page == "📊 Report" or page == "🔍 History") and not df.empty:
@@ -337,194 +246,118 @@ else:
         df_rep['Month'] = df_rep['Date'].dt.strftime('%B %Y')
         months = df_rep.dropna(subset=['Month']).sort_values(by='Date', ascending=False)['Month'].unique()
         
-        if len(months) == 0: st.warning("No data found from April 2026 onwards!")
+        if len(months) == 0: st.warning("No data found!")
         else:
-            sel_m = st.selectbox("Select Month", months, key=f"{page}_select")
+            sel_m = st.selectbox("Select Month", months)
             m_df = df_rep[df_rep['Month'] == sel_m].copy()
-            
-            search_query = st.text_input("🔍 Search items (e.g. Fish, Petrol, Travel)...", "").strip().lower()
-            filter_type = st.selectbox("Filter Type", ["All", "Debit Only", "Credit Only"])
-            
-            if search_query:
-                m_df = m_df[m_df['Item'].str.lower().str.contains(search_query, na=False)]
-            if filter_type == "Debit Only":
-                m_df = m_df[m_df['Debit'] > 0]
-            elif filter_type == "Credit Only":
-                m_df = m_df[m_df['Credit'] > 0]
-
             m_deb, m_crd = m_df['Debit'].sum(), m_df['Credit'].sum()
             
             if page == "📊 Report":
                 st.title("Monthly Expense Analysis")
                 c1, c2, c3 = st.columns(3)
-                c1.markdown(f'<div class="purple-box"><h3 style="color:#00FF00;">Total Credit</h3><h1 style="color:#00FF00;">₹{m_crd:,.2f}</h1></div>', unsafe_allow_html=True)
-                c2.markdown(f'<div class="purple-box"><h3 style="color:#FF3131;">Total Expense</h3><h1 style="color:#FF3131;">₹{m_deb:,.2f}</h1></div>', unsafe_allow_html=True)
-                c3.markdown(f'<div class="purple-box"><h3 style="color:#FFD700;">Net Savings</h3><h1 style="color:#FFD700;">₹{m_crd - m_deb:,.2f}</h1></div>', unsafe_allow_html=True)
-                if m_deb > 0:
-                    m_df['Cat'] = m_df['Item'].apply(lambda x: x.split(':')[0] if ':' in str(x) else 'Others')
-                    st.plotly_chart(px.pie(m_df[m_df['Debit'] > 0], values='Debit', names='Cat', hole=0.4, title=f"{sel_m} Expense Split").update_traces(textposition='inside', textinfo='percent+label'), use_container_width=True)
+                c1.markdown(f'<div class="purple-box"><h3 style="color:#00FF00;">Credit</h3><h1 style="color:#00FF00;">₹{m_crd:,.2f}</h1></div>', unsafe_allow_html=True)
+                c2.markdown(f'<div class="purple-box"><h3 style="color:#FF3131;">Expense</h3><h1 style="color:#FF3131;">₹{m_deb:,.2f}</h1></div>', unsafe_allow_html=True)
+                c3.markdown(f'<div class="purple-box"><h3 style="color:#FFD700;">Savings</h3><h1 style="color:#FFD700;">₹{m_crd - m_deb:,.2f}</h1></div>', unsafe_allow_html=True)
+                
+                m_df['Cat'] = m_df['Item'].apply(lambda x: x.split(':')[0] if ':' in str(x) else 'Others')
+                st.plotly_chart(px.pie(m_df[m_df['Debit'] > 0], values='Debit', names='Cat', hole=0.4), use_container_width=True)
 
             clean_df = m_df.drop(columns=['Month'], errors='ignore')
-            pdf_df = clean_df.copy()
-            pdf_df['Date'] = pdf_df['Date'].dt.strftime('%d/%m/%Y')
-            csv_bytes = clean_df.to_csv(index=False).encode('utf-8')
-            
-            if page == "📊 Report":
-                st.download_button("📥 Download Excel/CSV Report", csv_bytes, f"Report_{sel_m.replace(' ', '_')}.csv", "text/csv")
-            else:
-                st.title("Transaction History")
-                col_p, col_c = st.columns(2)
-                pdf_b = create_pdf(pdf_df)
-                if pdf_b: col_p.download_button(f"📄 Download PDF", pdf_b, f"History_{sel_m.replace(' ', '_')}.pdf", "application/pdf")
-                col_c.download_button("📥 Download CSV (Excel)", csv_bytes, f"History_{sel_m.replace(' ', '_')}.csv", "text/csv")
-            
             clean_df['Date'] = clean_df['Date'].dt.strftime('%d/%m/%Y')
             st.dataframe(clean_df.iloc[::-1], use_container_width=True)
 
     # --- DEBT TRACKER ---
     elif page == "🤝 Debt Tracker":
-        st.title("🤝 Debt Tracker & Summary")
-        st.info("ഇവിടെ നിങ്ങളുടെ കടം വാങ്ങിയതും നൽകിയതുമായവിവരങ്ങൾ കാണാം.")
-# ============================================
-# 🤖 AI AGENT WITH TOOLS (FUNCTION CALLING)
-# ============================================
-import json
-from groq import Groq
+        st.title("🤝 Debt Tracker")
+        st.info("വരും ദിവസങ്ങളിൽ ഇതിലേക്ക് കൂടുതൽ ഫീച്ചറുകൾ വരും!")
 
-st.sidebar.markdown("---")
-st.sidebar.subheader("🤖 AI Agent (Actionable)")
-
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
-
-if not GROQ_API_KEY:
-    st.sidebar.error("API Key ലഭ്യമല്ല! ദയവായി Secrets പരിശോധിക്കുക.")
-
-# 1. AI-ക്ക് നൽകാൻ പോകുന്ന ടൂളുകൾ (Functions) ഡിഫൈൻ ചെയ്യുന്നു
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "add_new_entry",
-            "description": "ഒരു പുതിയ ചെലവോ (Debit) വരുമാനമോ (Credit) Google Sheet-ൽ ചേർക്കുക.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "item": {
-                        "type": "string",
-                        "description": "ചെലവിന്റെ പേര് (ഉദാ: Biriyani, Petrol, Rent)"
-                    },
-                    "amount": {
-                        "type": "number",
-                        "description": "തുക (ഉദാ: 150, 5000)"
-                    },
-                    "type": {
-                        "type": "string",
-                        "enum": ["Debit", "Credit"],
-                        "description": "ചെലവാണെങ്കിൽ Debit, വരുമാനമാണെങ്കിൽ Credit"
-                    }
-                },
-                "required": ["item", "amount", "type"]
-            }
-        }
-    }
-]
-
-# 2. ടൂൾ പ്രവർത്തിപ്പിക്കാനുള്ള യഥാർത്ഥ ഫംഗ്ഷൻ (നിങ്ങളുടെ പഴയ ഫോം സബ്മിറ്റ് ലോജിക്)
-def execute_add_entry(item, amount, entry_type):
-    try:
-        # നിങ്ങളുടെ പഴയ Google Form API ലേക്ക് ഡാറ്റ അയക്കുന്നു
-        payload = {
-            "entry.1044099436": datetime.now().strftime("%Y-%m-%d"),
-            "entry.2013476337": f"[{st.session_state.user.capitalize()}] Others: {item}",
-            "entry.1460982454": amount if entry_type == "Debit" else 0,
-            "entry.1221658767": 0 if entry_type == "Debit" else amount,
-        }
-        requests.post(FORM_API, data=payload, timeout=10)
+    # --- MY AI BUDDY ---
+    elif page == "🧠 My AI Buddy":
+        st.title("🧠 Your Personal AI Buddy")
+        st.write("എന്നോട് എന്തും ചോദിക്കാം. (ഉദാ: 'ഒരു കവിത എഴുതൂ', 'ഇന്ന് എന്ത് പാചകം ചെയ്യണം?')")
         
-        # WhatsApp നോട്ടിഫിക്കേഷൻ അയക്കുന്നു
-        wa_msg = f"✅ *AI Agent Entry*\n📝 Item: {item}\n💰 Amt: {amount}\n👤 User: {st.session_state.user}"
-        send_whatsapp_auto(wa_msg)
+        if "buddy_messages" not in st.session_state: st.session_state.buddy_messages = []
         
-        # ഡാറ്റ റിഫ്രെഷ് ചെയ്യാൻ കാഷെ ക്ലിയർ ചെയ്യുന്നു
-        st.cache_data.clear()
-        return "Success"
-    except Exception as e:
-        return f"Error: {str(e)}"
-
-# 3. ചാറ്റ് ഹിസ്റ്ററി സൂക്ഷിക്കാൻ
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-for message in st.session_state.messages:
-    with st.sidebar.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# 4. യൂസർ ഇൻപുട്ട്
-if prompt := st.sidebar.chat_input("Ask or tell me to add an expense..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.sidebar.chat_message("user"):
-        st.markdown(prompt)
-
-    with st.sidebar.spinner("AI Agent ആലോചിക്കുന്നു..."):
-        try:
-            client = Groq(api_key=GROQ_API_KEY)
+        for msg in st.session_state.buddy_messages:
+            with st.chat_message(msg["role"]): st.markdown(msg["content"])
             
-            # AI-ക്ക് നൽകാനുള്ള കോൺടെക്സ്റ്റ് (ഡാറ്റ + മുൻകാല സന്ദേശങ്ങൾ)
-            df_summary = df[['Date', 'Item', 'Debit', 'Credit']].tail(20).to_string() if not df.empty else "No data"
+        user_input = st.chat_input("Ask me anything...")
+        
+        if user_input:
+            st.session_state.buddy_messages.append({"role": "user", "content": user_input})
+            with st.chat_message("user"): st.markdown(user_input)
             
-            system_instruction = f"""
-            നീ ഒരു സ്മാർട്ട് ഫിനാൻസ് AI ഏജന്റ് ആണ്. 
-            നിലവിലെ ബാലൻസ്: {bal} AED. 
-            അവസാനത്തെ 20 ഇടപാടുകൾ:
-            {df_summary}
-            
-            യൂസർ എന്തെങ്കിലും ചെലവ് ചേർക്കാൻ പറഞ്ഞാൽ (ഉദാ: 'ബിരിയാണി 150'), നീ add_new_entry എന്ന ടൂൾ ഉപയോഗിക്കണം. 
-            ചോദ്യങ്ങൾക്ക് മാത്രം മലയാളത്തിൽ മറുപടി നൽകുക.
-            """
+            with st.spinner("ആലോചിക്കുന്നു..."):
+                try:
+                    client = Groq(api_key=GROQ_API_KEY)
+                    system_prompt = "You are a helpful personal AI assistant for a 51-year-old Malayali. Answer their questions in Malayalam in a friendly way. You can help with daily life, cooking, general knowledge, and motivation."
+                    
+                    messages = [{"role": "system", "content": system_prompt}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.buddy_messages[-4:]]
+                    
+                    response = client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=messages,
+                        max_tokens=500
+                    )
+                    
+                    ai_reply = response.choices[0].message.content
+                    st.session_state.buddy_messages.append({"role": "assistant", "content": ai_reply})
+                    with st.chat_message("assistant"): st.markdown(ai_reply)
+                except Exception as e:
+                    st.error(f"Error: {e}")
 
-            messages_for_api = [
-                {"role": "system", "content": system_instruction},
-                {"role": "user", "content": prompt}
-            ]
+    # --- AI CHAT (AI Agent) ---
+    elif page == "🤖 AI Chat":
+        st.title("🤖 AI Agent & Assistant")
+        st.write("നിങ്ങൾക്ക് ടൈപ്പ് ചെയ്യാം, അല്ലെങ്കിൽ 'ബിരിയാണി 150' എന്ന് പറഞ്ഞാൽ അത് ഷീറ്റിൽ എൻട്രി ഇടും.")
+        
+        if "messages" not in st.session_state: st.session_state.messages = []
 
-            # AI-യെ വിളിക്കുന്നു (ടൂളുകൾ നൽകി)
-            response = client.chat.completions.create(
-                model="openai/gpt-oss-120b",  # അല്ലെങ്കിൽ "openai/gpt-oss-120b",   # ടൂൾസ് സപ്പോർട്ട് ചെയ്യുന്ന മികച്ച മോഡൽ
-                messages=messages_for_api,
-                tools=tools,
-                tool_choice="auto"
-            )
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]): st.markdown(message["content"])
 
-            response_message = response.choices[0].message
-            tool_calls = response_message.tool_calls
+        v_raw = speech_to_text(language='ml', key='ai_voice_input')
+        prompt = st.chat_input("Ask anything or add expense...")
 
-            # AI ടൂൾ ഉപയോഗിക്കാൻ തീരുമാനിച്ചാൽ
-            if tool_calls:
-                for tool_call in tool_calls:
-                    if tool_call.function.name == "add_new_entry":
-                        args = json.loads(tool_call.function.arguments)
-                        item = args.get("item")
-                        amount = args.get("amount")
-                        entry_type = args.get("type")
-                        
-                        # ഫംഗ്ഷൻ എക്സിക്യൂട്ട് ചെയ്യുന്നു
-                        result = execute_add_entry(item, amount, entry_type)
-                        
-                        if result == "Success":
-                            ai_reply = f"✅ ചേട്ടാ, {item}-ന് വേണ്ടി {amount} AED ഞാൻ ഷീറ്റിൽ എൻട്രി ഇട്ടിട്ടുണ്ട്! (Action Completed)"
-                        else:
-                            ai_reply = f"❌ എൻട്രി ഇടാൻ പറ്റിയില്ല: {result}"
-            else:
-                # ടൂൾ വേണ്ട, വെറും ചോദ്യമാണെങ്കിൽ നേരിട്ട് മറുപടി
-                ai_reply = response_message.content
+        final_prompt = v_raw if v_raw else prompt
 
-            st.session_state.messages.append({"role": "assistant", "content": ai_reply})
-            with st.sidebar.chat_message("assistant"):
-                st.markdown(ai_reply)
-                
-            # സക്സസ് ആയാൽ ആപ്പ് റീഫ്രെഷ് ചെയ്ത് പുതിയ ബാലൻസ് കാണിക്കാൻ
-            if tool_calls and result == "Success":
-                st.rerun()
+        if final_prompt:
+            st.session_state.messages.append({"role": "user", "content": final_prompt})
+            with st.chat_message("user"): st.markdown(final_prompt)
 
-        except Exception as e:
-            st.sidebar.error(f"AI Error: {str(e)}")
+            with st.spinner("AI ആലോചിക്കുന്നു..."):
+                try:
+                    client = Groq(api_key=GROQ_API_KEY)
+                    utc_now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    system_instruction = f"നീ ഒരു ഫിനാൻസ് AI അസിസ്റ്റന്റാണ്. സമയം: {utc_now}. ബാലൻസ്: {bal} Rs. ചെലവ് ചേർക്കാൻ add_new_entry ടൂൾ ഉപയോഗിക്കുക."
+                    
+                    messages_for_api = [{"role": "system", "content": system_instruction}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-2:]]
+
+                    response = client.chat.completions.create(
+                        model="llama-3.3-70b-versatile", 
+                        messages=messages_for_api,
+                        tools=tools,
+                        tool_choice="auto",
+                        max_tokens=500
+                    )
+
+                    response_message = response.choices[0].message
+                    entry_saved = False
+                    
+                    if response_message.tool_calls:
+                        for tool_call in response_message.tool_calls:
+                            if tool_call.function.name == "add_new_entry":
+                                args = json.loads(tool_call.function.arguments)
+                                result = add_new_entry(
+                                    item=args.get("item"), amount=args.get("amount"), 
+                                    category=args.get("category", "Others"), type=args.get("type", "Debit")
+                                )
+                                if "Success" in result:
+                                    ai_reply = f"✅ {args.get('item')}-ന് {args.get('amount')} Rs ഞാൻ എൻട്രി ഇട്ടു!"
+                                    entry_saved = True
+                                else: ai_reply = f"❌ {result}"
+                    else:
+                        ai_reply = response_message.content
+
+                    st.session_state.messages.append({"role": "assistant", "content": ai_
