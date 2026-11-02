@@ -19,7 +19,11 @@ from streamlit_calendar import calendar
 CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
 FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSfLySolQSiRXV0wELNPhUBlKJh77RnJKWc2-uqAM0TPNG3Q5A/formResponse"
 WA_PHONE, WA_API_KEY = "971551347989", "7463030"
-USER_PINS = {"faisal": "1470", "shabana": "1230", "admin": "7860"}
+USER_PINS = {
+    "faisal": st.secrets.get("PIN_FAISAL", ""),
+    "shabana": st.secrets.get("PIN_SHABANA", ""),
+    "admin": st.secrets.get("PIN_ADMIN", "")
+}
 BG_IMAGE_URL = "https://raw.githubusercontent.com/paichiarakkal/paichiarakkal/main/profile.jpg"
 
 # --- STREAMLIT UI SETUP ---
