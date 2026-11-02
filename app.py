@@ -23,7 +23,7 @@ USER_PINS = {"faisal": "1470", "shabana": "1230", "admin": "7860"}
 BG_IMAGE_URL = "https://raw.githubusercontent.com/paichiarakkal/paichiarakkal/main/profile.jpg"
 
 # --- STREAMLIT UI SETUP ---
-st.set_page_config(page_title="PAICHI EXPENSES v5.0", layout="wide")
+st.set_page_config(page_title="PAICHI EXPENSES v4.0", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 st.markdown(f"""
@@ -110,7 +110,6 @@ def add_new_entry(item, amount, category="Others", type="Debit"):
         }
         requests.post(FORM_API, data=payload, timeout=10)
         send_whatsapp_auto(f"✅ *AI Entry Added*\n📝 Item: {item}\n💰 Amt: ₹{amount}")
-        st.cache_data.clear()
         return f"Success: {item} - ₹{amount} ({type})"
     except Exception as e:
         return f"Error: {str(e)}"
@@ -162,6 +161,7 @@ else:
 
     st.markdown(f'<div class="balance-banner"><span style="font-size:20px; color:#E0B0FF;">Available Balance</span><br><span style="font-size:40px; color:#FFD700;">₹{bal:,.2f}</span></div>', unsafe_allow_html=True)
     
+    # 🔥 MENU-വിൽ "My AI Buddy" ചേർത്തു
     menu = ["💰 Add Entry", "📅 Calendar", "📊 Report", "🔍 History", "🤝 Debt Tracker", "🤖 AI Chat", "🧠 My AI Buddy"]
     if st.session_state.user != "shabana": menu.insert(0, "🏠 Dashboard")
     page = st.sidebar.radio("Menu", menu)
@@ -229,7 +229,7 @@ else:
         
         cal_data = calendar(events=events, options={"headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth"}, "initialView": "dayGridMonth"}, key="pnl_calendar")
         
-        # തിരുത്തിയ ഭാഗം (callback)
+        # സുരക്ഷിതമായി event ഡാറ്റ എടുക്കുന്നു
         if cal_data and cal_data.get("callback") == "eventClick":
             event_data = cal_data.get("eventClick", {}).get("event", {})
             dt_click = event_data.get("start", "").split("T")[0]
@@ -271,7 +271,7 @@ else:
         st.title("🤝 Debt Tracker")
         st.info("വരും ദിവസങ്ങളിൽ ഇതിലേക്ക് കൂടുതൽ ഫീച്ചറുകൾ വരും!")
 
-    # --- MY AI BUDDY ---
+    # --- MY AI BUDDY (പുതിയ പേജ്) ---
     elif page == "🧠 My AI Buddy":
         st.title("🧠 Your Personal AI Buddy")
         st.write("എന്നോട് എന്തും ചോദിക്കാം. (ഉദാ: 'ഒരു കവിത എഴുതൂ', 'ഇന്ന് എന്ത് പാചകം ചെയ്യണം?')")
@@ -305,59 +305,3 @@ else:
                     with st.chat_message("assistant"): st.markdown(ai_reply)
                 except Exception as e:
                     st.error(f"Error: {e}")
-
-    # --- AI CHAT (AI Agent) ---
-    elif page == "🤖 AI Chat":
-        st.title("🤖 AI Agent & Assistant")
-        st.write("നിങ്ങൾക്ക് ടൈപ്പ് ചെയ്യാം, അല്ലെങ്കിൽ 'ബിരിയാണി 150' എന്ന് പറഞ്ഞാൽ അത് ഷീറ്റിൽ എൻട്രി ഇടും.")
-        
-        if "messages" not in st.session_state: st.session_state.messages = []
-
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]): st.markdown(message["content"])
-
-        v_raw = speech_to_text(language='ml', key='ai_voice_input')
-        prompt = st.chat_input("Ask anything or add expense...")
-
-        final_prompt = v_raw if v_raw else prompt
-
-        if final_prompt:
-            st.session_state.messages.append({"role": "user", "content": final_prompt})
-            with st.chat_message("user"): st.markdown(final_prompt)
-
-            with st.spinner("AI ആലോചിക്കുന്നു..."):
-                try:
-                    client = Groq(api_key=GROQ_API_KEY)
-                    utc_now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-                    
-                    system_instruction = f"നീ ഒരു ഫിനാൻസ് AI അസിസ്റ്റന്റാണ്. സമയം: {utc_now}. ബാലൻസ്: {bal} Rs. ചെലവ് ചേർക്കാൻ add_new_entry ടൂൾ ഉപയോഗിക്കുക."
-                    
-                    messages_for_api = [{"role": "system", "content": system_instruction}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-2:]]
-
-                    response = client.chat.completions.create(
-                        model="llama-3.3-70b-versatile", 
-                        messages=messages_for_api,
-                        tools=tools,
-                        tool_choice="auto",
-                        max_tokens=500
-                    )
-
-                    response_message = response.choices[0].message
-                    entry_saved = False
-                    
-                    if response_message.tool_calls:
-                        for tool_call in response_message.tool_calls:
-                            if tool_call.function.name == "add_new_entry":
-                                args = json.loads(tool_call.function.arguments)
-                                result = add_new_entry(
-                                    item=args.get("item"), amount=args.get("amount"), 
-                                    category=args.get("category", "Others"), type=args.get("type", "Debit")
-                                )
-                                if "Success" in result:
-                                    ai_reply = f"✅ {args.get('item')}-ന് {args.get('amount')} Rs ഞാൻ എൻട്രി ഇട്ടു!"
-                                    entry_saved = True
-                                else: ai_reply = f"❌ {result}"
-                    else:
-                        ai_reply = response_message.content
-
-                    st.session_state.messages.append({"role": "assistant", "content": ai_
