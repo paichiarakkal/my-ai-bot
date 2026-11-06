@@ -1,10 +1,12 @@
 import streamlit as st
 import pandas as pd
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 import random
 import plotly.express as px
 from fpdf import FPDF
+import json
+from groq import Groq # 👈 പുതിയത്
 
 # --- CONFIG ---
 CSV_URL = "YOUR_FINANCE_SHEET_CSV_LINK"
@@ -13,10 +15,10 @@ STOCK_CSV_URL = "YOUR_STOCK_SHEET_CSV_LINK"
 STOCK_FORM_API = "YOUR_STOCK_FORM_API"
 
 USER_PINS = {"admin": "1234", "shop1": "1111"}
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
 
 # --- SAFE FORM SUBMIT (Demo-safe) ---
 def submit_form(api_url, payload):
-    """Placeholder URL ആണെങ്കിൽ demo success തരും. Real URL ആണെങ്കിൽ POST ചെയ്യും."""
     if not api_url or "YOUR_" in api_url:
         return True  # 🎭 Demo mode: simulate success
     try:
@@ -37,11 +39,14 @@ st.markdown("""
     .stDownloadButton>button { background-color: #00FF7F; color: #000; border-radius: 10px; font-weight: bold; }
     .banner { background: rgba(0, 0, 0, 0.7); padding: 25px; border-radius: 15px; border-left: 10px solid #00BFFF; text-align: center; margin-bottom: 25px; }
     h1, h2, h3, p, label { color: white !important; font-weight: bold !important; }
+    [data-testid="stChatMessage"] { background-color: #262730 !important; border-radius: 10px; padding: 15px; border: 1px solid #444; }
     </style>
 """, unsafe_allow_html=True)
 
 if 'auth' not in st.session_state:
     st.session_state.auth, st.session_state.user = False, ""
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
 # --- HELPER: Safe CSV load ---
 def _append_cache_buster(url):
@@ -101,6 +106,69 @@ def generate_pdf(df, title, columns):
         pdf.ln()
     return bytes(pdf.output())
 
+# ============================================
+# 🤖 AI AGENT TOOLS
+# ============================================
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "add_finance",
+            "description": "ഒരു പുതിയ സാമ്പത്തിക ഇടപാട് (Debit/Credit) ചേർക്കുക.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "shop": {"type": "string", "enum": ["Shop 1", "Shop 2"]},
+                    "item": {"type": "string", "description": "ഇടപാടിന്റെ വിവരണം"},
+                    "amount": {"type": "number"},
+                    "type": {"type": "string", "enum": ["Debit", "Credit"]}
+                },
+                "required": ["shop", "item", "amount", "type"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "add_stock",
+            "description": "സ്റ്റോക്കിൽ പുതിയ സാധനങ്ങൾ ചേർക്കുകയോ കുറയ്ക്കുകയോ ചെയ്യുക.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "item_name": {"type": "string"},
+                    "qty": {"type": "number"},
+                    "stock_type": {"type": "string", "enum": ["Stock In", "Stock Out"]}
+                },
+                "required": ["item_name", "qty", "stock_type"]
+            }
+        }
+    }
+]
+
+def execute_add_finance(shop, item, amount, t_type):
+    payload = {
+        "entry.1044099436": datetime.now().strftime("%Y-%m-%d"),
+        "entry.2013476337": f"[{shop}] {item}",
+        "entry.1460982454": amount if t_type == "Debit" else 0,
+        "entry.1221658767": 0 if t_type == "Debit" else amount
+    }
+    if submit_form(FORM_API, payload):
+        st.cache_data.clear()
+        return "Success"
+    return "Failed"
+
+def execute_add_stock(item_name, qty, stock_type):
+    payload = {
+        "entry.1044099436": datetime.now().strftime("%Y-%m-%d"),
+        "entry.2013476337": item_name,
+        "entry.1460982454": qty,
+        "entry.1221658767": stock_type
+    }
+    if submit_form(STOCK_FORM_API, payload):
+        st.cache_data.clear()
+        return "Success"
+    return "Failed"
+
 # --- 🔒 LOGIN ---
 if not st.session_state.auth:
     st.markdown('<div style="max-width:400px; margin:auto; margin-top:100px; background:rgba(0,0,0,0.8); padding:30px; border-radius:20px;">', unsafe_allow_html=True)
@@ -117,14 +185,17 @@ if not st.session_state.auth:
 
 else:
     st.sidebar.title(f"👋 Welcome, {st.session_state.user.capitalize()}")
-    menu = ["📊 Dashboard", "💰 Add Finance", "📦 Stock Management", "👨‍💼 Staff Salary"]
+    # 👈 മെനുവിൽ AI Agent ചേർത്തു
+    menu = ["📊 Dashboard", "💰 Add Finance", "📦 Stock Management", "👨‍💼 Staff Salary", "🤖 AI Agent"]
     page = st.sidebar.radio("Menu", menu)
 
     if st.sidebar.button("Logout"):
         st.session_state.auth = False
+        st.session_state.messages = []
         st.rerun()
 
     df_fin = load_finance_data()
+    df_stk = load_stock_data()
     t_in, t_out = df_fin['Credit'].sum(), df_fin['Debit'].sum()
     bal = t_in - t_out
 
@@ -171,7 +242,6 @@ else:
     # --- 3. STOCK MANAGEMENT ---
     elif page == "📦 Stock Management":
         st.title("📦 Stock & Inventory")
-        df_stk = load_stock_data()
         tab1, tab2, tab3 = st.tabs(["📊 Current Stock", "➕ Add Entry", "📄 Item History & PDF"])
 
         with tab1:
@@ -242,3 +312,78 @@ else:
                 st.download_button(f"📥 Download {selected_emp}'s Salary PDF", pdf_b, f"{selected_emp}_Salary.pdf", "application/pdf")
             else:
                 st.info("No salary records found.")
+
+    # --- 5. AI AGENT (പുതിയത്) ---
+    elif page == "🤖 AI Agent":
+        st.title("🤖 PAICHI Business AI Agent")
+        st.write("ബിസിനസ്സിലെ കാര്യങ്ങൾ ചാറ്റ് വഴി ചെയ്യാം. (ഉദാ: 'Shop 1-ൽ 5000 സെയിൽസ് ഉണ്ടായി')")
+
+        if not GROQ_API_KEY:
+            st.error("Groq API Key ലഭ്യമല്ല!")
+
+        # ചാറ്റ് ഹിസ്റ്ററി കാണിക്കുക
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+        if prompt := st.chat_input("Ask me to add finance, stock, or check balance..."):
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
+
+            with st.spinner("AI ആലോചിക്കുന്നു..."):
+                try:
+                    client = Groq(api_key=GROQ_API_KEY)
+                    
+                    # സമയം കണക്കാക്കുന്നു
+                    utc_now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    system_instruction = f"""
+                    നീ ഒരു വളരെ മികച്ച ബിസിനസ്സ് മാനേജർ AI ഏജന്റ് ആണ്. 
+                    നിലവിലെ മൊത്തം ബാലൻസ്: ₹{bal:,.2f}.
+                    യൂസർ എന്തെങ്കിലും ഫിനാൻസ് എൻട്രി ചേർക്കാൻ പറഞ്ഞാൽ add_finance എന്ന ടൂൾ ഉപയോഗിക്കുക.
+                    യൂസർ സ്റ്റോക്ക് കാര്യങ്ങൾ പറഞ്ഞാൽ add_stock എന്ന ടൂൾ ഉപയോഗിക്കുക.
+                    ലോകത്തിലെ എല്ലാ കാര്യങ്ങളെക്കുറിച്ചും നിനക്ക് അറിയാം, എന്ത് ചോദിച്ചാലും മലയാളത്തിൽ മറുപടി നൽകുക.
+                    """
+                    
+                    messages_for_api = [{"role": "system", "content": system_instruction}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-5:]]
+
+                    response = client.chat.completions.create(
+                        model="openai/gpt-oss-120b", 
+                        messages=messages_for_api,
+                        tools=tools,
+                        tool_choice="auto"
+                    )
+
+                    response_message = response.choices[0].message
+                    
+                    if response_message.tool_calls:
+                        for tool_call in response_message.tool_calls:
+                            if tool_call.function.name == "add_finance":
+                                args = json.loads(tool_call.function.arguments)
+                                res = execute_add_finance(args["shop"], args["item"], args["amount"], args["type"])
+                                if res == "Success":
+                                    ai_reply = f"✅ ചേട്ടാ, {args['shop']}-ൽ '{args['item']}' എന്നതിന് ₹{args['amount']} ({args['type']}) എൻട്രി ഇട്ടിട്ടുണ്ട്!"
+                                else:
+                                    ai_reply = "❌ എൻട്രി ഇടാൻ പറ്റിയില്ല."
+                                    
+                            elif tool_call.function.name == "add_stock":
+                                args = json.loads(tool_call.function.arguments)
+                                res = execute_add_stock(args["item_name"], args["qty"], args["stock_type"])
+                                if res == "Success":
+                                    ai_reply = f"✅ ചേട്ടാ, {args['item_name']}-ന്റെ {args['qty']} എണ്ണം ({args['stock_type']}) അപ്ഡേറ്റ് ചെയ്തിട്ടുണ്ട്!"
+                                else:
+                                    ai_reply = "❌ സ്റ്റോക്ക് അപ്ഡേറ്റ് ചെയ്യാൻ പറ്റിയില്ല."
+                    else:
+                        ai_reply = response_message.content
+
+                    st.session_state.messages.append({"role": "assistant", "content": ai_reply})
+                    with st.chat_message("assistant"):
+                        st.markdown(ai_reply)
+                        
+                    # എൻട്രി വിജയിച്ചാൽ പേജ് റീഫ്രെഷ് ചെയ്യാൻ
+                    if response_message.tool_calls:
+                        st.rerun()
+
+                except Exception as e:
+                    st.error(f"AI Error: {str(e)}")
