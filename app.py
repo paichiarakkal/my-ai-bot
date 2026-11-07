@@ -12,8 +12,10 @@ import cv2
 import tempfile
 import hashlib
 from groq import Groq
+from PIL import Image
+import io
 
-# --- CONFIG (നിങ്ങളുടെ ലിങ്കുകൾ ഇവിടെ ചേർക്കുക) ---
+# --- CONFIG (Demo Mode - ലിങ്കുകൾ ഇപ്പോൾ വേണ്ട) ---
 CSV_URL = "YOUR_FINANCE_SHEET_CSV_LINK"
 FORM_API = "YOUR_FINANCE_FORM_API"
 STOCK_CSV_URL = "YOUR_STOCK_SHEET_CSV_LINK"
@@ -33,13 +35,24 @@ WHISPER_MODEL = "whisper-large-v3"
 # --- SAFE FORM SUBMIT ---
 def submit_form(api_url, payload):
     if not api_url or "YOUR_" in api_url:
-        return True  
+        return True  # Demo Mode: എപ്പോഴും Success എന്ന് കാണിക്കും
     try:
         r = requests.post(api_url, data=payload, timeout=10)
         return r.status_code == 200
     except Exception as e:
         st.error(f"❌ Submission failed: {e}")
         return False
+
+# --- IMAGE COMPRESSION ---
+def compress_image(image_bytes, max_size=(600, 600)):
+    try:
+        img = Image.open(io.BytesIO(image_bytes))
+        img.thumbnail(max_size, Image.Resampling.LANCZOS)
+        output = io.BytesIO()
+        img.convert('RGB').save(output, format='JPEG', quality=60)
+        return output.getvalue()
+    except Exception:
+        return image_bytes
 
 # --- STREAMLIT UI SETUP ---
 st.set_page_config(page_title="PAICHI BUSINESS", layout="wide")
@@ -58,7 +71,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- SESSION STATE INIT ---
+# --- SESSION STATE ---
 if 'auth' not in st.session_state:
     st.session_state.auth, st.session_state.user = False, ""
 if "messages" not in st.session_state:
@@ -78,7 +91,7 @@ def show_flash():
     if msg:
         st.success(msg)
 
-# --- HELPER: CSV Load ---
+# --- HELPER: Safe CSV load (Demo Data Included) ---
 def _append_cache_buster(url):
     if not url or "YOUR_" in url:
         raise ValueError("placeholder")
@@ -88,25 +101,42 @@ def _append_cache_buster(url):
 @st.cache_data(ttl=5)
 def load_finance_data():
     try:
+        if not CSV_URL or "YOUR_" in CSV_URL:
+            raise ValueError("Demo Mode")
         df = pd.read_csv(_append_cache_buster(CSV_URL))
         df.columns = df.columns.str.strip()
         df['Debit'] = pd.to_numeric(df['Debit'], errors='coerce').fillna(0)
         df['Credit'] = pd.to_numeric(df['Credit'], errors='coerce').fillna(0)
         return df
     except Exception:
-        return pd.DataFrame(columns=['Date', 'Shop Name', 'Item', 'Debit', 'Credit'])
+        # Demo Data
+        return pd.DataFrame({
+            'Date': ['2026-11-01', '2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05'],
+            'Shop Name': ['Shop 1', 'Shop 2', 'Shop 1', 'Shop 2', 'Shop 1'],
+            'Item': ['Sales', 'Sales', 'Salary: Rahim', 'Rent', 'Purchase: Sugar'],
+            'Debit': [0, 0, 2500, 5000, 1000],
+            'Credit': [4500, 6000, 0, 0, 0]
+        })
 
 @st.cache_data(ttl=5)
 def load_stock_data():
     try:
+        if not STOCK_CSV_URL or "YOUR_" in STOCK_CSV_URL:
+            raise ValueError("Demo Mode")
         df = pd.read_csv(_append_cache_buster(STOCK_CSV_URL))
         df.columns = df.columns.str.strip()
         df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce').fillna(0)
         return df
     except Exception:
-        return pd.DataFrame(columns=['Date', 'Item', 'Quantity', 'Type'])
+        # Demo Data
+        return pd.DataFrame({
+            'Date': ['2026-11-01', '2026-11-02', '2026-11-03'],
+            'Item': ['Sugar', 'Sugar', 'Milk'],
+            'Quantity': [100, 20, 50],
+            'Type': ['Stock In', 'Stock Out', 'Stock In']
+        })
 
-# --- HELPER: PDF Generation ---
+# --- PDF HELPER ---
 def _find_unicode_font():
     candidates = [
         "/usr/share/fonts/truetype/noto/NotoSansMalayalam-Regular.ttf",
@@ -151,8 +181,9 @@ def generate_pdf(df, title, columns):
         pdf.ln()
     return bytes(pdf.output())
 
+
 # ============================================
-# 🤖 AI & VISION HELPERS
+# 🤖 AI AGENT TOOLS & FUNCTIONS
 # ============================================
 tools = [
     {
@@ -232,7 +263,7 @@ def extract_frames_from_video(video_bytes, num_frames=3):
                     if h > 500:
                         ratio = 500 / h
                         frame = cv2.resize(frame, (int(w * ratio), 500))
-                    _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+                    _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 60])
                     frames.append(buffer.tobytes())
                 if len(frames) >= num_frames:
                     break
@@ -257,7 +288,8 @@ def analyze_images_with_groq(images_bytes_list):
             )
             content_list = [{"type": "text", "text": prompt_text_en}]
             for img_bytes in images:
-                b64_img = base64.b64encode(img_bytes).decode('utf-8')
+                compressed = compress_image(img_bytes)
+                b64_img = base64.b64encode(compressed).decode('utf-8')
                 content_list.append({
                     "type": "image_url",
                     "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}
@@ -299,8 +331,11 @@ def analyze_shelf_changes(morning_bytes, evening_bytes):
     try:
         client = Groq(api_key=GROQ_API_KEY)
         
-        b64_morning = base64.b64encode(morning_bytes).decode('utf-8')
-        b64_evening = base64.b64encode(evening_bytes).decode('utf-8')
+        compressed_morning = compress_image(morning_bytes)
+        compressed_evening = compress_image(evening_bytes)
+        
+        b64_morning = base64.b64encode(compressed_morning).decode('utf-8')
+        b64_evening = base64.b64encode(compressed_evening).decode('utf-8')
         
         prompt_text_en = (
             "You are an expert retail auditor. Compare these two images of the same shelf (Morning vs Evening). "
@@ -379,7 +414,7 @@ def process_ai_agent(prompt_text):
                 continue
             if tool_call.function.name == "add_finance":
                 res = execute_add_finance(args["shop"], args["item"], args["amount"], args["type"])
-                replies.append(f"✅ {args['shop']}-ൽ '{args['item']}' എൻട്രി ഷീറ്റിൽ ഇട്ടു!" if res == "Success" else "❌ എൻട്രി ഇടാൻ പറ്റിയില്ല.")
+                replies.append(f"✅ {args['shop']}-ൽ '{args['item']}' എൻട്രി ഇട്ടു!" if res == "Success" else "❌ എൻട്രി ഇടാൻ പറ്റിയില്ല.")
             elif tool_call.function.name == "add_stock":
                 res = execute_add_stock(args["item_name"], args["qty"], args["stock_type"])
                 replies.append(f"✅ {args['item_name']} സ്റ്റോക്ക് അപ്ഡേറ്റ് ചെയ്തു!" if res == "Success" else "❌ സ്റ്റോക്ക് അപ്ഡേറ്റ് പറ്റിയില്ല.")
@@ -413,6 +448,7 @@ def process_voice_order(transcript):
         return True, order_items
     except:
         return False, "ഓർഡർ കൃത്യമായി മനസ്സിലാക്കാൻ സാധിച്ചില്ല."
+
 
 # --- 🔒 LOGIN ---
 if not st.session_state.auth:
@@ -473,7 +509,7 @@ else:
                     try:
                         am = float(clean)
                         if execute_add_finance(shop, it, am, "Debit" if "Debit" in ty else "Credit") == "Success":
-                            flash_success("Saved to Google Sheet! ✅")
+                            flash_success("Demo Mode: ഡാറ്റ വിജയകരമായി ചേർത്തു! ✅")
                             st.rerun()
                         else:
                             st.error("❌ Save failed.")
@@ -504,7 +540,7 @@ else:
                 stock_type = st.radio("Type", ["Stock In", "Stock Out"], horizontal=True)
                 if st.form_submit_button("SAVE STOCK"):
                     if execute_add_stock(item_name, qty, stock_type) == "Success":
-                        flash_success("Stock Updated in Google Sheet! ✅")
+                        flash_success("Demo Mode: സ്റ്റോക്ക് അപ്ഡേറ്റ് ചെയ്തു! ✅")
                         st.rerun()
         with tab3:
             if not df_stk.empty:
@@ -532,7 +568,8 @@ else:
                 with st.spinner("AI ബിൽ വായിക്കുന്നു..."):
                     try:
                         client = Groq(api_key=GROQ_API_KEY)
-                        b64_img = base64.b64encode(bill_file.getvalue()).decode('utf-8')
+                        compressed = compress_image(bill_file.getvalue())
+                        b64_img = base64.b64encode(compressed).decode('utf-8')
                         
                         prompt = (
                             "Analyze this bill or stock image. Extract the item name, quantity, and total price. "
@@ -564,7 +601,7 @@ else:
                             execute_add_finance(shop_select, f"Purchase: {item['item']}", item['price'], "Debit")
                         
                         st.balloons()
-                        st.success("🎉 എല്ലാം വിജയകരമായി ഷീറ്റിൽ എൻട്രി ഇട്ടു!")
+                        st.success("🎉 എല്ലാം വിജയകരമായി എൻട്രി ഇട്ടു! (Demo Mode)")
                         
                     except Exception as e:
                         st.error(f"❌ വായിക്കാൻ സാധിച്ചില്ല. ദയവായി വ്യക്തമായ ഫോട്ടോ നൽകുക. (Error: {e})")
@@ -654,7 +691,7 @@ else:
                 sal_month = st.selectbox("Month", ["November 2026", "October 2026"])
                 if st.form_submit_button("PAY SALARY"):
                     if execute_add_finance(shop, f"Salary: {emp_name} ({sal_month})", sal_amt, "Debit") == "Success":
-                        flash_success(f"✅ {emp_name}-ന്റെ ശമ്പളം നൽകി!")
+                        flash_success(f"✅ {emp_name}-ന്റെ ശമ്പളം നൽകി! (Demo)")
                         st.rerun()
         st.divider()
         if not df_fin.empty:
