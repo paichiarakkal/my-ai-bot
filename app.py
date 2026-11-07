@@ -8,26 +8,35 @@ from streamlit_mic_recorder import speech_to_text
 from streamlit_autorefresh import st_autorefresh
 from fpdf import FPDF
 import re
-import urllib.parse
 import threading
 from streamlit_calendar import calendar
 import json
 import base64
 import os
-import cv2
-import tempfile
 import hashlib
 from groq import Groq
 from PIL import Image
 import io
+from twilio.rest import Client
 
-# --- CONFIG & SETTINGS (നിങ്ങളുടെ ലിങ്കുകൾ) ---
+# --- TWILIO CONFIG (Secrets-ൽ നിന്ന് എടുക്കുന്നു) ---
+try:
+    TWILIO_SID = st.secrets["TWILIO_SID"]
+    TWILIO_AUTH_TOKEN = st.secrets["TWILIO_AUTH_TOKEN"]
+    TWILIO_FROM = st.secrets.get("TWILIO_FROM", "whatsapp:+14155238886")
+    TWILIO_TO = st.secrets.get("TWILIO_TO", "whatsapp:+971551347989")
+except Exception:
+    TWILIO_SID = ""
+    TWILIO_AUTH_TOKEN = ""
+    TWILIO_FROM = "whatsapp:+14155238886"
+    TWILIO_TO = "whatsapp:+971551347989"
+
+# --- APP CONFIG ---
 CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
 FORM_API = "https://docs.google.com/forms/d/e/1FAIpQLSfLySolQSiRXV0wELNPhUBlKJh77RnJKWc2-uqAM0TPNG3Q5A/formResponse"
-STOCK_CSV_URL = "YOUR_STOCK_SHEET_CSV_LINK" # നിങ്ങൾക്ക് സ്റ്റോക്ക് ഷീറ്റ് ഉണ്ടെങ്കിൽ കൊടുക്കാം, ഇല്ലെങ്കിൽ Demo കാണിക്കും
+STOCK_CSV_URL = "YOUR_STOCK_SHEET_CSV_LINK"
 STOCK_FORM_API = "YOUR_STOCK_FORM_API"
 
-WA_PHONE, WA_API_KEY = "971551347989", "7463030"
 USERS = {"faisal": "faisal147", "shabana": "shabana123", "admin": "paichi786"}
 
 try:
@@ -40,7 +49,7 @@ AGENT_MODEL  = "openai/gpt-oss-120b"
 WHISPER_MODEL = "whisper-large-v3"
 
 # --- STREAMLIT UI & THEME (Dark Mode) ---
-st.set_page_config(page_title="PAICHI MEGA APP v3.0", layout="wide")
+st.set_page_config(page_title="PAICHI MEGA APP v3.1", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 st.markdown("""<style>
@@ -69,7 +78,18 @@ if "order_counter" not in st.session_state: st.session_state.order_counter = 0
 
 # --- HELPER FUNCTIONS ---
 def send_whatsapp_auto(msg):
-    threading.Thread(target=lambda: requests.get(f"https://api.callmebot.com/whatsapp.php?phone={WA_PHONE}&text={urllib.parse.quote(msg)}&apikey={WA_API_KEY}", timeout=10)).start()
+    """Twilio വഴി വാട്ട്‌സ്ആപ്പ് മെസ്സേജ് അയക്കാൻ (Background Thread)"""
+    if not TWILIO_SID or not TWILIO_AUTH_TOKEN:
+        print("Twilio Secrets Missing!")
+        return
+    
+    def _send():
+        try:
+            client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
+            client.messages.create(body=msg, from_=TWILIO_FROM, to=TWILIO_TO)
+        except Exception as e:
+            print(f"Twilio Error: {e}")
+    threading.Thread(target=_send).start()
 
 def parse_mixed_dates(date_series):
     parsed = []
@@ -90,24 +110,12 @@ def load_finance_data():
         df['Credit'] = pd.to_numeric(df['Credit'], errors='coerce').fillna(0)
         return df
     except Exception:
-        # Demo Data
         return pd.DataFrame({
             'Date': pd.to_datetime(['2026-11-01', '2026-11-02', '2026-11-03']),
             'Item': ['[Faisal] Food: Tea', '[Shabana] Shop: Sugar', '[Admin] Fish: Meen'],
             'Debit': [50, 250, 500],
             'Credit': [0, 0, 0]
         })
-
-@st.cache_data(ttl=10)
-def load_stock_data():
-    try:
-        if not STOCK_CSV_URL or "YOUR_" in STOCK_CSV_URL: raise ValueError("Demo")
-        df = pd.read_csv(f"{STOCK_CSV_URL}&r={random.randint(1,999)}")
-        df.columns = df.columns.str.strip()
-        df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce').fillna(0)
-        return df
-    except Exception:
-        return pd.DataFrame({'Date': ['2026-11-01', '2026-11-02'], 'Item': ['Sugar', 'Milk'], 'Quantity': [50, 20], 'Type': ['Stock In', 'Stock Out']})
 
 def _find_unicode_font():
     candidates = ["/usr/share/fonts/truetype/noto/NotoSansMalayalam-Regular.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "C:/Windows/Fonts/arial.ttf"]
@@ -157,6 +165,13 @@ def compress_image(image_bytes, max_size=(600, 600)):
         return output.getvalue()
     except Exception: return image_bytes
 
+def clean_json_text(text):
+    text = text.strip()
+    if text.startswith("```json"): text = text[7:]
+    elif text.startswith("```"): text = text[3:]
+    if text.endswith("```"): text = text[:-3]
+    return text.strip()
+
 def execute_add_finance(item, amount, t_type):
     payload = {
         "entry.1044099436": datetime.now().strftime("%Y-%m-%d"),
@@ -183,7 +198,6 @@ if not st.session_state.auth:
 
 else:
     df = load_finance_data()
-    df_stk = load_stock_data()
     t_in, t_out = (df['Credit'].sum(), df['Debit'].sum()) if not df.empty else (0.0, 0.0)
     bal = t_in - t_out
 
@@ -231,7 +245,7 @@ else:
             if c_amt > 0:
                 with cols[idx % 3]: st.markdown(f'<div class="category-box"><span style="font-size:16px; color:#aaa;">Total {c_name}</span><br><span style="font-size:24px; color:#FFF; font-weight:bold;">₹{c_amt:,.2f}</span></div>', unsafe_allow_html=True)
 
-    # --- 2. SMART ADD ENTRY (Voice + Form) ---
+    # --- 2. SMART ADD ENTRY ---
     elif page == "💰 Smart Add Entry":
         st.title("Smart Voice Entry 🎙️")
         v_raw = speech_to_text(language='ml', key='voice_v9')
@@ -345,11 +359,16 @@ else:
                     try:
                         client = Groq(api_key=GROQ_API_KEY)
                         b64_img = base64.b64encode(compress_image(bill_file.getvalue())).decode('utf-8')
-                        prompt = "Extract item name, quantity, and total price. Return ONLY JSON array: [{\"item\": \"Sugar\", \"qty\": 5, \"price\": 250}]"
+                        
+                        prompt = """Extract item name, quantity, and total price from this image. 
+                        Return ONLY a JSON array like this: [{"item": "Sugar", "qty": 5, "price": 250}]. 
+                        Do not add any markdown or text outside the JSON."""
+                        
                         response = client.chat.completions.create(model=VISION_MODEL, messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}}]}])
-                        res_text = response.choices[0].message.content.strip()
-                        if res_text.startswith("```json"): res_text = res_text[7:-3]
+                        
+                        res_text = clean_json_text(response.choices[0].message.content)
                         items = json.loads(res_text)
+                        
                         for item in items:
                             execute_add_finance(f"[Purchase] {item['item']}", item['price'], "Debit")
                         st.success("🎉 എല്ലാം എൻട്രി ഇട്ടു!"); st.rerun()
@@ -359,16 +378,22 @@ else:
     elif page == "🗣️ Voice Order Kiosk":
         st.title("🗣️ AI Voice Order Kiosk")
         audio_order = st.audio_input("🎤 ഓർഡർ റെക്കോർഡ് ചെയ്യാൻ ഇവിടെ അമർത്തുക", key=f"order_{st.session_state.order_counter}")
+        
         if audio_order and GROQ_API_KEY:
             with st.spinner("AI കേൾക്കുന്നു..."):
                 try:
                     client = Groq(api_key=GROQ_API_KEY)
                     trans = client.audio.transcriptions.create(file=(audio_order.name, audio_order.getvalue()), model=WHISPER_MODEL, response_format="text")
                     st.info(f"🗣️ പറഞ്ഞത്: **{trans}**")
-                    prompt = f"Extract items from: '{trans}'. Return ONLY JSON array: [{\"item\": \"Sugar\", \"qty\": 2}]"
+                    
+                    prompt = f"""Extract items from this text: '{trans}'. 
+                    Return ONLY a JSON array like this: [{{"item": "Sugar", "qty": 2}}]. 
+                    Do not add any markdown or text outside the JSON."""
+                    
                     res = client.chat.completions.create(model=AGENT_MODEL, messages=[{"role": "user", "content": prompt}]).choices[0].message.content
-                    if res.startswith("```json"): res = res[7:-3]
-                    order_data = json.loads(res)
+                    res_text = clean_json_text(res)
+                    order_data = json.loads(res_text)
+                    
                     st.dataframe(pd.DataFrame(order_data), use_container_width=True)
                     if st.button("✅ അടുത്തത്"): st.session_state.order_counter += 1; st.rerun()
                 except Exception as e: st.error(f"Error: {e}")
@@ -379,6 +404,7 @@ else:
         c1, c2 = st.columns(2)
         m_file = c1.file_uploader("Morning Photo", type=["jpg", "png"])
         e_file = c2.file_uploader("Evening Photo", type=["jpg", "png"])
+        
         if m_file and e_file and GROQ_API_KEY:
             if st.button("🔍 താരതമ്യം ചെയ്യുക"):
                 with st.spinner("AI പരിശോധിക്കുന്നു..."):
@@ -386,7 +412,10 @@ else:
                         client = Groq(api_key=GROQ_API_KEY)
                         b64_m = base64.b64encode(compress_image(m_file.getvalue())).decode('utf-8')
                         b64_e = base64.b64encode(compress_image(e_file.getvalue())).decode('utf-8')
-                        prompt = "Compare these shelf images (Morning vs Evening). If identical, say 'No changes'. If different, list what reduced."
+                        
+                        prompt = """Compare these shelf images (Morning vs Evening). 
+                        If identical, say 'No changes'. If different, list what reduced in Malayalam."""
+                        
                         res = client.chat.completions.create(model=VISION_MODEL, messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_m}"}}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_e}"}}]}]).choices[0].message.content
                         st.success(res)
                     except Exception as e: st.error(f"Error: {e}")
@@ -417,7 +446,7 @@ else:
             with st.spinner("AI ടൈപ്പ് ചെയ്യുന്നു..."):
                 try:
                     client = Groq(api_key=GROQ_API_KEY)
-                    res = client.chat.completions.create(model=AGENT_MODEL, messages=[{"role": "system", "content": f"നീ ഒരു ബിസിനസ്സ് AI ആണ്. മലയാളത്തിൽ മറുപടി നൽകുക."}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-4:]]).choices[0].message.content
+                    res = client.chat.completions.create(model=AGENT_MODEL, messages=[{"role": "system", "content": "നീ ഒരു ബിസിനസ്സ് AI ആണ്. മലയാളത്തിൽ മറുപടി നൽകുക."}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-4:]]).choices[0].message.content
                     st.session_state.messages.append({"role": "assistant", "content": res})
                     with st.chat_message("assistant"): st.markdown(res)
                     st.session_state['audio_counter'] += 1; st.rerun()
@@ -433,13 +462,10 @@ else:
                     try:
                         client = Groq(api_key=GROQ_API_KEY)
                         if "image" in file.type:
-                            imgs = [base64.b64encode(compress_image(file.getvalue())).decode('utf-8')]
-                        else:
-                            # Note: Simplified video processing for space
-                            imgs = [] 
-                            st.warning("Video processing requires OpenCV frames extraction.")
-                        
-                        if imgs:
-                            res = client.chat.completions.create(model=VISION_MODEL, messages=[{"role": "user", "content": [{"type": "text", "text": "Analyze this shop CCTV. Count people and stock."}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{imgs[0]}"}}]}]).choices[0].message.content
+                            b64_img = base64.b64encode(compress_image(file.getvalue())).decode('utf-8')
+                            prompt = "Analyze this shop CCTV. Count people and stock in Malayalam."
+                            res = client.chat.completions.create(model=VISION_MODEL, messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}}]}]).choices[0].message.content
                             st.success(res)
+                        else:
+                            st.warning("വീഡിയോ അപ്‌ലോഡ് ചെയ്യാൻ ഇപ്പോൾ സൗകര്യമില്ല. ദയവായി ഒരു ഫോട്ടോ അപ്‌ലോഡ് ചെയ്യുക.")
                     except Exception as e: st.error(f"Error: {e}")
