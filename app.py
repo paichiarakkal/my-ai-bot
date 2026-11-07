@@ -26,7 +26,7 @@ except Exception:
     GROQ_API_KEY = ""
 
 VISION_MODEL = "qwen/qwen3.8-27b"
-AGENT_MODEL  = "llama-3.3-70b-versatile"
+AGENT_MODEL  = "openai/gpt-oss-120b"
 
 # --- SAFE FORM SUBMIT ---
 def submit_form(api_url, payload):
