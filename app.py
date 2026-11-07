@@ -181,7 +181,7 @@ def analyze_image_with_groq(image_bytes):
         prompt_text = "Analyze this shop CCTV frame. Count how many people are visible, and provide a short business footfall activity report."
         
         completion = client.chat.completions.create(
-            model="llama-3.2-11b-vision-preview",
+model="openai/gpt-oss-120b", 
             messages=[
                 {
                     "role": "user",
