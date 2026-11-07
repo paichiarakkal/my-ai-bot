@@ -253,8 +253,9 @@ def analyze_images_with_groq(images_bytes_list):
             "1. FOOTFALL: Count how many people are visible, where they are, and what they are doing. "
             "2. STOCK/ITEMS: Identify any visible products, items, or stock on shelves. "
             "3. REPORT: Provide a short business activity report covering both people and stock."
-"IMPORTANT: You MUST reply strictly in Malayalam language (മലയാളത്തിൽ മാത്രം മറുപടി നൽകുക)."
+    "IMPORTANT: Reply strictly in natural Malayalam. DO NOT translate English brand names or product names (like Honey, Toothpaste, Scrubber, Soda, etc.) into Malayalam. Keep those in English. Write the rest in natural, easy-to-understand Malayalam."
 )
+
         
 
         content_list = [{"type": "text", "text": prompt_text}]
