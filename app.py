@@ -283,10 +283,16 @@ def _parse_employee(item_str):
     except Exception:
         return "Unknown"
 
-# --- AI AGENT PROCESSING LOGIC ---
+# --- AI AGENT PROCESSING LOGIC (STRICT) ---
 def process_ai_agent(prompt_text):
     client = Groq(api_key=GROQ_API_KEY)
-    system_instruction = f"നീ ഒരു ബിസിനസ്സ് മാനേജർ AI ആണ്. ബാലൻസ്: ₹{st.session_state.get('current_bal', 0):,.2f}. ഫിനാൻസിന് add_finance-ഉം സ്റ്റോക്കിന് add_stock-ഉം ഉപയോഗിക്കുക. മലയാളത്തിൽ മറുപടി നൽകുക."
+    # AI-യോട് കർശനമായ നിർദ്ദേശങ്ങൾ നൽകുന്നു
+    system_instruction = (
+        f"നീ ഒരു ബിസിനസ്സ് മാനേജർ AI ആണ്. ബാലൻസ്: ₹{st.session_state.get('current_bal', 0):,.2f}. "
+        "ഫിനാൻസിന് add_finance-ഉം സ്റ്റോക്കിന് add_stock-ഉം ഉപയോഗിക്കുക. മലയാളത്തിൽ മറുപടി നൽകുക. "
+        "പ്രധാനം: ഉപയോക്താവ് വ്യക്തമായി ഒരു സാധനത്തിന്റെ പേരും അതിന്റെ എണ്ണവും (quantity) പറഞ്ഞാൽ മാത്രമേ add_stock ടൂൾ ഉപയോഗിക്കാവൂ. "
+        "അല്ലാത്തപക്ഷം, അതായത് ഉപയോക്താവ് പറയുന്നത് വ്യക്തമല്ലെങ്കിൽ, സ്റ്റോക്ക് അപ്ഡേറ്റ് ചെയ്യരുത്, മറിച്ച് എന്താണ് ഉദ്ദേശിച്ചതെന്ന് ദയവായി ചോദിക്കുക."
+    )
     
     messages_for_api = [{"role": "system", "content": system_instruction}]
     for m in st.session_state.messages[-4:]:
@@ -467,7 +473,9 @@ else:
 
         st.write("---")
         st.write("🎤 **അല്ലെങ്കിൽ ഇവിടെ ക്ലിക്ക് ചെയ്ത് സംസാരിക്കാം (ശബ്ദം കേൾക്കാൻ അടുത്ത് പിടിക്കുക):**")
-        audio_value = st.audio_input("Record a voice message")
+        
+        # key="voice_input" നൽകിയാൽ Clear Chat അടിച്ചാൽ ഇതും റീസെറ്റ് ആകും
+        audio_value = st.audio_input("Record a voice message", key="voice_input")
 
         prompt = None
 
@@ -479,10 +487,16 @@ else:
                         file=(audio_value.name, audio_value.read()),
                         model=WHISPER_MODEL,
                         response_format="text",
-                        prompt="This is a grocery shop business. Words used: Shop 1, Shop 2, Sales, Expense, Salary, Stock, Rupees, Aayi, Undayi."
+                        language="ml",  # നിർബന്ധിച്ച് മലയാളം മാത്രം
+                        prompt="Shop 1, Shop 2, Sales, Expense, Salary, Stock, Rupees, Aayi, Undayi."
                     )
                     prompt = transcription.strip()
-                    if prompt:
+                    
+                    # ചൈനീസ്/ജാപ്പനീസ് അക്ഷരങ്ങൾ വന്നാൽ അത് ഒഴിവാക്കാൻ
+                    if prompt and any(u'\u4e00' <= c <= u'\u9fff' or u'\u3040' <= c <= u'\u30ff' for c in prompt):
+                        st.warning("⚠️ ശബ്ദം വ്യക്തമല്ല. ദയവായി വീണ്ടും സംസാരിക്കുക.")
+                        prompt = None
+                    elif prompt:
                         st.info(f"🗣️ നിങ്ങൾ പറഞ്ഞത്: **{prompt}**")
                     else:
                         st.warning("ശബ്ദം കേട്ടില്ല, ദയവായി വീണ്ടും പറയുക.")
