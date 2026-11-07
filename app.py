@@ -12,7 +12,7 @@ import cv2
 import tempfile
 from groq import Groq
 
-# --- CONFIG (നിങ്ങളുടെ ലിങ്കുകൾ ഇവിടെ ചേർക്കുക) ---
+# --- CONFIG ---
 CSV_URL = "YOUR_FINANCE_SHEET_CSV_LINK"
 FORM_API = "YOUR_FINANCE_FORM_API"
 STOCK_CSV_URL = "YOUR_STOCK_SHEET_CSV_LINK"
@@ -32,7 +32,7 @@ WHISPER_MODEL = "whisper-large-v3"
 # --- SAFE FORM SUBMIT ---
 def submit_form(api_url, payload):
     if not api_url or "YOUR_" in api_url:
-        return True  # Demo mode
+        return True  
     try:
         r = requests.post(api_url, data=payload, timeout=10)
         return r.status_code == 200
@@ -283,10 +283,9 @@ def _parse_employee(item_str):
     except Exception:
         return "Unknown"
 
-# --- AI AGENT PROCESSING LOGIC (STRICT) ---
+# --- AI AGENT PROCESSING LOGIC ---
 def process_ai_agent(prompt_text):
     client = Groq(api_key=GROQ_API_KEY)
-    # AI-യോട് കർശനമായ നിർദ്ദേശങ്ങൾ നൽകുന്നു
     system_instruction = (
         f"നീ ഒരു ബിസിനസ്സ് മാനേജർ AI ആണ്. ബാലൻസ്: ₹{st.session_state.get('current_bal', 0):,.2f}. "
         "ഫിനാൻസിന് add_finance-ഉം സ്റ്റോക്കിന് add_stock-ഉം ഉപയോഗിക്കുക. മലയാളത്തിൽ മറുപടി നൽകുക. "
@@ -346,7 +345,8 @@ if not st.session_state.auth:
 
 else:
     st.sidebar.title(f"👋 Welcome, {st.session_state.user.capitalize()}")
-    menu = ["📊 Dashboard", "💰 Add Finance", "📦 Stock Management", "👨‍💼 Staff Salary", "🤖 AI Agent", "🎥 CCTV AI Vision"]
+    # പുതിയ മെനു "🧾 Bill Scanner" ചേർത്തു
+    menu = ["📊 Dashboard", "💰 Add Finance", "📦 Stock Management", "🧾 Bill Scanner", "👨‍💼 Staff Salary", "🤖 AI Agent", "🎥 CCTV AI Vision"]
     page = st.sidebar.radio("Menu", menu)
 
     if st.sidebar.button("Logout"):
@@ -430,7 +430,68 @@ else:
                 pdf_b = generate_pdf(item_history, f"Stock History: {selected_item}", ['Date', 'Type', 'Quantity'])
                 st.download_button(f"📥 Download {selected_item} PDF", pdf_b, f"{selected_item}_Stock.pdf", "application/pdf")
 
-    # --- 4. STAFF SALARY ---
+    # --- 4. BILL SCANNER (പുതിയ ഫീച്ചർ) ---
+    elif page == "🧾 Bill Scanner":
+        st.title("🧾 Bill / Stock Photo Scanner")
+        st.write("ബില്ലിന്റെയോ സാധനങ്ങളുടെയോ ഫോട്ടോ എടുത്ത് അപ്‌ലോഡ് ചെയ്യുക. AI അതിലെ സാധനങ്ങളും വിലയും വായിച്ച് തനിയെ ഷീറ്റിൽ എൻട്രി ഇടും.")
+        
+        if not GROQ_API_KEY:
+            st.error("Groq API Key ലഭ്യമല്ല!")
+            
+        bill_file = st.file_uploader("Upload Bill Photo", type=["jpg", "jpeg", "png"])
+        
+        if bill_file is not None:
+            st.image(bill_file, caption="Uploaded Bill", use_container_width=True)
+            
+            shop_select = st.selectbox("ഏത് കടയുടെ ബില്ലാണ്? (Select Shop)", ["Shop 1", "Shop 2"])
+            
+            if st.button("🔍 വായിച്ച് എൻട്രി ഇടുക (Extract & Add)"):
+                with st.spinner("AI ബിൽ വായിക്കുന്നു..."):
+                    try:
+                        client = Groq(api_key=GROQ_API_KEY)
+                        b64_img = base64.b64encode(bill_file.getvalue()).decode('utf-8')
+                        
+                        # AI-യോട് കൃത്യമായ JSON ഫോർമാറ്റിൽ വിവരങ്ങൾ ചോദിക്കുന്നു
+                        prompt = (
+                            "Analyze this bill or stock image. Extract the item name, quantity, and total price. "
+                            "Return ONLY a valid JSON array. Do not add any markdown or text outside the JSON. "
+                            "Format: [{\"item\": \"Sugar 1kg\", \"qty\": 5, \"price\": 250}]"
+                        )
+                        
+                        response = client.chat.completions.create(
+                            model=VISION_MODEL,
+                            messages=[{
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": prompt},
+                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}}
+                                ]
+                            }],
+                            max_tokens=1000
+                        )
+                        
+                        result_text = response.choices[0].message.content.strip()
+                        
+                        # JSON പാർസ് ചെയ്യാൻ ശ്രമിക്കുന്നു
+                        if result_text.startswith("```json"):
+                            result_text = result_text[7:-3]
+                            
+                        items_data = json.loads(result_text)
+                        
+                        st.success(f"✅ {len(items_data)} സാധനങ്ങൾ കണ്ടെത്തി. ഷീറ്റിലേക്ക് അയക്കുന്നു...")
+                        
+                        # ഓരോ ഐറ്റമായി ഷീറ്റിൽ എൻട്രി ഇടുന്നു
+                        for item in items_data:
+                            execute_add_stock(item['item'], item['qty'], "Stock In")
+                            execute_add_finance(shop_select, f"Purchase: {item['item']}", item['price'], "Debit")
+                        
+                        st.balloons()
+                        st.success("🎉 എല്ലാം വിജയകരമായി ഷീറ്റിൽ എൻട്രി ഇട്ടു! (Please check Google Sheet)")
+                        
+                    except Exception as e:
+                        st.error(f"❌ വായിക്കാൻ സാധിച്ചില്ല. ദയവായി വ്യക്തമായ ഫോട്ടോ നൽകുക. (Error: {e})")
+
+    # --- 5. STAFF SALARY ---
     elif page == "👨‍💼 Staff Salary":
         st.title("👨‍💼 Staff Salary Management")
         show_flash()
@@ -455,7 +516,7 @@ else:
                 pdf_b = generate_pdf(emp_history, f"Salary Report: {selected_emp}", ['Date', 'Shop Name', 'Debit'])
                 st.download_button(f"📥 Download {selected_emp}'s Salary PDF", pdf_b, f"{selected_emp}_Salary.pdf", "application/pdf")
 
-    # --- 5. AI AGENT (VOICE + TEXT) ---
+    # --- 6. AI AGENT (VOICE + TEXT) ---
     elif page == "🤖 AI Agent":
         st.title("🤖 PAICHI Business AI Agent")
         st.write("ചാറ്റ് വഴിയോ ശബ്ദം വഴിയോ (Voice) നിങ്ങളുടെ ബിസിനസ്സ് കാര്യങ്ങൾ ചെയ്യാം.")
@@ -472,9 +533,8 @@ else:
                 st.markdown(message["content"])
 
         st.write("---")
-        st.write("🎤 **അല്ലെങ്കിൽ ഇവിടെ ക്ലിക്ക് ചെയ്ത് സംസാരിക്കാം (ശബ്ദം കേൾക്കാൻ അടുത്ത് പിടിക്കുക):**")
+        st.write("🎤 **അല്ലെങ്കിൽ ഇവിടെ ക്ലിക്ക് ചെയ്ത് സംസാരിക്കാം:**")
         
-        # key="voice_input" നൽകിയാൽ Clear Chat അടിച്ചാൽ ഇതും റീസെറ്റ് ആകും
         audio_value = st.audio_input("Record a voice message", key="voice_input")
 
         prompt = None
@@ -487,12 +547,11 @@ else:
                         file=(audio_value.name, audio_value.read()),
                         model=WHISPER_MODEL,
                         response_format="text",
-                        language="ml",  # നിർബന്ധിച്ച് മലയാളം മാത്രം
+                        language="ml", 
                         prompt="Shop 1, Shop 2, Sales, Expense, Salary, Stock, Rupees, Aayi, Undayi."
                     )
                     prompt = transcription.strip()
                     
-                    # ചൈനീസ്/ജാപ്പനീസ് അക്ഷരങ്ങൾ വന്നാൽ അത് ഒഴിവാക്കാൻ
                     if prompt and any(u'\u4e00' <= c <= u'\u9fff' or u'\u3040' <= c <= u'\u30ff' for c in prompt):
                         st.warning("⚠️ ശബ്ദം വ്യക്തമല്ല. ദയവായി വീണ്ടും സംസാരിക്കുക.")
                         prompt = None
@@ -526,7 +585,7 @@ else:
                 except Exception as e:
                     st.error(f"AI Error: {str(e)}")
 
-    # --- 6. CCTV AI VISION ---
+    # --- 7. CCTV AI VISION ---
     elif page == "🎥 CCTV AI Vision":
         st.title("🎥 CCTV AI Vision & Footfall Monitor")
         st.write("കടയിലെ ഫോട്ടോയോ വീഡിയോയോ അപ്‌ലോഡ് ചെയ്ത് ഫൂട്ട്ഫാളും സ്റ്റോക്കും വിശകലനം ചെയ്യാം.")
