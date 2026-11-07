@@ -361,8 +361,12 @@ else:
                     response = client.chat.completions.create(
                                 completion = client.chat.completions.create(
             model="meta-llama/llama-3.2-90b-vision-instruct", # 👈 ഈ പേര് നൽകുക
-            messages=[
-                ...
+            messages=messages_for_api,
+                        tools=tools,
+                        tool_choice="auto"
+                    
+
+               
             ]
         )
                         messages=messages_for_api,
