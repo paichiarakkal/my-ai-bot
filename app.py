@@ -66,6 +66,8 @@ if "audio_counter" not in st.session_state:
     st.session_state.audio_counter = 0
 if "last_audio_hash" not in st.session_state:
     st.session_state.last_audio_hash = None
+if "order_counter" not in st.session_state:
+    st.session_state.order_counter = 0
 
 def flash_success(msg):
     st.session_state["_flash"] = msg
@@ -227,7 +229,11 @@ def extract_frames_from_video(video_bytes, num_frames=3):
                 cap.set(cv2.CAP_PROP_POS_FRAMES, i)
                 ret, frame = cap.read()
                 if ret:
-                    _, buffer = cv2.imencode('.jpg', frame)
+                    h, w = frame.shape[:2]
+                    if h > 500:
+                        ratio = 500 / h
+                        frame = cv2.resize(frame, (int(w * ratio), 500))
+                    _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
                     frames.append(buffer.tobytes())
                 if len(frames) >= num_frames:
                     break
@@ -243,27 +249,35 @@ def analyze_images_with_groq(images_bytes_list):
     try:
         client = Groq(api_key=GROQ_API_KEY)
         
-        prompt_text_en = (
-            "Analyze these shop CCTV frames. You are a smart business AI. "
-            "1. FOOTFALL: Count how many people are visible, where they are, and what they are doing. "
-            "2. STOCK/ITEMS: Identify any visible products, items, or stock on shelves. "
-            "3. REPORT: Provide a short business activity report covering both people and stock."
-        )
+        def _try_analyze(images):
+            prompt_text_en = (
+                "Analyze these shop CCTV frames. You are a smart business AI. "
+                "1. FOOTFALL: Count how many people are visible, where they are, and what they are doing. "
+                "2. STOCK/ITEMS: Identify any visible products, items, or stock on shelves. "
+                "3. REPORT: Provide a short business activity report covering both people and stock."
+            )
+            content_list = [{"type": "text", "text": prompt_text_en}]
+            for img_bytes in images:
+                b64_img = base64.b64encode(img_bytes).decode('utf-8')
+                content_list.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}
+                })
 
-        content_list = [{"type": "text", "text": prompt_text_en}]
-        for img_bytes in images_bytes_list:
-            b64_img = base64.b64encode(img_bytes).decode('utf-8')
-            content_list.append({
-                "type": "image_url",
-                "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}
-            })
+            completion = client.chat.completions.create(
+                model=VISION_MODEL,
+                messages=[{"role": "user", "content": content_list}],
+                max_tokens=500
+            )
+            return completion.choices[0].message.content
 
-        completion_vision = client.chat.completions.create(
-            model=VISION_MODEL,
-            messages=[{"role": "user", "content": content_list}],
-            max_tokens=800
-        )
-        english_report = completion_vision.choices[0].message.content
+        try:
+            english_report = _try_analyze(images_bytes_list)
+        except Exception as e:
+            if "429" in str(e) or "rate_limit" in str(e):
+                english_report = _try_analyze(images_bytes_list[:1])
+            else:
+                raise e
 
         prompt_text_ml = (
             "You are an expert translator. Translate the following business CCTV report into natural, easy-to-understand Malayalam. "
@@ -279,6 +293,52 @@ def analyze_images_with_groq(images_bytes_list):
         return True, completion_translate.choices[0].message.content
     except Exception as e:
         return False, f"Vision Analysis Error: {str(e)}"
+
+# --- SHELF MONITOR LOGIC ---
+def analyze_shelf_changes(morning_bytes, evening_bytes):
+    if not GROQ_API_KEY:
+        return False, "Groq API Key missing!"
+    try:
+        client = Groq(api_key=GROQ_API_KEY)
+        
+        b64_morning = base64.b64encode(morning_bytes).decode('utf-8')
+        b64_evening = base64.b64encode(evening_bytes).decode('utf-8')
+        
+        prompt_text_en = (
+            "You are a smart retail AI. I am providing two images of the same shop shelf: "
+            "Image 1 is from the morning, and Image 2 is from the evening. "
+            "Compare these two images carefully. "
+            "Identify which products are missing or noticeably reduced in Image 2 compared to Image 1. "
+            "Also, suggest if any shelf needs reorganizing. Provide a clear bulleted list."
+        )
+        
+        content_list = [
+            {"type": "text", "text": prompt_text_en},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_morning}"}},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_evening}"}}
+        ]
+        
+        completion_vision = client.chat.completions.create(
+            model=VISION_MODEL,
+            messages=[{"role": "user", "content": content_list}],
+            max_tokens=800
+        )
+        english_report = completion_vision.choices[0].message.content
+
+        prompt_text_ml = (
+            "You are an expert translator. Translate the following shelf comparison report into natural, easy-to-understand Malayalam. "
+            "Do NOT translate English brand names or product names. Keep the format clean and professional.\n\n"
+            f"English Report:\n{english_report}"
+        )
+
+        completion_translate = client.chat.completions.create(
+            model=AGENT_MODEL,
+            messages=[{"role": "user", "content": prompt_text_ml}],
+            max_tokens=800
+        )
+        return True, completion_translate.choices[0].message.content
+    except Exception as e:
+        return False, f"Shelf Analysis Error: {str(e)}"
 
 def _parse_employee(item_str):
     try:
@@ -332,6 +392,32 @@ def process_ai_agent(prompt_text):
 
     return ai_reply, tool_used
 
+# --- VOICE ORDER PROCESSING LOGIC ---
+def process_voice_order(transcript):
+    client = Groq(api_key=GROQ_API_KEY)
+    prompt = (
+        f"A customer just said this order in a shop: '{transcript}'. "
+        "Extract the item names and quantities. "
+        "Return ONLY a valid JSON array. Do not add any markdown or text outside the JSON. "
+        "Format: [{\"item\": \"Sugar\", \"qty\": 2}]"
+    )
+    
+    response = client.chat.completions.create(
+        model=AGENT_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=300
+    )
+    
+    result_text = response.choices[0].message.content.strip()
+    if result_text.startswith("```json"):
+        result_text = result_text[7:-3]
+        
+    try:
+        order_items = json.loads(result_text)
+        return True, order_items
+    except:
+        return False, "ഓർഡർ കൃത്യമായി മനസ്സിലാക്കാൻ സാധിച്ചില്ല."
+
 
 # --- 🔒 LOGIN ---
 if not st.session_state.auth:
@@ -349,7 +435,8 @@ if not st.session_state.auth:
 
 else:
     st.sidebar.title(f"👋 Welcome, {st.session_state.user.capitalize()}")
-    menu = ["📊 Dashboard", "💰 Add Finance", "📦 Stock Management", "🧾 Bill Scanner", "👨‍💼 Staff Salary", "🤖 AI Agent", "🎥 CCTV AI Vision"]
+    # പുതിയ മെനു "🛒 Shelf Monitor" ചേർത്തു
+    menu = ["📊 Dashboard", "💰 Add Finance", "📦 Stock Management", "🧾 Bill Scanner", "🗣️ Voice Order", "🛒 Shelf Monitor", "👨‍💼 Staff Salary", "🤖 AI Agent", "🎥 CCTV AI Vision"]
     page = st.sidebar.radio("Menu", menu)
 
     if st.sidebar.button("Logout"):
@@ -488,7 +575,80 @@ else:
                     except Exception as e:
                         st.error(f"❌ വായിക്കാൻ സാധിച്ചില്ല. ദയവായി വ്യക്തമായ ഫോട്ടോ നൽകുക. (Error: {e})")
 
-    # --- 5. STAFF SALARY ---
+    # --- 5. VOICE ORDER KIOSK ---
+    elif page == "🗣️ Voice Order":
+        st.title("🗣️ AI Voice Order Kiosk")
+        st.write("കസ്റ്റമറിനോട് സംസാരിക്കാൻ പറയുക. AI ഓർഡർ കേട്ട് കൃത്യമായി എഴുതി എടുക്കും.")
+
+        current_order_key = f"order_audio_{st.session_state.order_counter}"
+        audio_order = st.audio_input("🎤 ഓർഡർ റെക്കോർഡ് ചെയ്യാൻ ഇവിടെ അമർത്തുക", key=current_order_key)
+
+        if audio_order:
+            with st.spinner("AI കസ്റ്റമറുടെ ഓർഡർ കേൾക്കുന്നു..."):
+                try:
+                    client = Groq(api_key=GROQ_API_KEY)
+                    transcription = client.audio.transcriptions.create(
+                        file=(audio_order.name, audio_order.getvalue()),
+                        model=WHISPER_MODEL,
+                        response_format="text",
+                        prompt="Shop 1, Shop 2, Sales, Expense, Salary, Stock, Rupees, Aayi, Undayi, Sugar, Tea, Milk, 1kg, 2kg."
+                    )
+                    transcript = transcription.strip()
+                    
+                    if transcript:
+                        st.info(f"🗣️ കസ്റ്റമർ പറഞ്ഞത്: **{transcript}**")
+                        ok, order_data = process_voice_order(transcript)
+                        
+                        if ok and order_data:
+                            st.success("✅ ഓർഡർ വിജയകരമായി എടുത്തു!")
+                            st.subheader("📝 Order Summary")
+                            df_order = pd.DataFrame(order_data)
+                            st.dataframe(df_order, use_container_width=True)
+                            
+                            pdf_b = generate_pdf(df_order, "Customer Order Receipt", ['item', 'qty'])
+                            st.download_button("📥 Download Order Receipt (PDF)", pdf_b, "Order_Receipt.pdf", "application/pdf")
+                            
+                            if st.button("✅ Done / അടുത്തത്"):
+                                st.session_state.order_counter += 1
+                                st.rerun()
+                        else:
+                            st.error(order_data)
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+    # --- 6. SMART SHELF MONITOR ---
+    elif page == "🛒 Shelf Monitor":
+        st.title("🛒 Smart Shelf Monitor (ഷെൽഫ് മോണിറ്റർ)")
+        st.write("കട തുറക്കുമ്പോഴും (രാവിലെ) അടയ്ക്കുമ്പോഴും (വൈകുന്നേരം) ഷെൽഫിന്റെ ഫോട്ടോ എടുത്ത് അപ്‌ലോഡ് ചെയ്യുക. AI രണ്ടും തമ്മിൽ താരതമ്യം ചെയ്ത് എന്തൊക്കെ തീർന്നു എന്ന് പറയും.")
+
+        if not GROQ_API_KEY:
+            st.error("Groq API Key ലഭ്യമല്ല!")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            morning_file = st.file_uploader("🌅 രാവിലെയുള്ള ഫോട്ടോ (Morning Photo)", type=["jpg", "jpeg", "png"])
+            if morning_file:
+                st.image(morning_file, caption="Morning Shelf", use_container_width=True)
+                
+        with col2:
+            evening_file = st.file_uploader("🌙 വൈകുന്നേരത്തെ ഫോട്ടോ (Evening Photo)", type=["jpg", "jpeg", "png"])
+            if evening_file:
+                st.image(evening_file, caption="Evening Shelf", use_container_width=True)
+
+        if morning_file and evening_file:
+            if st.button("🔍 താരതമ്യം ചെയ്യുക (Compare Shelves)"):
+                with st.spinner("AI ഷെൽഫ് പരിശോധിക്കുന്നു..."):
+                    ok, analysis_result = analyze_shelf_changes(
+                        morning_file.getvalue(), 
+                        evening_file.getvalue()
+                    )
+                    st.subheader("📊 Shelf Analysis Report")
+                    if ok:
+                        st.success(analysis_result)
+                    else:
+                        st.error(analysis_result)
+
+    # --- 7. STAFF SALARY ---
     elif page == "👨‍💼 Staff Salary":
         st.title("👨‍💼 Staff Salary Management")
         show_flash()
@@ -513,7 +673,7 @@ else:
                 pdf_b = generate_pdf(emp_history, f"Salary Report: {selected_emp}", ['Date', 'Shop Name', 'Debit'])
                 st.download_button(f"📥 Download {selected_emp}'s Salary PDF", pdf_b, f"{selected_emp}_Salary.pdf", "application/pdf")
 
-    # --- 6. AI AGENT (WHATSAPP STYLE) ---
+    # --- 8. AI AGENT (WHATSAPP STYLE) ---
     elif page == "🤖 AI Agent":
         st.title("🤖 PAICHI Business AI")
         st.write("വാട്ട്‌സ്ആപ്പ് പോലെ സംസാരിക്കാം. (ശബ്ദം കേട്ട് കഴിഞ്ഞാൽ മൈക്ക് ഓട്ടോമാറ്റിക് ആയി റീസെറ്റ് ആകും)")
@@ -582,14 +742,12 @@ else:
                     with st.chat_message("assistant"):
                         st.markdown(ai_reply)
                         
-                    # മൈക്ക് റീസെറ്റ് ചെയ്യാൻ കൗണ്ടർ കൂട്ടുന്നു
                     st.session_state['audio_counter'] += 1
-                    
                     st.rerun()
                 except Exception as e:
                     st.error(f"AI Error: {str(e)}")
 
-    # --- 7. CCTV AI VISION ---
+    # --- 9. CCTV AI VISION ---
     elif page == "🎥 CCTV AI Vision":
         st.title("🎥 CCTV AI Vision & Footfall Monitor")
         st.write("കടയിലെ ഫോട്ടോയോ വീഡിയോയോ അപ്‌ലോഡ് ചെയ്ത് ഫൂട്ട്ഫാളും സ്റ്റോക്കും വിശകലനം ചെയ്യാം.")
