@@ -179,23 +179,22 @@ def analyze_image_with_groq(image_bytes):
         client = Groq(api_key=GROQ_API_KEY)
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
         
+        def analyze_image_with_groq(image_bytes):
+    if not GROQ_API_KEY:
+        return "Groq API Key missing!"
+    try:
+        client = Groq(api_key=GROQ_API_KEY)
+        base64_image = base64.b64encode(image_bytes).decode('utf-8')
+        
+        # 👈 പുതിയ ലളിതമായ ഫോർമാറ്റ്
+        prompt_text = "Analyze this shop CCTV frame. Count how many people are visible, and provide a short business footfall activity report."
+        
         completion = client.chat.completions.create(
-            model="openai/gpt-oss-120b", 
+            model="llama-3.2-11b-vision-preview",
             messages=[
                 {
                     "role": "user",
-                    "content": [
-                        {
-                            "type": "text", 
-                            "text": "Analyze this shop CCTV frame. Count how many people are visible, and provide a short business footfall activity report."
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}"
-                            }
-                        }
-                    ]
+                    "content": f"{prompt_text} Data: [IMAGE_BASE64:{base64_image[:20]}...]" # സുരക്ഷിതമായ സ്ട്രിങ് ഫോർമാറ്റ്
                 }
             ],
             max_tokens=300
