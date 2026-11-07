@@ -180,7 +180,7 @@ def analyze_image_with_groq(image_bytes):
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
         
         completion = client.chat.completions.create(
-            model="llama-3.2-11b-vision-preview",
+            model="llama-3.2-90b-vision-preview",
             messages=[
                 {
                     "role": "user",
