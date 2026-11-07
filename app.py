@@ -33,16 +33,26 @@ st.set_page_config(page_title="PAICHI BUSINESS", layout="wide")
 
 st.markdown("""
     <style>
-    .stApp { background: linear-gradient(135deg, #0f2027, #203a43, #2c5364); color: #fff; }
-    [data-testid="stSidebar"] { background: rgba(0,0,0,0.85) !important; }
-    .stButton>button { background-color: #00BFFF; color: #000; border-radius: 10px; font-weight: bold; }
-    .stDownloadButton>button { background-color: #00FF7F; color: #000; border-radius: 10px; font-weight: bold; }
-    .banner { background: rgba(0, 0, 0, 0.7); padding: 25px; border-radius: 15px; border-left: 10px solid #00BFFF; text-align: center; margin-bottom: 25px; }
-    h1, h2, h3, p, label { color: white !important; font-weight: bold !important; }
-    [data-testid="stChatMessage"] { background-color: #262730 !important; border-radius: 10px; padding: 15px; border: 1px solid #444; }
+    /* ബാക്ക്ഗ്രൗണ്ട് ഇളം നിറമാക്കി മാറ്റി */
+    .stApp { background: #f4f6f9; color: #000000; }
+    [data-testid="stSidebar"] { background: #e0e0e0 !important; }
+    
+    .stButton>button { background-color: #007BFF; color: #ffffff; border-radius: 10px; font-weight: bold; }
+    .stDownloadButton>button { background-color: #28a745; color: #ffffff; border-radius: 10px; font-weight: bold; }
+    
+    /* ബാനർ ഡിസൈൻ */
+    .banner { background: #ffffff; padding: 25px; border-radius: 15px; border-left: 10px solid #007BFF; text-align: center; margin-bottom: 25px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+    
+    /* എഴുത്തുകളുടെ നിറം കറുപ്പ് (Dark) ആക്കി മാറ്റി */
+    h1, h2, h3, p, label, span { color: #000000 !important; font-weight: bold !important; }
+    
+    /* ചാറ്റ് ബോക്സ് ഡിസൈൻ */
+    [data-testid="stChatMessage"] { background-color: #ffffff !important; border-radius: 10px; padding: 15px; border: 1px solid #ccc; color: #000; }
+    
+    /* ബാലൻസ് കാണിക്കുന്ന ബാനറിലെ എഴുത്തുകൾക്ക് നിറം */
+    .banner span { color: #007BFF !important; }
     </style>
 """, unsafe_allow_html=True)
-
 if 'auth' not in st.session_state:
     st.session_state.auth, st.session_state.user = False, ""
 if "messages" not in st.session_state:
