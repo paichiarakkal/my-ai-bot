@@ -10,9 +10,10 @@ import base64
 import os
 import cv2
 import tempfile
+import hashlib
 from groq import Groq
 
-# --- CONFIG ---
+# --- CONFIG (നിങ്ങളുടെ ലിങ്കുകൾ ഇവിടെ ചേർക്കുക) ---
 CSV_URL = "YOUR_FINANCE_SHEET_CSV_LINK"
 FORM_API = "YOUR_FINANCE_FORM_API"
 STOCK_CSV_URL = "YOUR_STOCK_SHEET_CSV_LINK"
@@ -61,6 +62,10 @@ if 'auth' not in st.session_state:
     st.session_state.auth, st.session_state.user = False, ""
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "audio_counter" not in st.session_state:
+    st.session_state.audio_counter = 0
+if "last_audio_hash" not in st.session_state:
+    st.session_state.last_audio_hash = None
 
 def flash_success(msg):
     st.session_state["_flash"] = msg
@@ -289,8 +294,7 @@ def process_ai_agent(prompt_text):
     system_instruction = (
         f"നീ ഒരു ബിസിനസ്സ് മാനേജർ AI ആണ്. ബാലൻസ്: ₹{st.session_state.get('current_bal', 0):,.2f}. "
         "ഫിനാൻസിന് add_finance-ഉം സ്റ്റോക്കിന് add_stock-ഉം ഉപയോഗിക്കുക. മലയാളത്തിൽ മറുപടി നൽകുക. "
-        "പ്രധാനം: ഉപയോക്താവ് വ്യക്തമായി ഒരു സാധനത്തിന്റെ പേരും അതിന്റെ എണ്ണവും (quantity) പറഞ്ഞാൽ മാത്രമേ add_stock ടൂൾ ഉപയോഗിക്കാവൂ. "
-        "അല്ലാത്തപക്ഷം, അതായത് ഉപയോക്താവ് പറയുന്നത് വ്യക്തമല്ലെങ്കിൽ, സ്റ്റോക്ക് അപ്ഡേറ്റ് ചെയ്യരുത്, മറിച്ച് എന്താണ് ഉദ്ദേശിച്ചതെന്ന് ദയവായി ചോദിക്കുക."
+        "പ്രധാനം: ഉപയോക്താവ് വ്യക്തമായി ഒരു സാധനത്തിന്റെ പേരും അതിന്റെ എണ്ണവും (quantity) പറഞ്ഞാൽ മാത്രമേ add_stock ടൂൾ ഉപയോഗിക്കാവൂ."
     )
     
     messages_for_api = [{"role": "system", "content": system_instruction}]
@@ -345,7 +349,6 @@ if not st.session_state.auth:
 
 else:
     st.sidebar.title(f"👋 Welcome, {st.session_state.user.capitalize()}")
-    # പുതിയ മെനു "🧾 Bill Scanner" ചേർത്തു
     menu = ["📊 Dashboard", "💰 Add Finance", "📦 Stock Management", "🧾 Bill Scanner", "👨‍💼 Staff Salary", "🤖 AI Agent", "🎥 CCTV AI Vision"]
     page = st.sidebar.radio("Menu", menu)
 
@@ -430,7 +433,7 @@ else:
                 pdf_b = generate_pdf(item_history, f"Stock History: {selected_item}", ['Date', 'Type', 'Quantity'])
                 st.download_button(f"📥 Download {selected_item} PDF", pdf_b, f"{selected_item}_Stock.pdf", "application/pdf")
 
-    # --- 4. BILL SCANNER (പുതിയ ഫീച്ചർ) ---
+    # --- 4. BILL SCANNER ---
     elif page == "🧾 Bill Scanner":
         st.title("🧾 Bill / Stock Photo Scanner")
         st.write("ബില്ലിന്റെയോ സാധനങ്ങളുടെയോ ഫോട്ടോ എടുത്ത് അപ്‌ലോഡ് ചെയ്യുക. AI അതിലെ സാധനങ്ങളും വിലയും വായിച്ച് തനിയെ ഷീറ്റിൽ എൻട്രി ഇടും.")
@@ -442,7 +445,6 @@ else:
         
         if bill_file is not None:
             st.image(bill_file, caption="Uploaded Bill", use_container_width=True)
-            
             shop_select = st.selectbox("ഏത് കടയുടെ ബില്ലാണ്? (Select Shop)", ["Shop 1", "Shop 2"])
             
             if st.button("🔍 വായിച്ച് എൻട്രി ഇടുക (Extract & Add)"):
@@ -451,7 +453,6 @@ else:
                         client = Groq(api_key=GROQ_API_KEY)
                         b64_img = base64.b64encode(bill_file.getvalue()).decode('utf-8')
                         
-                        # AI-യോട് കൃത്യമായ JSON ഫോർമാറ്റിൽ വിവരങ്ങൾ ചോദിക്കുന്നു
                         prompt = (
                             "Analyze this bill or stock image. Extract the item name, quantity, and total price. "
                             "Return ONLY a valid JSON array. Do not add any markdown or text outside the JSON. "
@@ -471,22 +472,18 @@ else:
                         )
                         
                         result_text = response.choices[0].message.content.strip()
-                        
-                        # JSON പാർസ് ചെയ്യാൻ ശ്രമിക്കുന്നു
                         if result_text.startswith("```json"):
                             result_text = result_text[7:-3]
                             
                         items_data = json.loads(result_text)
-                        
                         st.success(f"✅ {len(items_data)} സാധനങ്ങൾ കണ്ടെത്തി. ഷീറ്റിലേക്ക് അയക്കുന്നു...")
                         
-                        # ഓരോ ഐറ്റമായി ഷീറ്റിൽ എൻട്രി ഇടുന്നു
                         for item in items_data:
                             execute_add_stock(item['item'], item['qty'], "Stock In")
                             execute_add_finance(shop_select, f"Purchase: {item['item']}", item['price'], "Debit")
                         
                         st.balloons()
-                        st.success("🎉 എല്ലാം വിജയകരമായി ഷീറ്റിൽ എൻട്രി ഇട്ടു! (Please check Google Sheet)")
+                        st.success("🎉 എല്ലാം വിജയകരമായി ഷീറ്റിൽ എൻട്രി ഇട്ടു!")
                         
                     except Exception as e:
                         st.error(f"❌ വായിക്കാൻ സാധിച്ചില്ല. ദയവായി വ്യക്തമായ ഫോട്ടോ നൽകുക. (Error: {e})")
@@ -517,87 +514,112 @@ else:
                 st.download_button(f"📥 Download {selected_emp}'s Salary PDF", pdf_b, f"{selected_emp}_Salary.pdf", "application/pdf")
 
     # --- 6. AI AGENT (WHATSAPP STYLE) ---
-elif page == "🤖 AI Agent":
-    st.title("🤖 PAICHI Business AI")
-    st.write("വാട്ട്‌സ്ആപ്പ് പോലെ സംസാരിക്കാം. (ശബ്ദം കേട്ട് കഴിഞ്ഞാൽ മൈക്ക് ഓട്ടോമാറ്റിക് ആയി റീസെറ്റ് ആകും)")
+    elif page == "🤖 AI Agent":
+        st.title("🤖 PAICHI Business AI")
+        st.write("വാട്ട്‌സ്ആപ്പ് പോലെ സംസാരിക്കാം. (ശബ്ദം കേട്ട് കഴിഞ്ഞാൽ മൈക്ക് ഓട്ടോമാറ്റിക് ആയി റീസെറ്റ് ആകും)")
 
-    if not GROQ_API_KEY:
-        st.error("Groq API Key ലഭ്യമല്ല!")
+        if not GROQ_API_KEY:
+            st.error("Groq API Key ലഭ്യമല്ല!")
 
-    # ചാറ്റ് ക്ലിയർ ചെയ്യാനുള്ള ബട്ടൺ
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        if st.button("🗑️ Clear Chat"):
-            st.session_state.messages = []
-            st.session_state['audio_counter'] = st.session_state.get('audio_counter', 0) + 1
-            st.rerun()
-
-    # ചാറ്റ് ഹിസ്റ്ററി കാണിക്കുന്നു
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-
-    # ഡൈനാമിക് കീ (ഓരോ തവണയും മൈക്ക് റീസെറ്റ് ആകാൻ)
-    if 'audio_counter' not in st.session_state:
-        st.session_state['audio_counter'] = 0
-        
-    current_audio_key = f"audio_input_{st.session_state['audio_counter']}"
-
-    st.write("---")
-    
-    # വോയ്സ് ഇൻപുട്ട് ബോക്സ്
-    audio_value = st.audio_input("🎤 റെക്കോർഡ് ചെയ്യാൻ ഇവിടെ അമർത്തുക", key=current_audio_key)
-    
-    # ടെക്സ്റ്റ് ഇൻപുട്ട് ബോക്സ്
-    text_prompt = st.chat_input("ഇവിടെ ടൈപ്പ് ചെയ്യാം...")
-
-    prompt = None
-
-    # ശബ്ദം കേട്ടാൽ
-    if audio_value:
-        with st.spinner("ശബ്ദം കേൾക്കുന്നു..."):
-            try:
-                client = Groq(api_key=GROQ_API_KEY)
-                transcription = client.audio.transcriptions.create(
-                    file=(audio_value.name, audio_value.getvalue()),
-                    model=WHISPER_MODEL,
-                    response_format="text",
-                    prompt="Shop 1, Shop 2, Sales, Expense, Salary, Stock, Rupees, Aayi, Undayi, Sugar, Tea, Milk."
-                )
-                prompt = transcription.strip()
-                
-                # തെറ്റായ അക്ഷരങ്ങൾ വന്നാൽ ഒഴിവാക്കാൻ
-                if prompt and any(u'\u4e00' <= c <= u'\u9fff' for c in prompt):
-                    st.warning("⚠️ ശബ്ദം വ്യക്തമല്ല. ദയവായി വീണ്ടും സംസാരിക്കുക.")
-                    prompt = None
-                    st.session_state['audio_counter'] += 1 # മൈക്ക് റീസെറ്റ് ചെയ്യാൻ
-                    st.rerun()
-            except Exception as e:
-                st.error(f"Audio Error: {str(e)}")
-
-    # ടൈപ്പ് ചെയ്താൽ
-    if text_prompt:
-        prompt = text_prompt
-
-    # പ്രോംപ്റ്റ് കിട്ടിയാൽ (ശബ്ദമോ ടെക്സ്റ്റോ)
-    if prompt:
-        # യൂസർ മെസ്സേജ് കാണിക്കുന്നു
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
-        # AI യുടെ മറുപടി കാണിക്കുന്നു
-        with st.spinner("AI ടൈപ്പ് ചെയ്യുന്നു..."):
-            try:
-                ai_reply, tool_used = process_ai_agent(prompt)
-                
-                st.session_state.messages.append({"role": "assistant", "content": ai_reply})
-                with st.chat_message("assistant"):
-                    st.markdown(ai_reply)
-                    
-                # മൈക്ക് റീസെറ്റ് ചെയ്യാൻ കൗണ്ടർ കൂട്ടുന്നു (ഇതാണ് വാട്ട്‌സ്ആപ്പ് ഇഫക്ട് തരുന്നത്)
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("🗑️ Clear Chat"):
+                st.session_state.messages = []
                 st.session_state['audio_counter'] += 1
-                
+                st.session_state['last_audio_hash'] = None
                 st.rerun()
-            except Exception as e:
-                st.error(f"AI Error: {str(e)}")
+
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+        current_audio_key = f"audio_input_{st.session_state['audio_counter']}"
+
+        st.write("---")
+        audio_value = st.audio_input("🎤 റെക്കോർഡ് ചെയ്യാൻ ഇവിടെ അമർത്തുക", key=current_audio_key)
+        text_prompt = st.chat_input("ഇവിടെ ടൈപ്പ് ചെയ്യാം...")
+
+        prompt = None
+
+        if audio_value:
+            audio_hash = hashlib.md5(audio_value.getvalue()).hexdigest()
+            
+            if st.session_state.get("last_audio_hash") != audio_hash:
+                st.session_state["last_audio_hash"] = audio_hash
+                
+                with st.spinner("ശബ്ദം കേൾക്കുന്നു..."):
+                    try:
+                        client = Groq(api_key=GROQ_API_KEY)
+                        transcription = client.audio.transcriptions.create(
+                            file=(audio_value.name, audio_value.getvalue()),
+                            model=WHISPER_MODEL,
+                            response_format="text",
+                            prompt="Shop 1, Shop 2, Sales, Expense, Salary, Stock, Rupees, Aayi, Undayi, Sugar, Tea, Milk."
+                        )
+                        prompt = transcription.strip()
+                        
+                        if prompt and any(u'\u4e00' <= c <= u'\u9fff' for c in prompt):
+                            st.warning("⚠️ ശബ്ദം വ്യക്തമല്ല. ദയവായി വീണ്ടും സംസാരിക്കുക.")
+                            prompt = None
+                            st.session_state['audio_counter'] += 1 
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f"Audio Error: {str(e)}")
+
+        if text_prompt:
+            prompt = text_prompt
+
+        if prompt:
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
+
+            with st.spinner("AI ടൈപ്പ് ചെയ്യുന്നു..."):
+                try:
+                    ai_reply, tool_used = process_ai_agent(prompt)
+                    
+                    st.session_state.messages.append({"role": "assistant", "content": ai_reply})
+                    with st.chat_message("assistant"):
+                        st.markdown(ai_reply)
+                        
+                    # മൈക്ക് റീസെറ്റ് ചെയ്യാൻ കൗണ്ടർ കൂട്ടുന്നു
+                    st.session_state['audio_counter'] += 1
+                    
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"AI Error: {str(e)}")
+
+    # --- 7. CCTV AI VISION ---
+    elif page == "🎥 CCTV AI Vision":
+        st.title("🎥 CCTV AI Vision & Footfall Monitor")
+        st.write("കടയിലെ ഫോട്ടോയോ വീഡിയോയോ അപ്‌ലോഡ് ചെയ്ത് ഫൂട്ട്ഫാളും സ്റ്റോക്കും വിശകലനം ചെയ്യാം.")
+
+        if not GROQ_API_KEY:
+            st.error("Groq API Key ലഭ്യമല്ല!")
+
+        uploaded_file = st.file_uploader("Upload Shop CCTV Photo or Video", type=["jpg", "jpeg", "png", "mp4", "avi", "mov"])
+        
+        if uploaded_file is not None:
+            file_type = uploaded_file.type
+            
+            if "image" in file_type:
+                st.image(uploaded_file, caption="Uploaded Snapshot", use_container_width=True)
+                images_to_analyze = [uploaded_file.getvalue()]
+            
+            elif "video" in file_type:
+                st.video(uploaded_file)
+                with st.spinner("വീഡിയോയിൽ നിന്ന് ഫ്രെയിമുകൾ എടുക്കുന്നു..."):
+                    images_to_analyze = extract_frames_from_video(uploaded_file.getvalue(), num_frames=3)
+                    if not images_to_analyze:
+                        st.error("❌ വീഡിയോയിൽ നിന്ന് ഫ്രെയിമുകൾ എടുക്കാൻ സാധിച്ചില്ല.")
+                        st.stop()
+                    st.success(f"✅ വീഡിയോയിൽ നിന്ന് {len(images_to_analyze)} ഫ്രെയിമുകൾ എടുത്തു.")
+
+            if st.button("🔍 Analyze with AI"):
+                with st.spinner("AI വിശകലനം ചെയ്യുന്നു..."):
+                    ok, analysis_result = analyze_images_with_groq(images_to_analyze)
+                    st.subheader("📊 AI Analysis Report")
+                    if ok:
+                        st.success(analysis_result)
+                    else:
+                        st.error(analysis_result)
