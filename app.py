@@ -6,7 +6,9 @@ import random
 import plotly.express as px
 from fpdf import FPDF
 import json
-from groq import Groq # 👈 പുതിയത്
+import base64
+import cv2
+from groq import Groq 
 
 # --- CONFIG ---
 CSV_URL = "YOUR_FINANCE_SHEET_CSV_LINK"
@@ -33,26 +35,17 @@ st.set_page_config(page_title="PAICHI BUSINESS", layout="wide")
 
 st.markdown("""
     <style>
-    /* ബാക്ക്ഗ്രൗണ്ട് ഇളം നിറമാക്കി മാറ്റി */
     .stApp { background: #f4f6f9; color: #000000; }
     [data-testid="stSidebar"] { background: #e0e0e0 !important; }
-    
     .stButton>button { background-color: #007BFF; color: #ffffff; border-radius: 10px; font-weight: bold; }
     .stDownloadButton>button { background-color: #28a745; color: #ffffff; border-radius: 10px; font-weight: bold; }
-    
-    /* ബാനർ ഡിസൈൻ */
     .banner { background: #ffffff; padding: 25px; border-radius: 15px; border-left: 10px solid #007BFF; text-align: center; margin-bottom: 25px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-    
-    /* എഴുത്തുകളുടെ നിറം കറുപ്പ് (Dark) ആക്കി മാറ്റി */
     h1, h2, h3, p, label, span { color: #000000 !important; font-weight: bold !important; }
-    
-    /* ചാറ്റ് ബോക്സ് ഡിസൈൻ */
     [data-testid="stChatMessage"] { background-color: #ffffff !important; border-radius: 10px; padding: 15px; border: 1px solid #ccc; color: #000; }
-    
-    /* ബാലൻസ് കാണിക്കുന്ന ബാനറിലെ എഴുത്തുകൾക്ക് നിറം */
     .banner span { color: #007BFF !important; }
     </style>
 """, unsafe_allow_html=True)
+
 if 'auth' not in st.session_state:
     st.session_state.auth, st.session_state.user = False, ""
 if "messages" not in st.session_state:
@@ -117,7 +110,7 @@ def generate_pdf(df, title, columns):
     return bytes(pdf.output())
 
 # ============================================
-# 🤖 AI AGENT TOOLS
+# 🤖 AI AGENT TOOLS & CCTV VISION
 # ============================================
 tools = [
     {
@@ -179,6 +172,38 @@ def execute_add_stock(item_name, qty, stock_type):
         return "Success"
     return "Failed"
 
+def analyze_image_with_groq(image_bytes):
+    if not GROQ_API_KEY:
+        return "Groq API Key missing!"
+    try:
+        client = Groq(api_key=GROQ_API_KEY)
+        base64_image = base64.b64encode(image_bytes).decode('utf-8')
+        
+        completion = client.chat.completions.create(
+            model="llama-3.2-11b-vision-preview",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text", 
+                            "text": "Analyze this shop CCTV frame. Count how many people are visible, and provide a short business footfall activity report."
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens=300
+        )
+        return completion.choices[0].message.content
+    except Exception as e:
+        return f"Vision Analysis Error: {str(e)}"
+
 # --- 🔒 LOGIN ---
 if not st.session_state.auth:
     st.markdown('<div style="max-width:400px; margin:auto; margin-top:100px; background:rgba(0,0,0,0.8); padding:30px; border-radius:20px;">', unsafe_allow_html=True)
@@ -195,8 +220,7 @@ if not st.session_state.auth:
 
 else:
     st.sidebar.title(f"👋 Welcome, {st.session_state.user.capitalize()}")
-    # 👈 മെനുവിൽ AI Agent ചേർത്തു
-    menu = ["📊 Dashboard", "💰 Add Finance", "📦 Stock Management", "👨‍💼 Staff Salary", "🤖 AI Agent"]
+    menu = ["📊 Dashboard", "💰 Add Finance", "📦 Stock Management", "👨‍💼 Staff Salary", "🤖 AI Agent", "🎥 CCTV AI Vision"]
     page = st.sidebar.radio("Menu", menu)
 
     if st.sidebar.button("Logout"):
@@ -237,13 +261,7 @@ else:
                 else:
                     try:
                         am = float(clean)
-                        payload = {
-                            "entry.1044099436": datetime.now().strftime("%Y-%m-%d"),
-                            "entry.2013476337": f"[{shop}] {it}",
-                            "entry.1460982454": am if "Debit" in ty else 0,
-                            "entry.1221658767": 0 if "Debit" in ty else am
-                        }
-                        if submit_form(FORM_API, payload):
+                        if execute_add_finance(shop, it, am, "Debit" if "Debit" in ty else "Credit") == "Success":
                             st.success("Saved! ✅")
                             st.cache_data.clear()
                     except ValueError:
@@ -271,13 +289,7 @@ else:
                 qty = st.number_input("Quantity", min_value=1.0)
                 stock_type = st.radio("Type", ["Stock In", "Stock Out"], horizontal=True)
                 if st.form_submit_button("SAVE STOCK"):
-                    payload = {
-                        "entry.1044099436": datetime.now().strftime("%Y-%m-%d"),
-                        "entry.2013476337": item_name,
-                        "entry.1460982454": qty,
-                        "entry.1221658767": stock_type
-                    }
-                    if submit_form(STOCK_FORM_API, payload):
+                    if execute_add_stock(item_name, qty, stock_type) == "Success":
                         st.success("Stock Updated! ✅")
                         st.cache_data.clear()
 
@@ -299,13 +311,7 @@ else:
                 sal_amt = st.number_input("Salary Amount", min_value=1.0)
                 sal_month = st.selectbox("Month", ["November 2026", "October 2026"])
                 if st.form_submit_button("PAY SALARY"):
-                    payload = {
-                        "entry.1044099436": datetime.now().strftime("%Y-%m-%d"),
-                        "entry.2013476337": f"[{shop}] Salary: {emp_name} ({sal_month})",
-                        "entry.1460982454": sal_amt,
-                        "entry.1221658767": 0
-                    }
-                    if submit_form(FORM_API, payload):
+                    if execute_add_finance(shop, f"Salary: {emp_name} ({sal_month})", sal_amt, "Debit") == "Success":
                         st.success(f"✅ {emp_name}-ന്റെ ശമ്പളം വിജയകരമായി നൽകി!")
                         st.cache_data.clear()
 
@@ -323,7 +329,7 @@ else:
             else:
                 st.info("No salary records found.")
 
-    # --- 5. AI AGENT (പുതിയത്) ---
+    # --- 5. AI AGENT ---
     elif page == "🤖 AI Agent":
         st.title("🤖 PAICHI Business AI Agent")
         st.write("ബിസിനസ്സിലെ കാര്യങ്ങൾ ചാറ്റ് വഴി ചെയ്യാം. (ഉദാ: 'Shop 1-ൽ 5000 സെയിൽസ് ഉണ്ടായി')")
@@ -331,7 +337,6 @@ else:
         if not GROQ_API_KEY:
             st.error("Groq API Key ലഭ്യമല്ല!")
 
-        # ചാറ്റ് ഹിസ്റ്ററി കാണിക്കുക
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
@@ -344,18 +349,13 @@ else:
             with st.spinner("AI ആലോചിക്കുന്നു..."):
                 try:
                     client = Groq(api_key=GROQ_API_KEY)
-                    
-                    # സമയം കണക്കാക്കുന്നു
-                    utc_now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-                    
                     system_instruction = f"""
                     നീ ഒരു വളരെ മികച്ച ബിസിനസ്സ് മാനേജർ AI ഏജന്റ് ആണ്. 
                     നിലവിലെ മൊത്തം ബാലൻസ്: ₹{bal:,.2f}.
-                    യൂസർ എന്തെങ്കിലും ഫിനാൻസ് എൻട്രി ചേർക്കാൻ പറഞ്ഞാൽ add_finance എന്ന ടൂൾ ഉപയോഗിക്കുക.
-                    യൂസർ സ്റ്റോക്ക് കാര്യങ്ങൾ പറഞ്ഞാൽ add_stock എന്ന ടൂൾ ഉപയോഗിക്കുക.
-                    ലോകത്തിലെ എല്ലാ കാര്യങ്ങളെക്കുറിച്ചും നിനക്ക് അറിയാം, എന്ത് ചോദിച്ചാലും മലയാളത്തിൽ മറുപടി നൽകുക.
+                    യൂസർ എന്തെങ്കിലും ഫിനാൻസ് എൻട്രി ചേർക്കാൻ പറഞ്ഞാൽ add_finance ടൂൾ ഉപയോഗിക്കുക.
+                    യൂസർ സ്റ്റോക്ക് കാര്യങ്ങൾ പറഞ്ഞാൽ add_stock ടൂൾ ഉപയോഗിക്കുക.
+                    എന്ത് ചോദിച്ചാലും മലയാളത്തിൽ മറുപടി നൽകുക.
                     """
-                    
                     messages_for_api = [{"role": "system", "content": system_instruction}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-5:]]
 
                     response = client.chat.completions.create(
@@ -372,18 +372,11 @@ else:
                             if tool_call.function.name == "add_finance":
                                 args = json.loads(tool_call.function.arguments)
                                 res = execute_add_finance(args["shop"], args["item"], args["amount"], args["type"])
-                                if res == "Success":
-                                    ai_reply = f"✅ ചേട്ടാ, {args['shop']}-ൽ '{args['item']}' എന്നതിന് ₹{args['amount']} ({args['type']}) എൻട്രി ഇട്ടിട്ടുണ്ട്!"
-                                else:
-                                    ai_reply = "❌ എൻട്രി ഇടാൻ പറ്റിയില്ല."
-                                    
+                                ai_reply = f"✅ ചേട്ടാ, {args['shop']}-ൽ '{args['item']}' എന്നതിന് ₹{args['amount']} ({args['type']}) എൻട്രി ഇട്ടിട്ടുണ്ട്!" if res == "Success" else "❌ എൻട്രി ഇടാൻ പറ്റിയില്ല."
                             elif tool_call.function.name == "add_stock":
                                 args = json.loads(tool_call.function.arguments)
                                 res = execute_add_stock(args["item_name"], args["qty"], args["stock_type"])
-                                if res == "Success":
-                                    ai_reply = f"✅ ചേട്ടാ, {args['item_name']}-ന്റെ {args['qty']} എണ്ണം ({args['stock_type']}) അപ്ഡേറ്റ് ചെയ്തിട്ടുണ്ട്!"
-                                else:
-                                    ai_reply = "❌ സ്റ്റോക്ക് അപ്ഡേറ്റ് ചെയ്യാൻ പറ്റിയില്ല."
+                                ai_reply = f"✅ ചേട്ടാ, {args['item_name']}-ന്റെ {args['qty']} എണ്ണം അപ്ഡേറ്റ് ചെയ്തിട്ടുണ്ട്!" if res == "Success" else "❌ സ്റ്റോക്ക് അപ്ഡേറ്റ് ചെയ്യാൻ പറ്റിയില്ല."
                     else:
                         ai_reply = response_message.content
 
@@ -391,9 +384,26 @@ else:
                     with st.chat_message("assistant"):
                         st.markdown(ai_reply)
                         
-                    # എൻട്രി വിജയിച്ചാൽ പേജ് റീഫ്രെഷ് ചെയ്യാൻ
                     if response_message.tool_calls:
                         st.rerun()
 
                 except Exception as e:
                     st.error(f"AI Error: {str(e)}")
+
+    # --- 6. CCTV AI VISION (പുതിയത് ഇന്റഗ്രേറ്റ് ചെയ്തത്) ---
+    elif page == "🎥 CCTV AI Vision":
+        st.title("🎥 CCTV AI Vision & Footfall Monitor")
+        st.write("കടയിലെ ക്യാമറ ഫൂട്ടേജോ ചിത്രമോ അപ്‌ലോഡ് ചെയ്ത് ആളുകളുടെ വരവും (Footfall) പ്രവർത്തനങ്ങളും AI വഴി വിശകലനം ചെയ്യാം.")
+
+        uploaded_cctv_file = st.file_uploader("Upload Shop CCTV Frame (JPG/PNG)", type=["jpg", "jpeg", "png"])
+        
+        if uploaded_cctv_file is not None:
+            st.image(uploaded_cctv_file, caption="Uploaded CCTV Snapshot", use_container_width=True)
+            
+            if st.button("🔍 Analyze CCTV Frame with AI"):
+                with st.spinner("AI CCTV ഫൂട്ടേജ് പരിശോധിക്കുന്നു..."):
+                    image_bytes = uploaded_cctv_file.getvalue()
+                    analysis_result = analyze_image_with_groq(image_bytes)
+                    
+                    st.subheader("📊 AI CCTV Analysis Report")
+                    st.success(analysis_result)
