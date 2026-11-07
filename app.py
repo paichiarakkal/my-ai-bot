@@ -7,7 +7,7 @@ import plotly.express as px
 from fpdf import FPDF
 import json
 import base64
-import os                      # FIX: PDF font detection-ന്
+import os
 from groq import Groq
 
 # --- CONFIG ---
@@ -18,13 +18,11 @@ STOCK_FORM_API = "YOUR_STOCK_FORM_API"
 
 USER_PINS = {"admin": "1234", "shop1": "1111"}
 
-# FIX: st.secrets missing ആയാൽ crash ആവില്ല
 try:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 except Exception:
     GROQ_API_KEY = ""
 
-# FIX: Vision-സപ്പോർട്ടുള്ള മോഡൽ (text-only gpt-oss-120b പകരം)
 VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 AGENT_MODEL  = "llama-3.3-70b-versatile"
 
@@ -64,7 +62,6 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 
-# FIX: Form submit-ന് ശേഷം rerun ചെയ്തും success message കാണിക്കാൻ
 def flash_success(msg):
     st.session_state["_flash"] = msg
 
@@ -114,7 +111,6 @@ def load_stock_data():
         })
 
 
-# FIX: Malayalam PDF-ന് Unicode font auto-detect (ഇല്ലെങ്കിൽ ascii fallback)
 def _find_unicode_font():
     candidates = [
         "/usr/share/fonts/truetype/noto/NotoSansMalayalam-Regular.ttf",
@@ -225,7 +221,7 @@ def execute_add_finance(shop, item, amount, t_type):
         "entry.1221658767": 0 if t_type == "Debit" else amount
     }
     if submit_form(FORM_API, payload):
-        load_finance_data.clear()   # FIX: specific cache clear
+        load_finance_data.clear()
         return "Success"
     return "Failed"
 
@@ -237,12 +233,11 @@ def execute_add_stock(item_name, qty, stock_type):
         "entry.1221658767": stock_type
     }
     if submit_form(STOCK_FORM_API, payload):
-        load_stock_data.clear()     # FIX: specific cache clear
+        load_stock_data.clear()
         return "Success"
     return "Failed"
 
 
-# FIX: Vision - ശരിയായ image_url payload, (success, msg) return
 def analyze_image_with_groq(image_bytes):
     if not GROQ_API_KEY:
         return False, "Groq API Key missing!"
@@ -272,7 +267,6 @@ def analyze_image_with_groq(image_bytes):
         return False, f"Vision Analysis Error: {str(e)}"
 
 
-# FIX: Salary parser - crash-safe
 def _parse_employee(item_str):
     try:
         if ':' not in item_str:
@@ -285,7 +279,7 @@ def _parse_employee(item_str):
 
 # --- 🔒 LOGIN ---
 if not st.session_state.auth:
-    _, mid, _ = st.columns([1, 2, 1])     # FIX: columns wrapper
+    _, mid, _ = st.columns([1, 2, 1])
     with mid:
         st.subheader("🔐 PAICHI BUSINESS LOGIN")
         u = st.selectbox("👤 Select Role", ["admin", "shop1"]).lower()
@@ -357,7 +351,7 @@ else:
                         )
                         if res == "Success":
                             flash_success("Saved! ✅")
-                            st.rerun()          # FIX
+                            st.rerun()
                         else:
                             st.error("❌ Save failed.")
                     except ValueError:
@@ -388,7 +382,7 @@ else:
                 if st.form_submit_button("SAVE STOCK"):
                     if execute_add_stock(item_name, qty, stock_type) == "Success":
                         flash_success("Stock Updated! ✅")
-                        st.rerun()              # FIX
+                        st.rerun()
                     else:
                         st.error("❌ Stock update failed.")
 
@@ -419,7 +413,7 @@ else:
                     )
                     if res == "Success":
                         flash_success(f"✅ {emp_name}-ന്റെ ശമ്പളം വിജയകരമായി നൽകി!")
-                        st.rerun()              # FIX
+                        st.rerun()
                     else:
                         st.error("❌ Salary payment failed.")
 
@@ -428,7 +422,6 @@ else:
         if not df_fin.empty:
             sal_df = df_fin[df_fin['Item'].str.contains('Salary', case=False, na=False)].copy()
             if not sal_df.empty:
-                # FIX: crash-safe parser
                 sal_df['Employee'] = sal_df['Item'].apply(_parse_employee)
                 selected_emp = st.selectbox("Select Staff Member", sal_df['Employee'].unique())
                 emp_history = sal_df[sal_df['Employee'] == selected_emp]
@@ -484,7 +477,7 @@ else:
 
                     if response_message.tool_calls:
                         tool_used = True
-                        replies = []        # FIX: multiple tool calls handle
+                        replies = []
                         for tool_call in response_message.tool_calls:
                             try:
                                 args = json.loads(tool_call.function.arguments)
@@ -532,39 +525,22 @@ else:
     # --- 6. CCTV AI VISION ---
     elif page == "🎥 CCTV AI Vision":
         st.title("🎥 CCTV AI Vision & Footfall Monitor")
-        st.write("കടയിലെ ക്യാമറ ഫൂട്ടേജോ ചിത്രമോ അപ്‌ലോഡ് ചെയ്ത് ആളുകളുടെ വരവും (Footfall) "
-                 "പ്രവർത്തനങ്ങളും AI വഴി വിശകലനം ചെയ്യാം.")
+        st.write("കടയിലെ ക്യാമറ ഫൂട്ടേജോ ചിത്രമോ അപ്‌ലോഡ് ചെയ്ത് ആളുകളുടെ വരവും (Footfall) പ്രവർത്തനങ്ങളും AI വഴി വിശകലനം ചെയ്യാം.")
 
         if not GROQ_API_KEY:
             st.error("Groq API Key ലഭ്യമല്ല — `.streamlit/secrets.toml`-ൽ `GROQ_API_KEY` set ചെയ്യുക.")
 
-        uploaded_cctv_file = st.file_uploader("Upload Shop CCTV Frame (JPG/PNG)",
-           type=["jpg", "jpeg", "png"])
+        uploaded_cctv_file = st.file_uploader("Upload Shop CCTV Frame (JPG/PNG)", type=["jpg", "jpeg", "png"])
+        
         if uploaded_cctv_file is not None:
-            st.image(uploaded_cctv_file, caption="Uploaded CCTV Snapshot",
-                     use_container_width=True)
+            st.image(uploaded_cctv_file, caption="Uploaded CCTV Snapshot", use_container_width=True)
 
             if st.button("🔍 Analyze CCTV Frame with AI"):
                 with st.spinner("AI CCTV ഫൂട്ടേജ് പരിശോധിക്കുന്നു..."):
-                    ok, analysis_result = analyze_image_with_groq(
-                        uploaded_cctv_file.getvalue()
-                    )
+                    ok, analysis_result = analyze_image_with_groq(uploaded_cctv_file.getvalue())
+                    
                     st.subheader("📊 AI CCTV Analysis Report")
-                    if ok:                       # FIX: error-ന് st.error
-                        st.success(analysis_result)
-                    else:
-                        st.error(analysis_result)                                   type=["jpg", "jpeg", "png"])
-        if uploaded_cctv_file is not None:
-            st.image(uploaded_cctv_file, caption="Uploaded CCTV Snapshot",
-                     use_container_width=True)
-
-            if st.button("🔍 Analyze CCTV Frame with AI"):
-                with st.spinner("AI CCTV ഫൂട്ടേജ് പരിശോധിക്കുന്നു..."):
-                    ok, analysis_result = analyze_image_with_groq(
-                        uploaded_cctv_file.getvalue()
-                    )
-                    st.subheader("📊 AI CCTV Analysis Report")
-                    if ok:                       # FIX: error-ന് st.error
+                    if ok:
                         st.success(analysis_result)
                     else:
                         st.error(analysis_result)
