@@ -22,7 +22,7 @@ GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
 # --- SAFE FORM SUBMIT (Demo-safe) ---
 def submit_form(api_url, payload):
     if not api_url or "YOUR_" in api_url:
-        return True  # 🎭 Demo mode: simulate success
+        return True  
     try:
         r = requests.post(api_url, data=payload, timeout=10)
         return r.status_code == 200
@@ -178,15 +178,6 @@ def analyze_image_with_groq(image_bytes):
     try:
         client = Groq(api_key=GROQ_API_KEY)
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
-        
-        def analyze_image_with_groq(image_bytes):
-    if not GROQ_API_KEY:
-        return "Groq API Key missing!"
-    try:
-        client = Groq(api_key=GROQ_API_KEY)
-        base64_image = base64.b64encode(image_bytes).decode('utf-8')
-        
-        # 👈 പുതിയ ലളിതമായ ഫോർമാറ്റ്
         prompt_text = "Analyze this shop CCTV frame. Count how many people are visible, and provide a short business footfall activity report."
         
         completion = client.chat.completions.create(
@@ -194,7 +185,7 @@ def analyze_image_with_groq(image_bytes):
             messages=[
                 {
                     "role": "user",
-                    "content": f"{prompt_text} Data: [IMAGE_BASE64:{base64_image[:20]}...]" # സുരക്ഷിതമായ സ്ട്രിങ് ഫോർമാറ്റ്
+                    "content": f"{prompt_text} Data: [IMAGE_BASE64:{base64_image[:20]}...]"
                 }
             ],
             max_tokens=300
@@ -358,7 +349,7 @@ else:
                     messages_for_api = [{"role": "system", "content": system_instruction}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-5:]]
 
                     response = client.chat.completions.create(
-                        model="openai/gpt-oss-120b", 
+                        model="llama-3.3-70b-versatile", 
                         messages=messages_for_api,
                         tools=tools,
                         tool_choice="auto"
