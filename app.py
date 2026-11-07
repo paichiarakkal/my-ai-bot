@@ -180,7 +180,7 @@ def analyze_image_with_groq(image_bytes):
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
         
         completion = client.chat.completions.create(
-            model="llama-3.2-90b-vision-preview",
+            model="meta-llama/llama-3.2-90b-vision-instruct", # 👈 Updated active vision model
             messages=[
                 {
                     "role": "user",
@@ -359,16 +359,7 @@ else:
                     messages_for_api = [{"role": "system", "content": system_instruction}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-5:]]
 
                     response = client.chat.completions.create(
-                                completion = client.chat.completions.create(
-            model="meta-llama/llama-3.2-90b-vision-instruct", # 👈 ഈ പേര് നൽകുക
-            messages=messages_for_api,
-                        tools=tools,
-                        tool_choice="auto"
-                    
-
-               
-            ]
-        )
+                        model="openai/gpt-oss-120b", 
                         messages=messages_for_api,
                         tools=tools,
                         tool_choice="auto"
@@ -399,7 +390,7 @@ else:
                 except Exception as e:
                     st.error(f"AI Error: {str(e)}")
 
-    # --- 6. CCTV AI VISION (പുതിയത് ഇന്റഗ്രേറ്റ് ചെയ്തത്) ---
+    # --- 6. CCTV AI VISION ---
     elif page == "🎥 CCTV AI Vision":
         st.title("🎥 CCTV AI Vision & Footfall Monitor")
         st.write("കടയിലെ ക്യാമറ ഫൂട്ടേജോ ചിത്രമോ അപ്‌ലോഡ് ചെയ്ത് ആളുകളുടെ വരവും (Footfall) പ്രവർത്തനങ്ങളും AI വഴി വിശകലനം ചെയ്യാം.")
