@@ -179,8 +179,8 @@ def analyze_image_with_groq(image_bytes):
         client = Groq(api_key=GROQ_API_KEY)
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
         
-        completion = client.chat.completions.create(
-            model="meta-llama/llama-3.2-90b-vision-instruct", # 👈 Updated active vision model
+             completion = client.chat.completions.create(
+            model="llama-3.2-11b-vision-preview", # 👈 ഇത് നൽകി നോക്കൂ
             messages=[
                 {
                     "role": "user",
