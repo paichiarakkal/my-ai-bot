@@ -241,31 +241,53 @@ def extract_frames_from_video(video_bytes, num_frames=3):
         return frames
     except Exception as e:
         return []
-
 def analyze_images_with_groq(images_bytes_list):
     if not GROQ_API_KEY:
         return False, "Groq API Key missing!"
     try:
         client = Groq(api_key=GROQ_API_KEY)
         
-        prompt_text = (
-            "Analyze these shop CCTV frames (extracted from a video). You are a smart business AI. "
+        # 1. ചിത്രം നോക്കി ഇംഗ്ലീഷിൽ റിപ്പോർട്ട് എഴുതാൻ (Vision AI)
+        prompt_text_en = (
+            "Analyze these shop CCTV frames. You are a smart business AI. "
             "1. FOOTFALL: Count how many people are visible, where they are, and what they are doing. "
             "2. STOCK/ITEMS: Identify any visible products, items, or stock on shelves. "
             "3. REPORT: Provide a short business activity report covering both people and stock."
-    "IMPORTANT: Reply strictly in natural Malayalam. DO NOT translate English brand names or product names (like Honey, Toothpaste, Scrubber, Soda, etc.) into Malayalam. Keep those in English. Write the rest in natural, easy-to-understand Malayalam."
-)
+        )
 
-        
-
-        content_list = [{"type": "text", "text": prompt_text}]
-        
+        content_list = [{"type": "text", "text": prompt_text_en}]
         for img_bytes in images_bytes_list:
             b64_img = base64.b64encode(img_bytes).decode('utf-8')
             content_list.append({
                 "type": "image_url",
                 "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}
             })
+
+        completion_vision = client.chat.completions.create(
+            model=VISION_MODEL,
+            messages=[{"role": "user", "content": content_list}],
+            max_tokens=800
+        )
+        english_report = completion_vision.choices[0].message.content
+
+        # 2. ഇംഗ്ലീഷ് റിപ്പോർട്ട് മലയാളത്തിലേക്ക് മാറ്റാൻ (Text AI)
+        prompt_text_ml = (
+            "You are an expert translator. Translate the following business CCTV report into natural, easy-to-understand Malayalam. "
+            "Do NOT translate English brand names or product names (like Honey, Toothpaste, Scrubber, Soda, etc.). "
+            "Keep the format clean and professional.\n\n"
+            f"English Report:\n{english_report}"
+        )
+
+        completion_translate = client.chat.completions.create(
+            model=AGENT_MODEL,  # llama-3.3-70b-versatile
+            messages=[{"role": "user", "content": prompt_text_ml}],
+            max_tokens=800
+        )
+        malayalam_report = completion_translate.choices[0].message.content
+
+        return True, malayalam_report
+    except Exception as e:
+        return False, f"Vision Analysis Error: {str(e)}"
 
         completion = client.chat.completions.create(
             model=VISION_MODEL,
