@@ -23,7 +23,7 @@ try:
 except Exception:
     GROQ_API_KEY = ""
 
-VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+VISION_MODEL = "qwen/qwen3.8-27b"  # ✅ ഇതാണ് ഇപ്പോൾ പ്രവർത്തിക്കുന്ന വിഷൻ മോഡൽ
 AGENT_MODEL  = "llama-3.3-70b-versatile"
 
 
