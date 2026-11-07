@@ -516,106 +516,88 @@ else:
                 pdf_b = generate_pdf(emp_history, f"Salary Report: {selected_emp}", ['Date', 'Shop Name', 'Debit'])
                 st.download_button(f"📥 Download {selected_emp}'s Salary PDF", pdf_b, f"{selected_emp}_Salary.pdf", "application/pdf")
 
-    # --- 6. AI AGENT (VOICE + TEXT) ---
-    elif page == "🤖 AI Agent":
-        st.title("🤖 PAICHI Business AI Agent")
-        st.write("ചാറ്റ് വഴിയോ ശബ്ദം വഴിയോ (Voice) നിങ്ങളുടെ ബിസിനസ്സ് കാര്യങ്ങൾ ചെയ്യാം.")
-        
-        if not GROQ_API_KEY:
-            st.error("Groq API Key ലഭ്യമല്ല!")
+    # --- 6. AI AGENT (WHATSAPP STYLE) ---
+elif page == "🤖 AI Agent":
+    st.title("🤖 PAICHI Business AI")
+    st.write("വാട്ട്‌സ്ആപ്പ് പോലെ സംസാരിക്കാം. (ശബ്ദം കേട്ട് കഴിഞ്ഞാൽ മൈക്ക് ഓട്ടോമാറ്റിക് ആയി റീസെറ്റ് ആകും)")
 
+    if not GROQ_API_KEY:
+        st.error("Groq API Key ലഭ്യമല്ല!")
+
+    # ചാറ്റ് ക്ലിയർ ചെയ്യാനുള്ള ബട്ടൺ
+    col1, col2 = st.columns([1, 4])
+    with col1:
         if st.button("🗑️ Clear Chat"):
             st.session_state.messages = []
+            st.session_state['audio_counter'] = st.session_state.get('audio_counter', 0) + 1
             st.rerun()
 
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
+    # ചാറ്റ് ഹിസ്റ്ററി കാണിക്കുന്നു
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-        st.write("---")
-        st.write("🎤 **അല്ലെങ്കിൽ ഇവിടെ ക്ലിക്ക് ചെയ്ത് സംസാരിക്കാം:**")
+    # ഡൈനാമിക് കീ (ഓരോ തവണയും മൈക്ക് റീസെറ്റ് ആകാൻ)
+    if 'audio_counter' not in st.session_state:
+        st.session_state['audio_counter'] = 0
         
-        audio_value = st.audio_input("Record a voice message", key="voice_input")
+    current_audio_key = f"audio_input_{st.session_state['audio_counter']}"
 
-        prompt = None
+    st.write("---")
+    
+    # വോയ്സ് ഇൻപുട്ട് ബോക്സ്
+    audio_value = st.audio_input("🎤 റെക്കോർഡ് ചെയ്യാൻ ഇവിടെ അമർത്തുക", key=current_audio_key)
+    
+    # ടെക്സ്റ്റ് ഇൻപുട്ട് ബോക്സ്
+    text_prompt = st.chat_input("ഇവിടെ ടൈപ്പ് ചെയ്യാം...")
 
-        if audio_value:
-            with st.spinner("ശബ്ദം കേൾക്കുന്നു..."):
-                try:
-                    client = Groq(api_key=GROQ_API_KEY)
-                    transcription = client.audio.transcriptions.create(
-                        file=(audio_value.name, audio_value.read()),
-                        model=WHISPER_MODEL,
-                        response_format="text",
-                        language="ml", 
-                        prompt="Shop 1, Shop 2, Sales, Expense, Salary, Stock, Rupees, Aayi, Undayi."
-                    )
-                    prompt = transcription.strip()
+    prompt = None
+
+    # ശബ്ദം കേട്ടാൽ
+    if audio_value:
+        with st.spinner("ശബ്ദം കേൾക്കുന്നു..."):
+            try:
+                client = Groq(api_key=GROQ_API_KEY)
+                transcription = client.audio.transcriptions.create(
+                    file=(audio_value.name, audio_value.getvalue()),
+                    model=WHISPER_MODEL,
+                    response_format="text",
+                    prompt="Shop 1, Shop 2, Sales, Expense, Salary, Stock, Rupees, Aayi, Undayi, Sugar, Tea, Milk."
+                )
+                prompt = transcription.strip()
+                
+                # തെറ്റായ അക്ഷരങ്ങൾ വന്നാൽ ഒഴിവാക്കാൻ
+                if prompt and any(u'\u4e00' <= c <= u'\u9fff' for c in prompt):
+                    st.warning("⚠️ ശബ്ദം വ്യക്തമല്ല. ദയവായി വീണ്ടും സംസാരിക്കുക.")
+                    prompt = None
+                    st.session_state['audio_counter'] += 1 # മൈക്ക് റീസെറ്റ് ചെയ്യാൻ
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Audio Error: {str(e)}")
+
+    # ടൈപ്പ് ചെയ്താൽ
+    if text_prompt:
+        prompt = text_prompt
+
+    # പ്രോംപ്റ്റ് കിട്ടിയാൽ (ശബ്ദമോ ടെക്സ്റ്റോ)
+    if prompt:
+        # യൂസർ മെസ്സേജ് കാണിക്കുന്നു
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        # AI യുടെ മറുപടി കാണിക്കുന്നു
+        with st.spinner("AI ടൈപ്പ് ചെയ്യുന്നു..."):
+            try:
+                ai_reply, tool_used = process_ai_agent(prompt)
+                
+                st.session_state.messages.append({"role": "assistant", "content": ai_reply})
+                with st.chat_message("assistant"):
+                    st.markdown(ai_reply)
                     
-                    if prompt and any(u'\u4e00' <= c <= u'\u9fff' or u'\u3040' <= c <= u'\u30ff' for c in prompt):
-                        st.warning("⚠️ ശബ്ദം വ്യക്തമല്ല. ദയവായി വീണ്ടും സംസാരിക്കുക.")
-                        prompt = None
-                    elif prompt:
-                        st.info(f"🗣️ നിങ്ങൾ പറഞ്ഞത്: **{prompt}**")
-                    else:
-                        st.warning("ശബ്ദം കേട്ടില്ല, ദയവായി വീണ്ടും പറയുക.")
-                except Exception as e:
-                    st.error(f"Audio Error: {str(e)}")
-
-        text_prompt = st.chat_input("ഇവിടെ ടൈപ്പ് ചെയ്യാം (അല്ലെങ്കിൽ മുകളിൽ വോയ്സ് റെക്കോർഡ് ചെയ്യാം)")
-
-        if text_prompt:
-            prompt = text_prompt
-
-        if prompt:
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            with st.chat_message("user"):
-                st.markdown(prompt)
-
-            with st.spinner("AI ആലോചിക്കുന്നു..."):
-                try:
-                    ai_reply, tool_used = process_ai_agent(prompt)
-                    
-                    st.session_state.messages.append({"role": "assistant", "content": ai_reply})
-                    with st.chat_message("assistant"):
-                        st.markdown(ai_reply)
-                        
-                    if tool_used:
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"AI Error: {str(e)}")
-
-    # --- 7. CCTV AI VISION ---
-    elif page == "🎥 CCTV AI Vision":
-        st.title("🎥 CCTV AI Vision & Footfall Monitor")
-        st.write("കടയിലെ ഫോട്ടോയോ വീഡിയോയോ അപ്‌ലോഡ് ചെയ്ത് ഫൂട്ട്ഫാളും സ്റ്റോക്കും വിശകലനം ചെയ്യാം.")
-
-        if not GROQ_API_KEY:
-            st.error("Groq API Key ലഭ്യമല്ല!")
-
-        uploaded_file = st.file_uploader("Upload Shop CCTV Photo or Video", type=["jpg", "jpeg", "png", "mp4", "avi", "mov"])
-        
-        if uploaded_file is not None:
-            file_type = uploaded_file.type
-            
-            if "image" in file_type:
-                st.image(uploaded_file, caption="Uploaded Snapshot", use_container_width=True)
-                images_to_analyze = [uploaded_file.getvalue()]
-            
-            elif "video" in file_type:
-                st.video(uploaded_file)
-                with st.spinner("വീഡിയോയിൽ നിന്ന് ഫ്രെയിമുകൾ എടുക്കുന്നു..."):
-                    images_to_analyze = extract_frames_from_video(uploaded_file.getvalue(), num_frames=3)
-                    if not images_to_analyze:
-                        st.error("❌ വീഡിയോയിൽ നിന്ന് ഫ്രെയിമുകൾ എടുക്കാൻ സാധിച്ചില്ല.")
-                        st.stop()
-                    st.success(f"✅ വീഡിയോയിൽ നിന്ന് {len(images_to_analyze)} ഫ്രെയിമുകൾ എടുത്തു.")
-
-            if st.button("🔍 Analyze with AI"):
-                with st.spinner("AI വിശകലനം ചെയ്യുന്നു..."):
-                    ok, analysis_result = analyze_images_with_groq(images_to_analyze)
-                    st.subheader("📊 AI Analysis Report")
-                    if ok:
-                        st.success(analysis_result)
-                    else:
-                        st.error(analysis_result)
+                # മൈക്ക് റീസെറ്റ് ചെയ്യാൻ കൗണ്ടർ കൂട്ടുന്നു (ഇതാണ് വാട്ട്‌സ്ആപ്പ് ഇഫക്ട് തരുന്നത്)
+                st.session_state['audio_counter'] += 1
+                
+                st.rerun()
+            except Exception as e:
+                st.error(f"AI Error: {str(e)}")
