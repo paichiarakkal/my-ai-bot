@@ -402,8 +402,23 @@ def process_ai_agent(prompt_text):
             
             elif tool_call.function.name == "check_gmail":
                 count = args.get("count", 3)
-                res = check_gmail_emails(count)
-                replies.append(f"📧 **Gmail Inbox (Latest {count}):**\n\n{res}")
+                raw_emails = check_gmail_emails(count)
+                
+                # ഇവിടെയാണ് പുതിയ മാറ്റം: മെയിലുകൾ വായിച്ച് ചുരുക്കി എഴുതാൻ AI-യോട് പറയുന്നു
+                with st.spinner("AI മെയിലുകൾ വായിച്ച് ചുരുക്കുന്നു..."):
+                    summary_prompt = (
+                        f"താഴെ തന്നിരിക്കുന്ന ഇമെയിലുകൾ വായിച്ച്, പ്രധാനപ്പെട്ട കാര്യങ്ങൾ മാത്രം മലയാളത്തിൽ ചുരുക്കി എഴുതുക. "
+                        f"ബാങ്ക് മെസ്സേജുകൾ, ബില്ലുകൾ, അല്ലെങ്കിൽ അത്യാവശ്യമായ കാര്യങ്ങൾ എടുത്തു പറയുക. "
+                        f"പ്രൊമോഷണൽ മെയിലുകൾ ഉണ്ടെങ്കിൽ അത് അവഗണിക്കാം എന്ന് പറയുക.\n\n"
+                        f"Emails:\n{raw_emails}"
+                    )
+                    summary_res = client.chat.completions.create(
+                        model=AGENT_MODEL,
+                        messages=[{"role": "user", "content": summary_prompt}],
+                        max_tokens=800
+                    ).choices[0].message.content
+                    
+                    replies.append(f"📧 **നിങ്ങളുടെ ലേറ്റസ്റ്റ് ഇമെയിലുകളുടെ സംഗ്രഹം:**\n\n{summary_res}")
 
         ai_reply = "\n\n".join(replies)
     else:
