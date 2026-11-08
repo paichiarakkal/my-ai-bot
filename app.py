@@ -2,9 +2,6 @@
 
 ഇത് പരിഹരിക്കാൻ ലൈൻ ബൈ ലൈൻ പോകേണ്ട. ഞാൻ ഇതുവരെ ചെയ്ത എല്ലാ മാറ്റങ്ങളും (WhatsApp style Voice, Bill Scanner, CCTV, Hash key) ചേർത്ത് പൂർണ്ണമായും പ്രവർത്തിക്കുന്ന Full Code താഴെ തരാം.
 
-നിങ്ങളുടെ app.py-യിലെ കോഡ് മുഴുവൻ മായ്ച്ച് താഴെ നൽകുന്ന ഈ കോഡ് മാത്രം കോപ്പി ചെയ്ത് പേസ്റ്റ് ചെയ്യുക:
-
-```python
 import streamlit as st
 import pandas as pd
 import requests
