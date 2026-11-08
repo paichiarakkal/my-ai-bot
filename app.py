@@ -8,7 +8,6 @@ from streamlit_mic_recorder import speech_to_text
 from streamlit_autorefresh import st_autorefresh
 from fpdf import FPDF
 import re
-import threading
 from streamlit_calendar import calendar
 import json
 import base64
@@ -23,8 +22,8 @@ from twilio.rest import Client
 try:
     TWILIO_SID = st.secrets["TWILIO_SID"]
     TWILIO_AUTH_TOKEN = st.secrets["TWILIO_AUTH_TOKEN"]
-    TWILIO_FROM = st.secrets.get("TWILIO_FROM", "whatsapp:+14155238886")
-    TWILIO_TO = st.secrets.get("TWILIO_TO", "whatsapp:+971551347989")
+    TWILIO_FROM = st.secrets.get("TWILIO_FROM", "whatsapp:+14155238886") # Twilio Sandbox Number
+    TWILIO_TO = st.secrets.get("TWILIO_TO", "whatsapp:+971551347989")  # നിങ്ങളുടെ നമ്പർ
 except Exception:
     TWILIO_SID = ""
     TWILIO_AUTH_TOKEN = ""
@@ -49,7 +48,7 @@ AGENT_MODEL  = "openai/gpt-oss-120b"
 WHISPER_MODEL = "whisper-large-v3"
 
 # --- STREAMLIT UI & THEME (Dark Mode) ---
-st.set_page_config(page_title="PAICHI MEGA APP v3.1", layout="wide")
+st.set_page_config(page_title="PAICHI MEGA APP", layout="wide")
 st_autorefresh(interval=60000, key="auto_refresh")
 
 st.markdown("""<style>
@@ -78,18 +77,21 @@ if "order_counter" not in st.session_state: st.session_state.order_counter = 0
 
 # --- HELPER FUNCTIONS ---
 def send_whatsapp_auto(msg):
-    """Twilio വഴി വാട്ട്‌സ്ആപ്പ് മെസ്സേജ് അയക്കാൻ (Background Thread)"""
+    """Twilio വഴി വാട്ട്‌സ്ആപ്പ് മെസ്സേജ് അയക്കാൻ"""
     if not TWILIO_SID or not TWILIO_AUTH_TOKEN:
-        print("Twilio Secrets Missing!")
-        return
+        return False, "Secrets-ൽ Twilio SID / Token ഇല്ല!"
     
-    def _send():
-        try:
-            client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
-            client.messages.create(body=msg, from_=TWILIO_FROM, to=TWILIO_TO)
-        except Exception as e:
-            print(f"Twilio Error: {e}")
-    threading.Thread(target=_send).start()
+    try:
+        client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
+        # ഇവിടെയാണ് മെസ്സേജ് അയക്കുന്നത്
+        message = client.messages.create(
+            body=msg, 
+            from_=TWILIO_FROM, 
+            to=TWILIO_TO
+        )
+        return True, "Success"
+    except Exception as e:
+        return False, str(e)
 
 def parse_mixed_dates(date_series):
     parsed = []
@@ -110,12 +112,7 @@ def load_finance_data():
         df['Credit'] = pd.to_numeric(df['Credit'], errors='coerce').fillna(0)
         return df
     except Exception:
-        return pd.DataFrame({
-            'Date': pd.to_datetime(['2026-11-01', '2026-11-02', '2026-11-03']),
-            'Item': ['[Faisal] Food: Tea', '[Shabana] Shop: Sugar', '[Admin] Fish: Meen'],
-            'Debit': [50, 250, 500],
-            'Credit': [0, 0, 0]
-        })
+        return pd.DataFrame()
 
 def _find_unicode_font():
     candidates = ["/usr/share/fonts/truetype/noto/NotoSansMalayalam-Regular.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "C:/Windows/Fonts/arial.ttf"]
@@ -201,11 +198,21 @@ else:
     t_in, t_out = (df['Credit'].sum(), df['Debit'].sum()) if not df.empty else (0.0, 0.0)
     bal = t_in - t_out
 
-    # --- SIDEBAR SETTINGS ---
+    # --- SIDEBAR SETTINGS & TWILIO TEST ---
     if st.session_state.user != "shabana":
-        with st.sidebar.expander("⚙️ Alert & Expense Settings"):
+        with st.sidebar.expander("⚙️ Alert Settings"):
             st.session_state.custom_alert_text = st.text_area("Custom Alert Message", value=st.session_state.custom_alert_text)
             st.session_state.low_limit = st.number_input("Low Balance Limit (₹)", value=st.session_state.low_limit)
+            
+            st.markdown("---")
+            st.markdown("**📱 Twilio WhatsApp Test**")
+            if st.button("Send Test Message"):
+                with st.spinner("അയക്കുന്നു..."):
+                    success, err = send_whatsapp_auto("🔔 *PAICHI APP TEST*\nനിങ്ങളുടെ Twilio കണക്ഷൻ വിജയകരമാണ്!")
+                    if success:
+                        st.success("Test Message Sent! ✅")
+                    else:
+                        st.error(f"Error: {err}")
     
     # --- ALERT BANNER ---
     if bal < st.session_state.low_limit:
@@ -268,13 +275,24 @@ else:
             am_str = st.text_input("Amount", value=str(v_amt))
             cat = st.selectbox("Category", ["Food", "Shop", "Fish", "Travel", "Rent", "Others"], index=["Food", "Shop", "Fish", "Travel", "Rent", "Others"].index(v_cat))
             ty = st.radio("Type", ["Debit", "Credit"], horizontal=True, index=0 if v_type == "Debit" else 1)
+            
             if st.form_submit_button("SAVE & NOTIFY"):
                 try:
                     am = float(am_str.strip().replace(',', ''))
                     execute_add_finance(f"[{st.session_state.user.capitalize()}] {cat}: {it}", am, ty)
-                    send_whatsapp_auto(f"✅ *Paichi Entry*\n📝 Item: {it}\n💰 Amt: ₹{am}\n👤 User: {st.session_state.user}")
-                    st.success("Saved & WhatsApp Sent! ✅"); st.rerun()
-                except: st.error("Error! Valid amount required.")
+                    
+                    # ഇവിടെയാണ് എൻട്രി ഇട്ടതിന് ശേഷം വാട്ട്‌സ്ആപ്പ് വിളിക്കുന്നത്
+                    msg = f"✅ *Paichi Entry*\n📝 Item: {it}\n💰 Amt: ₹{am}\n👤 User: {st.session_state.user}"
+                    success, err = send_whatsapp_auto(msg)
+                    
+                    if success:
+                        st.success("Saved to Sheet & WhatsApp Sent! ✅")
+                    else:
+                        st.warning(f"Saved to Sheet, but WhatsApp failed: {err}")
+                        
+                    st.rerun()
+                except Exception as e: 
+                    st.error(f"Error! {e}")
 
     # --- 3. CALENDAR VIEW ---
     elif page == "📅 Calendar View" and not df.empty:
