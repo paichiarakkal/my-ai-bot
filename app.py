@@ -630,6 +630,3 @@ else:
                         st.success(analysis_result)
                     else:
                         st.error(analysis_result)
-```
-
-ഇത് പേസ്റ്റ് ചെയ്താൽ ഇപ്പോൾ ഉള്ള Syntax Error തീരും, കൂടാതെ വോയ്സ് സംവിധാനവും വാട്ട്‌സ്ആപ്പ് സ്റ്റൈലിൽ കൃത്യമായി പ്രവർത്തിക്കും! 🚀
