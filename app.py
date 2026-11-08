@@ -14,6 +14,8 @@ import hashlib
 import imaplib
 import email
 import time
+import urllib.request
+import xml.etree.ElementTree as ET
 from email.header import decode_header
 from groq import Groq
 from twilio.rest import Client
@@ -34,7 +36,7 @@ except Exception:
 GMAIL_USER = st.secrets.get("GMAIL_USER", "")
 GMAIL_APP_PASSWORD = st.secrets.get("GMAIL_APP_PASSWORD", "")
 
-# --- TWILIO CONFIG (Secrets-ൽ നിന്ന് എടുക്കുന്നു) ---
+# --- TWILIO CONFIG ---
 try:
     TWILIO_SID = st.secrets["TWILIO_SID"]
     TWILIO_AUTH_TOKEN = st.secrets["TWILIO_AUTH_TOKEN"]
@@ -67,7 +69,6 @@ def send_whatsapp_custom(to_number, msg):
         client.messages.create(body=msg, from_=TWILIO_FROM, to=to_number)
         return True
     except Exception as e:
-        print(f"Twilio Error: {e}")
         return False
 
 # --- STREAMLIT UI SETUP ---
@@ -224,6 +225,24 @@ def check_gmail_emails(count=3):
         return "\n---\n".join(email_list)
     except Exception as e: return f"Gmail Error: {str(e)}"
 
+# 📰 RSS News Fetcher (പുതിയ ഫീച്ചർ)
+def fetch_rss_news():
+    try:
+        # ഗൂഗിൾ ന്യൂസിൽ നിന്ന് ബിസിനസ് വാർത്തകൾ എടുക്കുന്നു
+        url = "https://news.google.com/rss/search?q=gold+rate+petrol+price+kerala+uae+business&hl=en-US&gl=US&ceid=US:en"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        response = urllib.request.urlopen(req)
+        xml_data = response.read()
+        root = ET.fromstring(xml_data)
+        items = root.findall('.//item')
+        news_list = []
+        for item in items[:5]: # ആദ്യത്തെ 5 വാർത്തകൾ
+            title = item.find('title').text
+            news_list.append(f"- {title}")
+        return "\n".join(news_list)
+    except Exception as e:
+        return f"Error fetching news: {e}"
+
 def extract_frames_from_video(video_bytes, num_frames=3):
     try:
         tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
@@ -309,7 +328,8 @@ if not st.session_state.auth:
 else:
     st.sidebar.title(f"👋 Welcome, {st.session_state.user.capitalize()}")
     
-    menu = ["📊 Dashboard", "💰 Add Finance", "📦 Stock Management", "🧾 Bill Scanner", "📧 Email Replier", "📢 WhatsApp Marketing", "👨‍💼 Staff Salary", "🤖 AI Agent", "🎥 CCTV AI Vision"]
+    # പുതിയ മെനു "📰 Daily Market News" ചേർത്തു
+    menu = ["📊 Dashboard", "💰 Add Finance", "📦 Stock Management", "🧾 Bill Scanner", "📧 Email Replier", "📢 WhatsApp Marketing", "📰 Daily Market News", "👨‍💼 Staff Salary", "🤖 AI Agent", "🎥 CCTV AI Vision"]
     page = st.sidebar.radio("Menu", menu)
 
     if st.sidebar.button("Logout"):
@@ -401,7 +421,7 @@ else:
                         reply_res = client.chat.completions.create(model=AGENT_MODEL, messages=[{"role": "user", "content": prompt}], max_tokens=800).choices[0].message.content
                         st.success("✅ AI വിശകലനവും റിപ്ലൈയും:"); st.markdown(reply_res)
 
-    # --- 6. WHATSAPP MARKETING (പുതിയ ഫീച്ചർ) ---
+    # --- 6. WHATSAPP MARKETING ---
     elif page == "📢 WhatsApp Marketing":
         st.title("📢 Customer WhatsApp Marketing")
         st.write("കസ്റ്റമർമാർക്ക് ഓഫറുകളും മറ്റു വിവരങ്ങളും വാട്ട്‌സ്ആപ്പിൽ അയക്കാം.")
@@ -418,9 +438,7 @@ else:
                 except: st.error("AI എറർ!")
         
         msg_to_send = st.text_area("മെസ്സേജ്", value=st.session_state.get('wa_message', ''), height=150)
-
         st.subheader("2. കസ്റ്റമർ നമ്പറുകൾ")
-        st.write("Twilio Sandbox-ൽ ജോയിൻ ചെയ്ത നമ്പറുകൾ മാത്രമേ ഇപ്പോൾ വർക്ക് ചെയ്യൂ.")
         numbers_input = st.text_area("ഫോൺ നമ്പറുകൾ (കോമ ഉപയോഗിച്ച് വേർതിരിക്കുക)", placeholder="+971501234567, +919876543210")
         numbers_list = [num.strip() for num in numbers_input.split(",") if num.strip()]
 
@@ -432,12 +450,42 @@ else:
                 success_count = 0
                 for num in numbers_list:
                     formatted_num = f"whatsapp:{num}" if not num.startswith("whatsapp:") else num
-                    if send_whatsapp_custom(formatted_num, msg_to_send):
-                        success_count += 1
+                    if send_whatsapp_custom(formatted_num, msg_to_send): success_count += 1
                     time.sleep(1) 
                 st.success(f"✅ {success_count} കസ്റ്റമർമാർക്ക് മെസ്സേജ് അയച്ചു!")
 
-    # --- 7. STAFF SALARY ---
+    # --- 7. DAILY MARKET NEWS (പുതിയ ഫീച്ചർ) ---
+    elif page == "📰 Daily Market News":
+        st.title("📰 Daily Market & Business News")
+        st.write("ഇന്നത്തെ പ്രധാനപ്പെട്ട വാർത്തകളും മാർക്കറ്റ് വിവരങ്ങളും.")
+        
+        if st.button("🔄 വാർത്തകൾ കാണുക (Refresh)"):
+            with st.spinner("വാർത്തകൾ ശേഖരിക്കുന്നു..."):
+                raw_news = fetch_rss_news()
+                if "Error" in raw_news:
+                    st.error(raw_news)
+                else:
+                    st.info("📥 ഏറ്റവും പുതിയ വാർത്തകൾ ലഭിച്ചു. AI വിശകലനം ചെയ്യുന്നു...")
+                    try:
+                        client = Groq(api_key=GROQ_API_KEY)
+                        prompt = (
+                            "താഴെ തന്നിരിക്കുന്ന വാർത്തകൾ വായിച്ച്, ഒരു ബിസിനസ്സുകാരന് ഉപകാരപ്രദമായ രീതിയിൽ മലയാളത്തിൽ ചുരുക്കി എഴുതുക. "
+                            "സ്വർണ്ണവില, പെട്രോൾ വില, പ്രധാന ബിസിനസ്സ് വാർത്തകൾ എന്നിവ എടുത്തു പറയുക. "
+                            "വാർത്തകളില്ലാത്ത പക്ഷം സാധാരണ വിപണി നിലവാരം ഊഹിച്ച് പറയരുത്, ലഭ്യമായ വിവരങ്ങൾ മാത്രം നൽകുക.\n\n"
+                            f"News Headlines:\n{raw_news}"
+                        )
+                        summary = client.chat.completions.create(
+                            model=AGENT_MODEL, 
+                            messages=[{"role": "user", "content": prompt}], 
+                            max_tokens=800
+                        ).choices[0].message.content
+                        
+                        st.success("📊 **AI ന്യൂസ് സംഗ്രഹം:**")
+                        st.markdown(summary)
+                    except Exception as e:
+                        st.error(f"AI Error: {e}")
+
+    # --- 8. STAFF SALARY ---
     elif page == "👨‍💼 Staff Salary":
         st.title("👨‍💼 Staff Salary Management")
         show_flash()
@@ -448,7 +496,7 @@ else:
                 if execute_add_finance(shop, f"Salary: {emp_name}", sal_amt, "Debit") == "Success":
                     flash_success(f"✅ {emp_name}-ന്റെ ശമ്പളം നൽകി!"); st.rerun()
 
-    # --- 8. AI AGENT ---
+    # --- 9. AI AGENT ---
     elif page == "🤖 AI Agent":
         st.title("🤖 PAICHI Business AI")
         col1, col2 = st.columns([1, 4])
@@ -484,7 +532,7 @@ else:
                     st.session_state['audio_counter'] += 1; st.rerun()
                 except Exception as e: st.error(f"AI Error: {str(e)}")
 
-    # --- 9. CCTV AI VISION ---
+    # --- 10. CCTV AI VISION ---
     elif page == "🎥 CCTV AI Vision":
         st.title("🎥 CCTV AI Vision")
         uploaded_file = st.file_uploader("Upload Shop CCTV Photo or Video", type=["jpg", "jpeg", "png", "mp4"])
