@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import requests
@@ -9,12 +8,11 @@ from fpdf import FPDF
 import json
 import base64
 import os
-import cv2
+import cv2  # വീഡിയോ പ്രോസസ്സിംഗിനായി
 import tempfile
-import hashlib
 from groq import Groq
 
-# --- CONFIG (നിങ്ങളുടെ ലിങ്കുകൾ ഇവിടെ ചേർക്കുക) ---
+# --- CONFIG ---
 CSV_URL = "YOUR_FINANCE_SHEET_CSV_LINK"
 FORM_API = "YOUR_FINANCE_FORM_API"
 STOCK_CSV_URL = "YOUR_STOCK_SHEET_CSV_LINK"
@@ -28,13 +26,12 @@ except Exception:
     GROQ_API_KEY = ""
 
 VISION_MODEL = "qwen/qwen3.8-27b"
-AGENT_MODEL  = "openai/gpt-oss-120b"
-WHISPER_MODEL = "whisper-large-v3"
+AGENT_MODEL  = "llama-3.3-70b-versatile"
 
 # --- SAFE FORM SUBMIT ---
 def submit_form(api_url, payload):
     if not api_url or "YOUR_" in api_url:
-        return True  
+        return True
     try:
         r = requests.post(api_url, data=payload, timeout=10)
         return r.status_code == 200
@@ -63,10 +60,6 @@ if 'auth' not in st.session_state:
     st.session_state.auth, st.session_state.user = False, ""
 if "messages" not in st.session_state:
     st.session_state.messages = []
-if "audio_counter" not in st.session_state:
-    st.session_state.audio_counter = 0
-if "last_audio_hash" not in st.session_state:
-    st.session_state.last_audio_hash = None
 
 def flash_success(msg):
     st.session_state["_flash"] = msg
@@ -92,7 +85,13 @@ def load_finance_data():
         df['Credit'] = pd.to_numeric(df['Credit'], errors='coerce').fillna(0)
         return df
     except Exception:
-        return pd.DataFrame(columns=['Date', 'Shop Name', 'Item', 'Debit', 'Credit'])
+        return pd.DataFrame({
+            'Date': ['2026-11-01', '2026-11-02', '2026-11-03', '2026-11-04'],
+            'Shop Name': ['Shop 1', 'Shop 2', 'Shop 1', 'Shop 2'],
+            'Item': ['Sales', 'Sales', 'Salary: Rahim', 'Rent'],
+            'Debit': [0, 0, 2500, 5000],
+            'Credit': [4500, 6000, 0, 0]
+        })
 
 @st.cache_data(ttl=5)
 def load_stock_data():
@@ -102,9 +101,13 @@ def load_stock_data():
         df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce').fillna(0)
         return df
     except Exception:
-        return pd.DataFrame(columns=['Date', 'Item', 'Quantity', 'Type'])
+        return pd.DataFrame({
+            'Date': ['2026-11-01', '2026-11-02', '2026-11-03'],
+            'Item': ['Sugar', 'Sugar', 'Milk'],
+            'Quantity': [100, 20, 50],
+            'Type': ['Stock In', 'Stock Out', 'Stock In']
+        })
 
-# PDF Helper
 def _find_unicode_font():
     candidates = [
         "/usr/share/fonts/truetype/noto/NotoSansMalayalam-Regular.ttf",
@@ -149,9 +152,8 @@ def generate_pdf(df, title, columns):
         pdf.ln()
     return bytes(pdf.output())
 
-
 # ============================================
-# 🤖 AI AGENT TOOLS & GOOGLE FORM SUBMITS
+# 🤖 AI AGENT TOOLS & VISION
 # ============================================
 tools = [
     {
@@ -219,9 +221,11 @@ def extract_frames_from_video(video_bytes, num_frames=3):
         tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
         tfile.write(video_bytes)
         tfile.close()
+
         cap = cv2.VideoCapture(tfile.name)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frames = []
+        
         if total_frames > 0:
             step = max(1, total_frames // num_frames)
             for i in range(0, total_frames, step):
@@ -235,7 +239,7 @@ def extract_frames_from_video(video_bytes, num_frames=3):
         cap.release()
         os.unlink(tfile.name)
         return frames
-    except Exception:
+    except Exception as e:
         return []
 
 def analyze_images_with_groq(images_bytes_list):
@@ -244,14 +248,15 @@ def analyze_images_with_groq(images_bytes_list):
     try:
         client = Groq(api_key=GROQ_API_KEY)
         
-        prompt_text_en = (
-            "Analyze these shop CCTV frames. You are a smart business AI. "
+        prompt_text = (
+            "Analyze these shop CCTV frames (extracted from a video). You are a smart business AI. "
             "1. FOOTFALL: Count how many people are visible, where they are, and what they are doing. "
             "2. STOCK/ITEMS: Identify any visible products, items, or stock on shelves. "
             "3. REPORT: Provide a short business activity report covering both people and stock."
         )
 
-        content_list = [{"type": "text", "text": prompt_text_en}]
+        content_list = [{"type": "text", "text": prompt_text}]
+        
         for img_bytes in images_bytes_list:
             b64_img = base64.b64encode(img_bytes).decode('utf-8')
             content_list.append({
@@ -259,25 +264,12 @@ def analyze_images_with_groq(images_bytes_list):
                 "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}
             })
 
-        completion_vision = client.chat.completions.create(
+        completion = client.chat.completions.create(
             model=VISION_MODEL,
             messages=[{"role": "user", "content": content_list}],
             max_tokens=800
         )
-        english_report = completion_vision.choices[0].message.content
-
-        prompt_text_ml = (
-            "You are an expert translator. Translate the following business CCTV report into natural, easy-to-understand Malayalam. "
-            "Do NOT translate English brand names or product names. Keep the format clean and professional.\n\n"
-            f"English Report:\n{english_report}"
-        )
-
-        completion_translate = client.chat.completions.create(
-            model=AGENT_MODEL,
-            messages=[{"role": "user", "content": prompt_text_ml}],
-            max_tokens=800
-        )
-        return True, completion_translate.choices[0].message.content
+        return True, completion.choices[0].message.content
     except Exception as e:
         return False, f"Vision Analysis Error: {str(e)}"
 
@@ -288,51 +280,6 @@ def _parse_employee(item_str):
         return part.split('(')[0].strip() or "Unknown"
     except Exception:
         return "Unknown"
-
-# --- AI AGENT PROCESSING LOGIC ---
-def process_ai_agent(prompt_text):
-    client = Groq(api_key=GROQ_API_KEY)
-    system_instruction = (
-        f"നീ ഒരു ബിസിനസ്സ് മാനേജർ AI ആണ്. ബാലൻസ്: ₹{st.session_state.get('current_bal', 0):,.2f}. "
-        "ഫിനാൻസിന് add_finance-ഉം സ്റ്റോക്കിന് add_stock-ഉം ഉപയോഗിക്കുക. മലയാളത്തിൽ മറുപടി നൽകുക. "
-        "പ്രധാനം: ഉപയോക്താവ് വ്യക്തമായി ഒരു സാധനത്തിന്റെ പേരും അതിന്റെ എണ്ണവും (quantity) പറഞ്ഞാൽ മാത്രമേ add_stock ടൂൾ ഉപയോഗിക്കാവൂ."
-    )
-    
-    messages_for_api = [{"role": "system", "content": system_instruction}]
-    for m in st.session_state.messages[-4:]:
-        messages_for_api.append({"role": m["role"], "content": m["content"]})
-    
-    messages_for_api.append({"role": "user", "content": prompt_text})
-
-    response = client.chat.completions.create(
-        model=AGENT_MODEL, 
-        messages=messages_for_api, 
-        tools=tools, 
-        tool_choice="auto"
-    )
-    response_message = response.choices[0].message
-    tool_used = False
-
-    if response_message.tool_calls:
-        tool_used = True
-        replies = []
-        for tool_call in response_message.tool_calls:
-            try:
-                args = json.loads(tool_call.function.arguments)
-            except:
-                continue
-            if tool_call.function.name == "add_finance":
-                res = execute_add_finance(args["shop"], args["item"], args["amount"], args["type"])
-                replies.append(f"✅ {args['shop']}-ൽ '{args['item']}' എൻട്രി ഷീറ്റിൽ ഇട്ടു!" if res == "Success" else "❌ എൻട്രി ഇടാൻ പറ്റിയില്ല.")
-            elif tool_call.function.name == "add_stock":
-                res = execute_add_stock(args["item_name"], args["qty"], args["stock_type"])
-                replies.append(f"✅ {args['item_name']} സ്റ്റോക്ക് അപ്ഡേറ്റ് ചെയ്തു!" if res == "Success" else "❌ സ്റ്റോക്ക് അപ്ഡേറ്റ് പറ്റിയില്ല.")
-        ai_reply = "\n\n".join(replies)
-    else:
-        ai_reply = response_message.content or ""
-
-    return ai_reply, tool_used
-
 
 # --- 🔒 LOGIN ---
 if not st.session_state.auth:
@@ -350,7 +297,7 @@ if not st.session_state.auth:
 
 else:
     st.sidebar.title(f"👋 Welcome, {st.session_state.user.capitalize()}")
-    menu = ["📊 Dashboard", "💰 Add Finance", "📦 Stock Management", "🧾 Bill Scanner", "👨‍💼 Staff Salary", "🤖 AI Agent", "🎥 CCTV AI Vision"]
+    menu = ["📊 Dashboard", "💰 Add Finance", "📦 Stock Management", "👨‍💼 Staff Salary", "🤖 AI Agent", "🎥 CCTV AI Vision"]
     page = st.sidebar.radio("Menu", menu)
 
     if st.sidebar.button("Logout"):
@@ -360,11 +307,8 @@ else:
 
     df_fin = load_finance_data()
     df_stk = load_stock_data()
-    
-    t_in = df_fin['Credit'].sum() if not df_fin.empty else 0
-    t_out = df_fin['Debit'].sum() if not df_fin.empty else 0
+    t_in, t_out = df_fin['Credit'].sum(), df_fin['Debit'].sum()
     bal = t_in - t_out
-    st.session_state['current_bal'] = bal
 
     # --- 1. DASHBOARD ---
     if page == "📊 Dashboard":
@@ -375,8 +319,6 @@ else:
             fig = px.bar(shop_data, x='Shop Name', y=['Credit', 'Debit'], barmode='group', color_discrete_sequence=['#00FF00', '#FF3131'])
             st.plotly_chart(fig, use_container_width=True)
             st.dataframe(df_fin.tail(10).iloc[::-1], use_container_width=True)
-        else:
-            st.info("ഇതുവരെ ഒരു ഇടപാടും നടന്നിട്ടില്ല.")
 
     # --- 2. ADD FINANCE ---
     elif page == "💰 Add Finance":
@@ -393,7 +335,7 @@ else:
                     try:
                         am = float(clean)
                         if execute_add_finance(shop, it, am, "Debit" if "Debit" in ty else "Credit") == "Success":
-                            flash_success("Saved to Google Sheet! ✅")
+                            flash_success("Saved! ✅")
                             st.rerun()
                         else:
                             st.error("❌ Save failed.")
@@ -416,7 +358,7 @@ else:
                 final_stk['Available Stock'] = final_stk['In'] - final_stk['Out']
                 st.dataframe(final_stk[['Item', 'Available Stock']], use_container_width=True)
             else:
-                st.info("സ്റ്റോക്ക് വിവരങ്ങൾ ലഭ്യമല്ല.")
+                st.info("No stock data.")
         with tab2:
             with st.form("stock_form", clear_on_submit=True):
                 item_name  = st.text_input("Item Name")
@@ -424,7 +366,7 @@ else:
                 stock_type = st.radio("Type", ["Stock In", "Stock Out"], horizontal=True)
                 if st.form_submit_button("SAVE STOCK"):
                     if execute_add_stock(item_name, qty, stock_type) == "Success":
-                        flash_success("Stock Updated in Google Sheet! ✅")
+                        flash_success("Stock Updated! ✅")
                         st.rerun()
         with tab3:
             if not df_stk.empty:
@@ -434,62 +376,7 @@ else:
                 pdf_b = generate_pdf(item_history, f"Stock History: {selected_item}", ['Date', 'Type', 'Quantity'])
                 st.download_button(f"📥 Download {selected_item} PDF", pdf_b, f"{selected_item}_Stock.pdf", "application/pdf")
 
-    # --- 4. BILL SCANNER ---
-    elif page == "🧾 Bill Scanner":
-        st.title("🧾 Bill / Stock Photo Scanner")
-        st.write("ബില്ലിന്റെയോ സാധനങ്ങളുടെയോ ഫോട്ടോ എടുത്ത് അപ്‌ലോഡ് ചെയ്യുക. AI അതിലെ സാധനങ്ങളും വിലയും വായിച്ച് തനിയെ ഷീറ്റിൽ എൻട്രി ഇടും.")
-        
-        if not GROQ_API_KEY:
-            st.error("Groq API Key ലഭ്യമല്ല!")
-            
-        bill_file = st.file_uploader("Upload Bill Photo", type=["jpg", "jpeg", "png"])
-        
-        if bill_file is not None:
-            st.image(bill_file, caption="Uploaded Bill", use_container_width=True)
-            shop_select = st.selectbox("ഏത് കടയുടെ ബില്ലാണ്? (Select Shop)", ["Shop 1", "Shop 2"])
-            
-            if st.button("🔍 വായിച്ച് എൻട്രി ഇടുക (Extract & Add)"):
-                with st.spinner("AI ബിൽ വായിക്കുന്നു..."):
-                    try:
-                        client = Groq(api_key=GROQ_API_KEY)
-                        b64_img = base64.b64encode(bill_file.getvalue()).decode('utf-8')
-                        
-                        prompt = (
-                            "Analyze this bill or stock image. Extract the item name, quantity, and total price. "
-                            "Return ONLY a valid JSON array. Do not add any markdown or text outside the JSON. "
-                            "Format: [{\"item\": \"Sugar 1kg\", \"qty\": 5, \"price\": 250}]"
-                        )
-                        
-                        response = client.chat.completions.create(
-                            model=VISION_MODEL,
-                            messages=[{
-                                "role": "user",
-                                "content": [
-                                    {"type": "text", "text": prompt},
-                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}}
-                                ]
-                            }],
-                            max_tokens=1000
-                        )
-                        
-                        result_text = response.choices[0].message.content.strip()
-                        if result_text.startswith("```json"):
-                            result_text = result_text[7:-3]
-                            
-                        items_data = json.loads(result_text)
-                        st.success(f"✅ {len(items_data)} സാധനങ്ങൾ കണ്ടെത്തി. ഷീറ്റിലേക്ക് അയക്കുന്നു...")
-                        
-                        for item in items_data:
-                            execute_add_stock(item['item'], item['qty'], "Stock In")
-                            execute_add_finance(shop_select, f"Purchase: {item['item']}", item['price'], "Debit")
-                        
-                        st.balloons()
-                        st.success("🎉 എല്ലാം വിജയകരമായി ഷീറ്റിൽ എൻട്രി ഇട്ടു!")
-                        
-                    except Exception as e:
-                        st.error(f"❌ വായിക്കാൻ സാധിച്ചില്ല. ദയവായി വ്യക്തമായ ഫോട്ടോ നൽകുക. (Error: {e})")
-
-    # --- 5. STAFF SALARY ---
+    # --- 4. STAFF SALARY ---
     elif page == "👨‍💼 Staff Salary":
         st.title("👨‍💼 Staff Salary Management")
         show_flash()
@@ -514,83 +401,56 @@ else:
                 pdf_b = generate_pdf(emp_history, f"Salary Report: {selected_emp}", ['Date', 'Shop Name', 'Debit'])
                 st.download_button(f"📥 Download {selected_emp}'s Salary PDF", pdf_b, f"{selected_emp}_Salary.pdf", "application/pdf")
 
-    # --- 6. AI AGENT (WHATSAPP STYLE) ---
+    # --- 5. AI AGENT ---
     elif page == "🤖 AI Agent":
-        st.title("🤖 PAICHI Business AI")
-        st.write("വാട്ട്‌സ്ആപ്പ് പോലെ സംസാരിക്കാം. (ശബ്ദം കേട്ട് കഴിഞ്ഞാൽ മൈക്ക് ഓട്ടോമാറ്റിക് ആയി റീസെറ്റ് ആകും)")
-
+        st.title("🤖 PAICHI Business AI Agent")
         if not GROQ_API_KEY:
             st.error("Groq API Key ലഭ്യമല്ല!")
-
-        col1, col2 = st.columns([1, 4])
-        with col1:
-            if st.button("🗑️ Clear Chat"):
-                st.session_state.messages = []
-                st.session_state['audio_counter'] += 1
-                st.session_state['last_audio_hash'] = None
-                st.rerun()
-
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
 
-        current_audio_key = f"audio_input_{st.session_state['audio_counter']}"
-
-        st.write("---")
-        audio_value = st.audio_input("🎤 റെക്കോർഡ് ചെയ്യാൻ ഇവിടെ അമർത്തുക", key=current_audio_key)
-        text_prompt = st.chat_input("ഇവിടെ ടൈപ്പ് ചെയ്യാം...")
-
-        prompt = None
-
-        if audio_value:
-            audio_hash = hashlib.md5(audio_value.getvalue()).hexdigest()
-            
-            if st.session_state.get("last_audio_hash") != audio_hash:
-                st.session_state["last_audio_hash"] = audio_hash
-                
-                with st.spinner("ശബ്ദം കേൾക്കുന്നു..."):
-                    try:
-                        client = Groq(api_key=GROQ_API_KEY)
-                        transcription = client.audio.transcriptions.create(
-                            file=(audio_value.name, audio_value.getvalue()),
-                            model=WHISPER_MODEL,
-                            response_format="text",
-                            prompt="Shop 1, Shop 2, Sales, Expense, Salary, Stock, Rupees, Aayi, Undayi, Sugar, Tea, Milk."
-                        )
-                        prompt = transcription.strip()
-                        
-                        if prompt and any(u'\u4e00' <= c <= u'\u9fff' for c in prompt):
-                            st.warning("⚠️ ശബ്ദം വ്യക്തമല്ല. ദയവായി വീണ്ടും സംസാരിക്കുക.")
-                            prompt = None
-                            st.session_state['audio_counter'] += 1 
-                            st.rerun()
-                    except Exception as e:
-                        st.error(f"Audio Error: {str(e)}")
-
-        if text_prompt:
-            prompt = text_prompt
-
-        if prompt:
+        if prompt := st.chat_input("Ask me to add finance, stock, or check balance..."):
             st.session_state.messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
-
-            with st.spinner("AI ടൈപ്പ് ചെയ്യുന്നു..."):
+            with st.spinner("AI ആലോചിക്കുന്നു..."):
                 try:
-                    ai_reply, tool_used = process_ai_agent(prompt)
-                    
+                    client = Groq(api_key=GROQ_API_KEY)
+                    system_instruction = f"നീ ഒരു ബിസിനസ്സ് മാനേജർ AI ആണ്. ബാലൻസ്: ₹{bal:,.2f}. ഫിനാൻസിന് add_finance-ഉം സ്റ്റോക്കിന് add_stock-ഉം ഉപയോഗിക്കുക. മലയാളത്തിൽ മറുപടി നൽകുക."
+                    messages_for_api = [{"role": "system", "content": system_instruction}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-5:]]
+
+                    response = client.chat.completions.create(model=AGENT_MODEL, messages=messages_for_api, tools=tools, tool_choice="auto")
+                    response_message = response.choices[0].message
+                    tool_used = False
+
+                    if response_message.tool_calls:
+                        tool_used = True
+                        replies = []
+                        for tool_call in response_message.tool_calls:
+                            try:
+                                args = json.loads(tool_call.function.arguments)
+                            except:
+                                continue
+                            if tool_call.function.name == "add_finance":
+                                res = execute_add_finance(args["shop"], args["item"], args["amount"], args["type"])
+                                replies.append(f"✅ {args['shop']}-ൽ '{args['item']}' എൻട്രി ഇട്ടു!" if res == "Success" else "❌ എൻട്രി ഇടാൻ പറ്റിയില്ല.")
+                            elif tool_call.function.name == "add_stock":
+                                res = execute_add_stock(args["item_name"], args["qty"], args["stock_type"])
+                                replies.append(f"✅ {args['item_name']} അപ്ഡേറ്റ് ചെയ്തു!" if res == "Success" else "❌ സ്റ്റോക്ക് അപ്ഡേറ്റ് പറ്റിയില്ല.")
+                        ai_reply = "\n\n".join(replies)
+                    else:
+                        ai_reply = response_message.content or ""
+
                     st.session_state.messages.append({"role": "assistant", "content": ai_reply})
                     with st.chat_message("assistant"):
                         st.markdown(ai_reply)
-                        
-                    # മൈക്ക് റീസെറ്റ് ചെയ്യാൻ കൗണ്ടർ കൂട്ടുന്നു
-                    st.session_state['audio_counter'] += 1
-                    
-                    st.rerun()
+                    if tool_used:
+                        st.rerun()
                 except Exception as e:
                     st.error(f"AI Error: {str(e)}")
 
-    # --- 7. CCTV AI VISION ---
+    # --- 6. CCTV AI VISION (ഇവിടെയാണ് വീഡിയോ ഫീച്ചർ ചേർത്തത്) ---
     elif page == "🎥 CCTV AI Vision":
         st.title("🎥 CCTV AI Vision & Footfall Monitor")
         st.write("കടയിലെ ഫോട്ടോയോ വീഡിയോയോ അപ്‌ലോഡ് ചെയ്ത് ഫൂട്ട്ഫാളും സ്റ്റോക്കും വിശകലനം ചെയ്യാം.")
@@ -603,10 +463,12 @@ else:
         if uploaded_file is not None:
             file_type = uploaded_file.type
             
+            # ഫോട്ടോ ആണെങ്കിൽ
             if "image" in file_type:
                 st.image(uploaded_file, caption="Uploaded Snapshot", use_container_width=True)
                 images_to_analyze = [uploaded_file.getvalue()]
             
+            # വീഡിയോ ആണെങ്കിൽ
             elif "video" in file_type:
                 st.video(uploaded_file)
                 with st.spinner("വീഡിയോയിൽ നിന്ന് ഫ്രെയിമുകൾ എടുക്കുന്നു..."):
