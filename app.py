@@ -19,11 +19,17 @@ from PIL import Image
 import io
 from twilio.rest import Client
 
-# --- TWILIO CONFIG (ഇവിടെ നിങ്ങളുടെ വിവരങ്ങൾ മാറ്റുക) ---
-TWILIO_SID = "YOUR_TWILIO_ACCOUNT_SID"
-TWILIO_AUTH_TOKEN = "YOUR_TWILIO_AUTH_TOKEN"
-TWILIO_FROM = "whatsapp:+14155238886"  # Twilio Sandbox Number (ഇത് മാറ്റേണ്ടതില്ല)
-TWILIO_TO = "whatsapp:+971551347989"   # നിങ്ങളുടെ വാട്ട്‌സ്ആപ്പ് നമ്പർ
+# --- TWILIO CONFIG (Secrets-ൽ നിന്ന് എടുക്കുന്നു) ---
+try:
+    TWILIO_SID = st.secrets["TWILIO_SID"]
+    TWILIO_AUTH_TOKEN = st.secrets["TWILIO_AUTH_TOKEN"]
+    TWILIO_FROM = st.secrets.get("TWILIO_FROM", "whatsapp:+14155238886")
+    TWILIO_TO = st.secrets.get("TWILIO_TO", "whatsapp:+971551347989")
+except Exception:
+    TWILIO_SID = ""
+    TWILIO_AUTH_TOKEN = ""
+    TWILIO_FROM = "whatsapp:+14155238886"
+    TWILIO_TO = "whatsapp:+971551347989"
 
 # --- APP CONFIG ---
 CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRccfZch3jSdHqrScpqsR_j3FSd70NbELC1j6_nPi-MQXdrhVr3BPcKoI1nub4mQql727pQRPWYk9C-/pub?gid=1583146028&single=true&output=csv"
@@ -73,6 +79,10 @@ if "order_counter" not in st.session_state: st.session_state.order_counter = 0
 # --- HELPER FUNCTIONS ---
 def send_whatsapp_auto(msg):
     """Twilio വഴി വാട്ട്‌സ്ആപ്പ് മെസ്സേജ് അയക്കാൻ (Background Thread)"""
+    if not TWILIO_SID or not TWILIO_AUTH_TOKEN:
+        print("Twilio Secrets Missing!")
+        return
+    
     def _send():
         try:
             client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
