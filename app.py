@@ -576,4 +576,3 @@ else:
                     st.subheader("📊 AI Analysis Report")
                     if ok: st.success(analysis_result)
                     else: st.error(analysis_result)
-```
