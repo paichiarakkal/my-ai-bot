@@ -109,6 +109,8 @@ st.markdown("""
     [data-testid="stChatMessage"] { 
         background-color: #111827 !important; border-radius: 16px !important; padding: 15px !important; border: 1px solid #374151 !important; 
     }
+    [data-testid="stChatInput"] { background-color: #0b1120 !important; }
+    [data-testid="stChatInput"] > div { background-color: #1e293b !important; border: 1px solid #38bdf8 !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -192,10 +194,10 @@ def load_stock_data():
         return pd.DataFrame(columns=['Date', 'Item', 'Quantity', 'Type'])
 
 # ============================================
-# 🤖 AI AGENT TOOLS & FUNCTIONS (CONFIRMATION MODE)
+# 🤖 AI AGENT TOOLS & FUNCTIONS
 # ============================================
 tools = [
-    {"type": "function", "function": {"name": "add_finance", "description": "Add finance", "parameters": {"type": "object", "properties": {"shop": {"type": "string", "enum": ["Shop 1", "Shop 2"]}, "item": {"type": "string"}, "amount": {"type": "number"}, "type": {"type": "string", "enum": ["Debit", "Credit"]}}, "required": ["shop", "item", "amount", "type"]}}},
+    {"type": "function", "function": {"name": "add_finance", "description": "Add finance entry only AFTER user confirms with Yes.", "parameters": {"type": "object", "properties": {"shop": {"type": "string", "enum": ["Shop 1", "Shop 2"]}, "item": {"type": "string"}, "amount": {"type": "number"}, "type": {"type": "string", "enum": ["Debit", "Credit"]}}, "required": ["shop", "item", "amount", "type"]}}},
     {"type": "function", "function": {"name": "add_stock", "description": "Add stock items only AFTER user confirms with Yes.", "parameters": {"type": "object", "properties": {"item_name": {"type": "string"}, "qty": {"type": "number"}, "stock_type": {"type": "string", "enum": ["Stock In", "Stock Out"]}}, "required": ["item_name", "qty", "stock_type"]}}},
     {"type": "function", "function": {"name": "check_gmail", "description": "Read emails", "parameters": {"type": "object", "properties": {"count": {"type": "number"}}, "required": ["count"]}}}
 ]
@@ -292,16 +294,16 @@ def analyze_images_with_groq(images_bytes_list, is_video=False):
 def process_ai_agent(prompt_text):
     client = Groq(api_key=GROQ_API_KEY)
     
-    # 👇 ഇവിടെയാണ് പ്രധാന മാറ്റം: കൺഫർമേഷൻ ചോദിക്കാൻ AI-ക്ക് നിർദ്ദേശം നൽകിയിരിക്കുന്നു
     system_instruction = (
         f"നീ ഒരു ബിസിനസ്സ് AI ആണ്. ബാലൻസ്: ₹{st.session_state.get('current_bal', 0):,.2f}. "
-        "ഉപയോക്താവ് വല്ല സാധനവും അളവും പറഞ്ഞാൽ (ഉദാഹരണത്തിന്: 'Sugar 5 kg'), ഒരിക്കലും ഉടൻ തന്നെ ടൂൾ കോൾ ചെയ്യരുത്. "
-        "പകരം, 'ഈ ഐറ്റവും അളവും ഷീറ്റിലേക്ക് ചേർക്കട്ടെയോ? (Yes / No)' എന്ന് ചോദിച്ചു അനുവാദം ചോദിക്കുക. "
-        "ഉപയോക്താവ് 'Yes' എന്ന് മറുപടി നൽകിയാൽ മാത്രം (അല്ലെങ്കിൽ മുമ്പത്തെ ചാറ്റിൽ ചോദിച്ചതിന് 'Yes' പറഞ്ഞാൽ മാത്രം) `add_stock` ടൂൾ ഉപയോഗിച്ച് സ്റ്റോക്കിലേക്ക് ചേർക്കുക. "
+        "ഉപയോക്താവ് വല്ല സാധനവും അളവും പറഞ്ഞാൽ (ഉദാഹരണത്തിന്: 'Sugar 5 kg') അല്ലെങ്കിൽ വരവ്/ചെലവ് കണക്ക് പറഞ്ഞാൽ, "
+        "ഒരിക്കലും ഉടൻ തന്നെ ടൂൾ കോൾ ചെയ്യരുത്. "
+        "പകരം, 'ഈ വിവരങ്ങൾ ഷീറ്റിലേക്ക് ചേർക്കട്ടെയോ? താഴെ കാണുന്ന YES അല്ലെങ്കിൽ NO ബട്ടൺ അമർത്തുക.' എന്ന് ചോദിച്ചു അനുവാദം ചോദിക്കുക. "
+        "ഉപയോക്താവ് 'Yes' എന്ന് മറുപടി നൽകിയാൽ മാത്രം (മുമ്പത്തെ ചാറ്റിൽ പറഞ്ഞ വിവരങ്ങൾ എടുത്ത്) `add_stock` അല്ലെങ്കിൽ `add_finance` ടൂൾ ഉപയോഗിച്ച് ഷീറ്റിലേക്ക് ചേർക്കുക. "
         "മലയാളത്തിൽ മറുപടി നൽകുക."
     )
     
-    messages = [{"role": "system", "content": system_instruction}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-4:]] + [{"role": "user", "content": prompt_text}]
+    messages = [{"role": "system", "content": system_instruction}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-6:]] + [{"role": "user", "content": prompt_text}]
     
     response = client.chat.completions.create(model=AGENT_MODEL, messages=messages, tools=tools, tool_choice="auto")
     msg = response.choices[0].message
@@ -316,7 +318,7 @@ def process_ai_agent(prompt_text):
             
             if tc.function.name == "add_finance":
                 res = execute_add_finance(args["shop"], args["item"], args["amount"], args["type"])
-                replies.append(f"✅ {args['shop']}-ൽ '{args['item']}' എൻട്രി ഇട്ടു!" if res == "Success" else "❌ എൻട്രി പറ്റിയില്ല.")
+                replies.append(f"✅ {args['shop']}-ൽ '{args['item']}' (₹{args['amount']}) എൻട്രി ഇട്ടു!" if res == "Success" else "❌ എൻട്രി പറ്റിയില്ല.")
             elif tc.function.name == "add_stock":
                 res = execute_add_stock(args["item_name"], args["qty"], args.get("stock_type", "Stock In"))
                 replies.append(f"✅ {args['item_name']} ({args['qty']} qty) സ്റ്റോക്കിലേക്ക് വിജയകരമായി ചേർത്തു!" if res == "Success" else "❌ സ്റ്റോക്ക് അപ്ഡേറ്റ് പരാജയപ്പെട്ടു.")
@@ -502,15 +504,35 @@ else:
                 if execute_add_finance(shop, f"Salary: {emp_name}", sal_amt, "Debit") == "Success":
                     flash_success(f"✅ {emp_name}-ന്റെ ശമ്പളം നൽകി!"); st.rerun()
 
-    # --- 9. AI AGENT ---
+    # --- 9. AI AGENT (WITH YES / NO BUTTONS) ---
     elif page == "🤖 AI Agent":
         st.title("🤖 PAICHI Business AI")
-        st.info("💡 ടിപ്പ്: 'Sugar 5 kg' എന്ന് പറഞ്ഞാൽ AI ആദ്യം കൺഫർമേഷൻ ചോദിക്കും. നിങ്ങൾ 'Yes' എന്ന് മറുപടി നൽകിയാൽ മാത്രമേ ഷീറ്റിൽ അപ്ഡേറ്റ് ആവുകയുള്ളൂ!")
+        st.info("💡 ടിപ്പ്: 'Sugar 5 kg' എന്ന് പറഞ്ഞാൽ AI ചോദിക്കും. തുടർന്ന് താഴെ കാണുന്ന YES / NO ബട്ടൺ അമർത്തിയാൽ മതി!")
         
-        if st.button("🗑️ Clear Chat"): st.session_state.messages = []; st.session_state['audio_counter'] += 1; st.rerun()
+        if st.button("🗑️ Clear Chat"): 
+            st.session_state.messages = []
+            st.session_state['audio_counter'] += 1
+            st.rerun()
         
         for message in st.session_state.messages:
-            with st.chat_message(message["role"]): st.markdown(message["content"])
+            with st.chat_message(message["role"]): 
+                st.markdown(message["content"])
+
+        # --- YES / NO QUICK ACTION BUTTONS ---
+        if st.session_state.messages and st.session_state.messages[-1]["role"] == "assistant":
+            col_y, col_n = st.columns(2)
+            with col_y:
+                if st.button("✅ YES (ചേർക്കുക)", use_container_width=True):
+                    st.session_state.messages.append({"role": "user", "content": "Yes"})
+                    with st.spinner("ഷീറ്റിലേക്ക് ചേർക്കുന്നു..."):
+                        ai_reply, _ = process_ai_agent("Yes")
+                        st.session_state.messages.append({"role": "assistant", "content": ai_reply})
+                    st.rerun()
+            with col_n:
+                if st.button("❌ NO (വേണ്ട)", use_container_width=True):
+                    st.session_state.messages.append({"role": "user", "content": "No"})
+                    st.session_state.messages.append({"role": "assistant", "content": "❌ ശരി, ഇത് ഒഴിവാക്കിയിരിക്കുന്നു. മറ്റെന്തെങ്കിലും സഹായം ആവശ്യമുണ്ടോ?"})
+                    st.rerun()
             
         audio_value = st.audio_input("🎤 റെക്കോർഡ് ചെയ്യാൻ അമർത്തുക", key=f"audio_{st.session_state['audio_counter']}")
         text_prompt = st.chat_input("ഇവിടെ ടൈപ്പ് ചെയ്യാം (ഉദാ: Sugar 5 kg)...")
@@ -523,9 +545,11 @@ else:
             
         if prompt:
             st.session_state.messages.append({"role": "user", "content": prompt})
-            ai_reply, _ = process_ai_agent(prompt)
-            st.session_state.messages.append({"role": "assistant", "content": ai_reply})
-            st.session_state['audio_counter'] += 1; st.rerun()
+            with st.spinner("AI ആലോചിക്കുന്നു..."):
+                ai_reply, _ = process_ai_agent(prompt)
+                st.session_state.messages.append({"role": "assistant", "content": ai_reply})
+            st.session_state['audio_counter'] += 1
+            st.rerun()
 
     # --- 10. CCTV AI VISION ---
     elif page == "🎥 CCTV AI Vision":
