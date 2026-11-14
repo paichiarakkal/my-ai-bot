@@ -71,20 +71,86 @@ def send_whatsapp_custom(to_number, msg):
     except Exception as e:
         return False
 
-# --- STREAMLIT UI SETUP ---
-st.set_page_config(page_title="PAICHI BUSINESS", layout="wide")
+# --- 3D STREAMLIT UI SETUP ---
+st.set_page_config(page_title="PAICHI BUSINESS 3D", layout="wide")
 
 st.markdown("""
     <style>
-    .stApp { background: #f4f6f9; color: #000000; }
-    [data-testid="stSidebar"] { background: #e0e0e0 !important; }
-    .stButton>button { background-color: #007BFF; color: #ffffff; border-radius: 10px; font-weight: bold; }
-    .stDownloadButton>button { background-color: #28a745; color: #ffffff; border-radius: 10px; font-weight: bold; }
-    .banner { background: #ffffff; padding: 25px; border-radius: 15px; border-left: 10px solid #007BFF; text-align: center; margin-bottom: 25px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-    h1, h2, h3, p, label, span { color: #000000 !important; font-weight: bold !important; }
-    [data-testid="stChatMessage"] { background-color: #ffffff !important; border-radius: 10px; padding: 15px; border: 1px solid #ccc; color: #000; }
-    .banner .b-label { color: #007BFF !important; font-size: 20px; }
-    .banner .b-value { color: #000000 !important; font-size: 40px; }
+    /* 3D Background & General Theme */
+    .stApp { 
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); 
+        color: #1a1a1a; 
+    }
+    
+    /* 3D Sidebar */
+    [data-testid="stSidebar"] { 
+        background: linear-gradient(180deg, #e4e9f2 0%, #cbd5e1 100%) !important; 
+        box-shadow: 5px 0px 15px rgba(0,0,0,0.1);
+    }
+
+    /* 3D Buttons */
+    .stButton>button { 
+        background: linear-gradient(145deg, #007BFF, #0056b3);
+        color: #ffffff !important; 
+        border-radius: 12px; 
+        font-weight: bold; 
+        border: none;
+        box-shadow: 0 6px 12px rgba(0, 123, 255, 0.3), inset 0 2px 3px rgba(255,255,255,0.4);
+        transition: all 0.2s ease-in-out;
+    }
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 16px rgba(0, 123, 255, 0.4), inset 0 2px 3px rgba(255,255,255,0.6);
+    }
+    .stButton>button:active {
+        transform: translateY(2px);
+        box-shadow: 0 2px 6px rgba(0, 123, 255, 0.4);
+    }
+
+    /* 3D Download Buttons */
+    .stDownloadButton>button { 
+        background: linear-gradient(145deg, #28a745, #1e7e34);
+        color: #ffffff !important; 
+        border-radius: 12px; 
+        font-weight: bold; 
+        border: none;
+        box-shadow: 0 6px 12px rgba(40, 167, 69, 0.3), inset 0 2px 3px rgba(255,255,255,0.4);
+    }
+
+    /* 3D Banner Card */
+    .banner { 
+        background: linear-gradient(145deg, #ffffff, #e6ecf5); 
+        padding: 30px; 
+        border-radius: 20px; 
+        border-left: 12px solid #007BFF; 
+        text-align: center; 
+        margin-bottom: 25px; 
+        box-shadow: 10px 10px 20px rgba(0,0,0,0.08), -10px -10px 20px rgba(255,255,255,0.8);
+    }
+    .banner .b-label { color: #0056b3 !important; font-size: 22px; font-weight: 800; }
+    .banner .b-value { color: #1a1a1a !important; font-size: 45px; font-weight: 900; text-shadow: 2px 2px 4px rgba(0,0,0,0.1); }
+
+    /* Typography 3D effect */
+    h1, h2, h3, p, label, span { 
+        color: #1a1a1a !important; 
+        font-weight: bold !important; 
+    }
+
+    /* 3D Chat Messages */
+    [data-testid="stChatMessage"] { 
+        background: linear-gradient(145deg, #ffffff, #f0f4f8) !important; 
+        border-radius: 15px; 
+        padding: 15px; 
+        border: 1px solid #d1d9e6; 
+        box-shadow: 5px 5px 15px rgba(0,0,0,0.05);
+        color: #1a1a1a; 
+    }
+    
+    /* Input fields 3D styling */
+    input, textarea, select {
+        border-radius: 10px !important;
+        box-shadow: inset 2px 2px 5px rgba(0,0,0,0.05);
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -263,7 +329,7 @@ def extract_frames_from_video(video_bytes, num_frames=3):
     except: return []
 
 # ============================================
-# 🎥 പുതിയ വിഷൻ ഫങ്ക്ഷൻ (വീഡിയോ vs ഫോട്ടോ)
+# 🎥 വിഷൻ ഫങ്ക്ഷൻ (വീഡിയോ vs ഫോട്ടോ)
 # ============================================
 def analyze_images_with_groq(images_bytes_list, is_video=False):
     if not GROQ_API_KEY: 
@@ -303,12 +369,6 @@ def analyze_images_with_groq(images_bytes_list, is_video=False):
     except Exception as e: 
         return False, f"Vision Error: {str(e)}"
 
-def _parse_employee(item_str):
-    try:
-        if ':' not in item_str: return "Unknown"
-        return item_str.split(':', 1)[1].split('(')[0].strip() or "Unknown"
-    except: return "Unknown"
-
 def process_ai_agent(prompt_text):
     client = Groq(api_key=GROQ_API_KEY)
     system_instruction = f"നീ ഒരു ബിസിനസ്സ് AI ആണ്. ബാലൻസ്: ₹{st.session_state.get('current_bal', 0):,.2f}. മലയാളത്തിൽ മറുപടി നൽകുക."
@@ -345,10 +405,11 @@ def process_ai_agent(prompt_text):
 if not st.session_state.auth:
     _, mid, _ = st.columns([1, 2, 1])
     with mid:
-        st.subheader("🔐 PAICHI BUSINESS LOGIN")
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.markdown('<div class="banner"><h2>🔐 PAICHI BUSINESS 3D LOGIN</h2></div>', unsafe_allow_html=True)
         u = st.selectbox("👤 Select Role", ["admin", "shop1"]).lower()
         pin = st.text_input("🔑 Enter PIN", type="password", max_chars=4)
-        if st.button("LOGIN"):
+        if st.button("LOGIN", use_container_width=True):
             if USER_PINS.get(u) == pin:
                 st.session_state.auth, st.session_state.user = True, u; st.rerun()
             else: st.error("❌ Incorrect PIN!")
@@ -359,7 +420,7 @@ else:
     menu = ["📊 Dashboard", "💰 Add Finance", "📦 Stock Management", "🧾 Bill Scanner", "📧 Email Replier", "📢 WhatsApp Marketing", "📰 Daily Market News", "👨‍💼 Staff Salary", "🤖 AI Agent", "🎥 CCTV AI Vision"]
     page = st.sidebar.radio("Menu", menu)
 
-    if st.sidebar.button("Logout"):
+    if st.sidebar.button("Logout", use_container_width=True):
         st.session_state.auth = False; st.session_state.messages = []; st.rerun()
 
     df_fin = load_finance_data()
@@ -372,7 +433,9 @@ else:
         st.markdown(f'<div class="banner"><span class="b-label">Total Business Balance</span><br><span class="b-value">₹{bal:,.2f}</span></div>', unsafe_allow_html=True)
         if not df_fin.empty:
             shop_data = df_fin.groupby('Shop Name')[['Credit', 'Debit']].sum().reset_index()
-            st.plotly_chart(px.bar(shop_data, x='Shop Name', y=['Credit', 'Debit'], barmode='group', color_discrete_sequence=['#00FF00', '#FF3131']), use_container_width=True)
+            fig = px.bar(shop_data, x='Shop Name', y=['Credit', 'Debit'], barmode='group', color_discrete_sequence=['#00C853', '#FF3D00'])
+            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig, use_container_width=True)
             st.dataframe(df_fin.tail(10).iloc[::-1], use_container_width=True)
 
     # --- 2. ADD FINANCE ---
@@ -383,7 +446,7 @@ else:
             shop = st.selectbox("Select Shop", ["Shop 1", "Shop 2"])
             it = st.text_input("Description"); am_str = st.text_input("Amount")
             ty = st.radio("Type", ["Debit (Expense)", "Credit (Sales)"], horizontal=True)
-            if st.form_submit_button("SAVE ENTRY"):
+            if st.form_submit_button("SAVE ENTRY", use_container_width=True):
                 try:
                     am = float(am_str.strip().replace(',', ''))
                     if execute_add_finance(shop, it, am, "Debit" if "Debit" in ty else "Credit") == "Success":
@@ -407,7 +470,7 @@ else:
             with st.form("stock_form", clear_on_submit=True):
                 item_name  = st.text_input("Item Name"); qty = st.number_input("Quantity", min_value=1.0)
                 stock_type = st.radio("Type", ["Stock In", "Stock Out"], horizontal=True)
-                if st.form_submit_button("SAVE STOCK"):
+                if st.form_submit_button("SAVE STOCK", use_container_width=True):
                     if execute_add_stock(item_name, qty, stock_type) == "Success":
                         flash_success("Stock Updated! ✅"); st.rerun()
 
@@ -417,7 +480,7 @@ else:
         bill_file = st.file_uploader("Upload Bill Photo", type=["jpg", "jpeg", "png"])
         if bill_file is not None:
             st.image(bill_file, caption="Uploaded Bill", use_container_width=True)
-            if st.button("🔍 Extract & Add"):
+            if st.button("🔍 Extract & Add", use_container_width=True):
                 with st.spinner("AI ബിൽ വായിക്കുന്നു..."):
                     try:
                         client = Groq(api_key=GROQ_API_KEY)
@@ -436,7 +499,7 @@ else:
     # --- 5. EMAIL REPLIER ---
     elif page == "📧 Email Replier":
         st.title("📧 Smart Email Replier")
-        if st.button("🔄 പുതിയ മെയിലുകൾ ചെക്ക് ചെയ്യുക"):
+        if st.button("🔄 പുതിയ മെയിലുകൾ ചെക്ക് ചെയ്യുക", use_container_width=True):
             with st.spinner("AI മെയിലുകൾ വായിക്കുന്നു..."):
                 raw_emails = check_gmail_emails(1)
                 if "Error" in raw_emails or "ഇല്ല" in raw_emails: st.warning(raw_emails)
@@ -455,7 +518,7 @@ else:
 
         st.subheader("1. മെസ്സേജ് തയ്യാറാക്കുക")
         ai_prompt = st.text_input("AI-യോട് മെസ്സേജ് എഴുതാൻ പറയാം (ഉദാ: 'ഓണം ഓഫർ 10%')")
-        if st.button("🤖 AI മെസ്സേജ് ഉണ്ടാക്കുക") and ai_prompt:
+        if st.button("🤖 AI മെസ്സേജ് ഉണ്ടാക്കുക", use_container_width=True) and ai_prompt:
             with st.spinner("AI മെസ്സേജ് തയ്യാറാക്കുന്നു..."):
                 try:
                     client = Groq(api_key=GROQ_API_KEY)
@@ -469,7 +532,7 @@ else:
         numbers_input = st.text_area("ഫോൺ നമ്പറുകൾ (കോമ ഉപയോഗിച്ച് വേർതിരിക്കുക)", placeholder="+971501234567, +919876543210")
         numbers_list = [num.strip() for num in numbers_input.split(",") if num.strip()]
 
-        if st.button("🚀 മെസ്സേജ് അയക്കുക"):
+        if st.button("🚀 മെസ്സേജ് അയക്കുക", use_container_width=True):
             if not msg_to_send: st.error("ദയവായി മെസ്സേജ് നൽകുക.")
             elif not numbers_list: st.error("ദയവായി ഒരു നമ്പറെങ്കിലും നൽകുക.")
             elif not TWILIO_SID: st.error("Twilio Config ലഭ്യമല്ല.")
@@ -486,7 +549,7 @@ else:
         st.title("📰 Daily Market & Business News")
         st.write("ഇന്നത്തെ പ്രധാനപ്പെട്ട വാർത്തകളും മാർക്കറ്റ് വിവരങ്ങളും.")
         
-        if st.button("🔄 വാർത്തകൾ കാണുക (Refresh)"):
+        if st.button("🔄 വാർത്തകൾ കാണുക (Refresh)", use_container_width=True):
             with st.spinner("വാർത്തകൾ ശേഖരിക്കുന്നു..."):
                 raw_news = fetch_rss_news()
                 if "Error" in raw_news:
@@ -519,7 +582,7 @@ else:
         with st.form("salary_form", clear_on_submit=True):
             shop = st.selectbox("Select Shop", ["Shop 1", "Shop 2"])
             emp_name = st.text_input("Employee Name"); sal_amt = st.number_input("Salary Amount", min_value=1.0)
-            if st.form_submit_button("PAY SALARY"):
+            if st.form_submit_button("PAY SALARY", use_container_width=True):
                 if execute_add_finance(shop, f"Salary: {emp_name}", sal_amt, "Debit") == "Success":
                     flash_success(f"✅ {emp_name}-ന്റെ ശമ്പളം നൽകി!"); st.rerun()
 
@@ -528,7 +591,7 @@ else:
         st.title("🤖 PAICHI Business AI")
         col1, col2 = st.columns([1, 4])
         with col1:
-            if st.button("🗑️ Clear Chat"): st.session_state.messages = []; st.session_state['audio_counter'] += 1; st.rerun()
+            if st.button("🗑️ Clear Chat", use_container_width=True): st.session_state.messages = []; st.session_state['audio_counter'] += 1; st.rerun()
 
         for message in st.session_state.messages:
             with st.chat_message(message["role"]): st.markdown(message["content"])
@@ -575,7 +638,7 @@ else:
                     if not images_to_analyze: st.error("ഫ്രെയിമുകൾ എടുക്കാൻ സാധിച്ചില്ല."); st.stop()
                     is_vid = True
 
-            if st.button("🔍 Analyze with AI"):
+            if st.button("🔍 Analyze with AI", use_container_width=True):
                 with st.spinner("AI വിശകലനം ചെയ്യുന്നു..."):
                     ok, analysis_result = analyze_images_with_groq(images_to_analyze, is_video=is_vid)
                     st.subheader("📊 AI Analysis Report")
