@@ -78,110 +78,36 @@ st.set_page_config(page_title="PAICHI 3D DARK", layout="wide", initial_sidebar_s
 
 st.markdown("""
     <style>
-    /* നിർബന്ധിത ഡാർക്ക് ബാക്ക്ഗ്രൗണ്ട് (Force Pitch Black / Deep Navy) */
     html, body, [data-testid="stAppViewContainer"], .stApp { 
         background-color: #060913 !important;
         background-image: radial-gradient(circle at 15% 15%, #111d3a 0%, #060913 60%) !important;
         color: #ffffff !important; 
     }
-    
-    /* മുകളിലെ ഹെഡർ ബാർ ഡാർക്ക് ആക്കുന്നു */
-    [data-testid="stHeader"] {
-        background-color: rgba(6, 9, 19, 0.9) !important;
-    }
-
-    /* സൈഡ്ബാർ പൂർണ്ണമായും ഡാർക്ക് മോഡിൽ */
+    [data-testid="stHeader"] { background-color: rgba(6, 9, 19, 0.9) !important; }
     [data-testid="stSidebar"], [data-testid="stSidebar"] > div { 
         background-color: #0b1120 !important; 
         border-right: 1px solid #1e293b !important;
     }
-
-    /* എല്ലാ എഴുത്തുകളും തെളിഞ്ഞ വെള്ള നിറത്തിൽ */
-    h1, h2, h3, h4, h5, h6, p, label, span, li, td, th, .stMarkdown { 
-        color: #f1f5f9 !important; 
-    }
-
-    /* 3D നിയോൺ ബട്ടണുകൾ */
+    h1, h2, h3, h4, h5, h6, p, label, span, li, td, th, .stMarkdown { color: #f1f5f9 !important; }
     .stButton>button, .stFormSubmitButton>button { 
         background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
-        color: #ffffff !important; 
-        border-radius: 12px !important; 
-        font-weight: 800 !important; 
+        color: #ffffff !important; border-radius: 12px !important; font-weight: 800 !important; 
         border: 1px solid #38bdf8 !important;
         box-shadow: 0 6px 15px rgba(2, 132, 199, 0.4), 0 3px 0 #1e3a8a !important;
-        transition: all 0.15s ease !important;
     }
-    .stButton>button:hover, .stFormSubmitButton>button:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 10px 20px rgba(56, 189, 248, 0.6), 0 4px 0 #1e3a8a !important;
-    }
-
-    /* 3D ഡാർക്ക് കാർഡുകൾ */
     .card-3d {
         background: linear-gradient(145deg, #0f172a, #1e293b) !important;
-        border-radius: 20px !important;
-        border: 1px solid #334155 !important;
-        padding: 25px !important;
-        text-align: center !important;
-        box-shadow: 0 20px 35px rgba(0, 0, 0, 0.8), inset 0 1px 1px rgba(255, 255, 255, 0.1) !important;
-        margin-bottom: 20px !important;
+        border-radius: 20px !important; border: 1px solid #334155 !important;
+        padding: 25px !important; text-align: center !important;
+        box-shadow: 0 20px 35px rgba(0, 0, 0, 0.8); margin-bottom: 20px !important;
     }
-    .card-3d .b-label { 
-        color: #38bdf8 !important; 
-        font-size: 16px !important; 
-        letter-spacing: 1.5px !important;
-        text-transform: uppercase !important;
+    .card-3d .b-label { color: #38bdf8 !important; font-size: 16px !important; text-transform: uppercase !important; }
+    .card-3d .b-value { color: #ffffff !important; font-size: 42px !important; font-weight: 900 !important; }
+    input, textarea, select, [data-baseweb="input"] > div, [data-baseweb="select"] > div {
+        background-color: #1e293b !important; color: #ffffff !important; border: 1px solid #475569 !important; border-radius: 10px !important;
     }
-    .card-3d .b-value { 
-        color: #ffffff !important; 
-        font-size: 42px !important; 
-        font-weight: 900 !important; 
-        text-shadow: 0 0 15px rgba(56, 189, 248, 0.5) !important;
-    }
-
-    /* ഇൻപുട്ട് ബോക്സുകൾ (Text Input, Selectbox, Textarea) ഡാർക്ക് ആക്കുന്നു */
-    input, textarea, select, 
-    [data-baseweb="input"] > div, 
-    [data-baseweb="select"] > div,
-    [data-baseweb="base-input"] {
-        background-color: #1e293b !important;
-        color: #ffffff !important;
-        border: 1px solid #475569 !important;
-        border-radius: 10px !important;
-    }
-    
-    /* ഡ്രോപ്പ്ഡൗൺ മെനു ലിസ്റ്റ് ഡാർക്ക് ആക്കുന്നു */
-    ul[data-baseweb="menu"] {
-        background-color: #1e293b !important;
-        border: 1px solid #38bdf8 !important;
-    }
-    ul[data-baseweb="menu"] li {
-        color: #ffffff !important;
-    }
-
-    /* ചാറ്റ് മെസ്സേജ് ബോക്സുകൾ */
     [data-testid="stChatMessage"] { 
-        background-color: #111827 !important; 
-        border-radius: 16px !important; 
-        padding: 15px !important; 
-        border: 1px solid #374151 !important; 
-        box-shadow: 0 8px 20px rgba(0,0,0,0.6) !important;
-    }
-    
-    /* താഴെയുള്ള ചാറ്റ് ഇൻപുട്ട് ബാർ ഡാർക്ക് ആക്കുന്നു */
-    [data-testid="stChatInput"] {
-        background-color: #0b1120 !important;
-    }
-    [data-testid="stChatInput"] > div {
-        background-color: #1e293b !important;
-        border: 1px solid #38bdf8 !important;
-    }
-    
-    /* ടേബിളുകൾ (Dataframe) ഡാർക്ക് മോഡിൽ */
-    [data-testid="stDataFrame"] {
-        background-color: #0f172a !important;
-        border-radius: 12px !important;
-        border: 1px solid #334155 !important;
+        background-color: #111827 !important; border-radius: 16px !important; padding: 15px !important; border: 1px solid #374151 !important; 
     }
     </style>
 """, unsafe_allow_html=True)
@@ -266,11 +192,11 @@ def load_stock_data():
         return pd.DataFrame(columns=['Date', 'Item', 'Quantity', 'Type'])
 
 # ============================================
-# 🤖 AI AGENT TOOLS & FUNCTIONS
+# 🤖 AI AGENT TOOLS & FUNCTIONS (CONFIRMATION MODE)
 # ============================================
 tools = [
     {"type": "function", "function": {"name": "add_finance", "description": "Add finance", "parameters": {"type": "object", "properties": {"shop": {"type": "string", "enum": ["Shop 1", "Shop 2"]}, "item": {"type": "string"}, "amount": {"type": "number"}, "type": {"type": "string", "enum": ["Debit", "Credit"]}}, "required": ["shop", "item", "amount", "type"]}}},
-    {"type": "function", "function": {"name": "add_stock", "description": "Add stock items like 'sugar 5 kg'. Automatically extract item name and quantity.", "parameters": {"type": "object", "properties": {"item_name": {"type": "string"}, "qty": {"type": "number"}, "stock_type": {"type": "string", "enum": ["Stock In", "Stock Out"]}}, "required": ["item_name", "qty", "stock_type"]}}},
+    {"type": "function", "function": {"name": "add_stock", "description": "Add stock items only AFTER user confirms with Yes.", "parameters": {"type": "object", "properties": {"item_name": {"type": "string"}, "qty": {"type": "number"}, "stock_type": {"type": "string", "enum": ["Stock In", "Stock Out"]}}, "required": ["item_name", "qty", "stock_type"]}}},
     {"type": "function", "function": {"name": "check_gmail", "description": "Read emails", "parameters": {"type": "object", "properties": {"count": {"type": "number"}}, "required": ["count"]}}}
 ]
 
@@ -365,12 +291,16 @@ def analyze_images_with_groq(images_bytes_list, is_video=False):
 
 def process_ai_agent(prompt_text):
     client = Groq(api_key=GROQ_API_KEY)
+    
+    # 👇 ഇവിടെയാണ് പ്രധാന മാറ്റം: കൺഫർമേഷൻ ചോദിക്കാൻ AI-ക്ക് നിർദ്ദേശം നൽകിയിരിക്കുന്നു
     system_instruction = (
         f"നീ ഒരു ബിസിനസ്സ് AI ആണ്. ബാലൻസ്: ₹{st.session_state.get('current_bal', 0):,.2f}. "
-        "ഉപയോക്താവ് ഏതെങ്കിലും സാധനവും അളവും പറഞ്ഞാൽ (ഉദാഹരണത്തിന്: 'Sugar 5 kg' അല്ലെങ്കിൽ '5kg sugar'), "
-        "ചോദ്യങ്ങൾ ചോദിച്ചു സമയം കളയാതെ ഉടൻ തന്നെ `add_stock` ടൂൾ ഉപയോഗിച്ച് അത് സ്റ്റോക്കിലേക്ക് ('Stock In' ആയി) ചേർക്കണം. "
-        "മലയാളത്തിൽ വ്യക്തമായി മറുപടി നൽകുക."
+        "ഉപയോക്താവ് വല്ല സാധനവും അളവും പറഞ്ഞാൽ (ഉദാഹരണത്തിന്: 'Sugar 5 kg'), ഒരിക്കലും ഉടൻ തന്നെ ടൂൾ കോൾ ചെയ്യരുത്. "
+        "പകരം, 'ഈ ഐറ്റവും അളവും ഷീറ്റിലേക്ക് ചേർക്കട്ടെയോ? (Yes / No)' എന്ന് ചോദിച്ചു അനുവാദം ചോദിക്കുക. "
+        "ഉപയോക്താവ് 'Yes' എന്ന് മറുപടി നൽകിയാൽ മാത്രം (അല്ലെങ്കിൽ മുമ്പത്തെ ചാറ്റിൽ ചോദിച്ചതിന് 'Yes' പറഞ്ഞാൽ മാത്രം) `add_stock` ടൂൾ ഉപയോഗിച്ച് സ്റ്റോക്കിലേക്ക് ചേർക്കുക. "
+        "മലയാളത്തിൽ മറുപടി നൽകുക."
     )
+    
     messages = [{"role": "system", "content": system_instruction}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-4:]] + [{"role": "user", "content": prompt_text}]
     
     response = client.chat.completions.create(model=AGENT_MODEL, messages=messages, tools=tools, tool_choice="auto")
@@ -451,15 +381,13 @@ else:
                 color_discrete_sequence=['#38bdf8', '#f43f5e']
             )
             fig_3d.update_layout(
-                paper_bgcolor='#060913',
-                font=dict(color='#ffffff'),
+                paper_bgcolor='#060913', font=dict(color='#ffffff'),
                 scene=dict(
                     xaxis=dict(backgroundcolor="#0f172a", gridcolor="#334155"),
                     yaxis=dict(backgroundcolor="#0f172a", gridcolor="#334155"),
                     zaxis=dict(backgroundcolor="#0f172a", gridcolor="#334155"),
                 ),
-                margin=dict(l=0, r=0, b=0, t=0),
-                height=450
+                margin=dict(l=0, r=0, b=0, t=0), height=450
             )
             st.plotly_chart(fig_3d, use_container_width=True)
             st.dataframe(df_fin.tail(10).iloc[::-1], use_container_width=True)
@@ -577,7 +505,7 @@ else:
     # --- 9. AI AGENT ---
     elif page == "🤖 AI Agent":
         st.title("🤖 PAICHI Business AI")
-        st.info("💡 ടിപ്പ്: 'Sugar 5 kg' എന്ന് ടൈപ്പ് ചെയ്യുകയോ വോയിസ് അയക്കുകയോ ചെയ്താൽ AI ഉടൻ തന്നെ അത് സ്റ്റോക്ക് ഷീറ്റിൽ അപ്ഡേറ്റ് ചെയ്യും!")
+        st.info("💡 ടിപ്പ്: 'Sugar 5 kg' എന്ന് പറഞ്ഞാൽ AI ആദ്യം കൺഫർമേഷൻ ചോദിക്കും. നിങ്ങൾ 'Yes' എന്ന് മറുപടി നൽകിയാൽ മാത്രമേ ഷീറ്റിൽ അപ്ഡേറ്റ് ആവുകയുള്ളൂ!")
         
         if st.button("🗑️ Clear Chat"): st.session_state.messages = []; st.session_state['audio_counter'] += 1; st.rerun()
         
