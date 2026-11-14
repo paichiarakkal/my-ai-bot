@@ -272,20 +272,9 @@ def analyze_images_with_groq(images_bytes_list, is_video=False):
         client = Groq(api_key=GROQ_API_KEY)
         
         if is_video:
-            prompt_text = (
-                "Analyze these CCTV video frames carefully. "
-                "Count the exact number of people visible and describe what they are doing. "
-                "If there are no people, explicitly say 'No people visible'. Provide the report in Malayalam."
-            )
+            prompt_text = "Analyze these CCTV video frames carefully. Count the exact number of people visible and describe what they are doing. If there are no people, explicitly say 'No people visible'. Provide the report in Malayalam."
         else:
-            # ഫോട്ടോയ്ക്ക് വേണ്ടിയുള്ള പുതിയ കർശനമായ പ്രോംപ്റ്റ്
-            prompt_text = (
-                "You are an expert inventory auditor. Look very closely at this image. "
-                "Count the exact number of items visible. Pay close attention to stacked items (like cups or plates). "
-                "Count each individual layer/rim carefully to get the exact total number. "
-                "Tell me the name of the item and the exact quantity. "
-                "Provide the report in Malayalam."
-            )
+            prompt_text = "You are an expert inventory auditor. Look very closely at this image. Count the exact number of items visible. Pay close attention to stacked items (like cups or plates). Count each individual layer/rim carefully to get the exact total number. Tell me the name of the item and the exact quantity. Provide the report in Malayalam."
         
         content_list = [{"type": "text", "text": prompt_text}]
         
@@ -299,7 +288,7 @@ def analyze_images_with_groq(images_bytes_list, is_video=False):
             model=VISION_MODEL, 
             messages=[{"role": "user", "content": content_list}], 
             max_tokens=1000,
-            temperature=0.1 # AI ഊഹിക്കാതിരിക്കാൻ
+            temperature=0.1
         ).choices[0].message.content
         
         prompt_ml = f"Translate this report into natural Malayalam. Do NOT translate brand names.\n\n{res}"
@@ -553,4 +542,42 @@ else:
                 st.session_state["last_audio_hash"] = hashlib.md5(audio_value.getvalue()).hexdigest()
                 with st.spinner("ശബ്ദം കേൾക്കുന്നു..."):
                     try:
-                        client = Groq(api_key=GROQ_API_KEY)"
+                        client = Groq(api_key=GROQ_API_KEY)
+                        prompt = client.audio.transcriptions.create(file=(audio_value.name, audio_value.getvalue()), model=WHISPER_MODEL, response_format="text").strip()
+                    except Exception as e: st.error(f"Audio Error: {str(e)}")
+
+        if text_prompt: prompt = text_prompt
+
+        if prompt:
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            with st.chat_message("user"): st.markdown(prompt)
+            with st.spinner("AI ടൈപ്പ് ചെയ്യുന്നു..."):
+                try:
+                    ai_reply, tool_used = process_ai_agent(prompt)
+                    st.session_state.messages.append({"role": "assistant", "content": ai_reply})
+                    with st.chat_message("assistant"): st.markdown(ai_reply)
+                    st.session_state['audio_counter'] += 1; st.rerun()
+                except Exception as e: st.error(f"AI Error: {str(e)}")
+
+    # --- 10. CCTV AI VISION ---
+    elif page == "🎥 CCTV AI Vision":
+        st.title("🎥 CCTV AI Vision")
+        uploaded_file = st.file_uploader("Upload Shop CCTV Photo or Video", type=["jpg", "jpeg", "png", "mp4"])
+        if uploaded_file is not None:
+            if "image" in uploaded_file.type:
+                st.image(uploaded_file, use_container_width=True)
+                images_to_analyze = [uploaded_file.getvalue()]
+                is_vid = False
+            else:
+                st.video(uploaded_file)
+                with st.spinner("ഫ്രെയിമുകൾ എടുക്കുന്നു..."):
+                    images_to_analyze = extract_frames_from_video(uploaded_file.getvalue())
+                    if not images_to_analyze: st.error("ഫ്രെയിമുകൾ എടുക്കാൻ സാധിച്ചില്ല."); st.stop()
+                    is_vid = True
+
+            if st.button("🔍 Analyze with AI"):
+                with st.spinner("AI വിശകലനം ചെയ്യുന്നു..."):
+                    ok, analysis_result = analyze_images_with_groq(images_to_analyze, is_video=is_vid)
+                    st.subheader("📊 AI Analysis Report")
+                    if ok: st.success(analysis_result)
+                    else: st.error(analysis_result)
