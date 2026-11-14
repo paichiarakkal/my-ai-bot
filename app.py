@@ -73,119 +73,126 @@ def send_whatsapp_custom(to_number, msg):
     except Exception as e:
         return False
 
-# --- 🌌 REAL 3D UI & GLASSMORPHISM SETUP ---
-st.set_page_config(page_title="PAICHI 3D PRO", layout="wide")
+# --- 🌑 FORCED FULL DARK MODE & 3D UI SETUP ---
+st.set_page_config(page_title="PAICHI 3D DARK", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
-    /* Deep Space 3D Dark Theme */
-    .stApp { 
-        background: radial-gradient(circle at 20% 20%, #1a2a6c, #b21f1f00 50%),
-                    radial-gradient(circle at 80% 80%, #0f2027, #203a43, #2c5364);
-        background-color: #0b0f19;
-        color: #ffffff; 
+    /* നിർബന്ധിത ഡാർക്ക് ബാക്ക്ഗ്രൗണ്ട് (Force Pitch Black / Deep Navy) */
+    html, body, [data-testid="stAppViewContainer"], .stApp { 
+        background-color: #060913 !important;
+        background-image: radial-gradient(circle at 15% 15%, #111d3a 0%, #060913 60%) !important;
+        color: #ffffff !important; 
     }
     
-    /* 3D Glass Sidebar */
-    [data-testid="stSidebar"] { 
-        background: rgba(15, 23, 42, 0.85) !important; 
-        backdrop-filter: blur(15px);
-        border-right: 1px solid rgba(0, 212, 255, 0.3);
-        box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
+    /* മുകളിലെ ഹെഡർ ബാർ ഡാർക്ക് ആക്കുന്നു */
+    [data-testid="stHeader"] {
+        background-color: rgba(6, 9, 19, 0.9) !important;
     }
 
-    /* 3D Neon Buttons */
-    .stButton>button { 
-        background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%);
+    /* സൈഡ്ബാർ പൂർണ്ണമായും ഡാർക്ക് മോഡിൽ */
+    [data-testid="stSidebar"], [data-testid="stSidebar"] > div { 
+        background-color: #0b1120 !important; 
+        border-right: 1px solid #1e293b !important;
+    }
+
+    /* എല്ലാ എഴുത്തുകളും തെളിഞ്ഞ വെള്ള നിറത്തിൽ */
+    h1, h2, h3, h4, h5, h6, p, label, span, li, td, th, .stMarkdown { 
+        color: #f1f5f9 !important; 
+    }
+
+    /* 3D നിയോൺ ബട്ടണുകൾ */
+    .stButton>button, .stFormSubmitButton>button { 
+        background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
         color: #ffffff !important; 
-        border-radius: 14px; 
-        font-weight: 800; 
-        border: 1px solid rgba(255,255,255,0.3);
-        box-shadow: 0 10px 20px rgba(0, 210, 255, 0.3), 
-                    0 4px 0 #1e4b8f;
-        transform: translateY(0);
-        transition: all 0.15s ease;
-        text-transform: uppercase;
-        letter-spacing: 1px;
+        border-radius: 12px !important; 
+        font-weight: 800 !important; 
+        border: 1px solid #38bdf8 !important;
+        box-shadow: 0 6px 15px rgba(2, 132, 199, 0.4), 0 3px 0 #1e3a8a !important;
+        transition: all 0.15s ease !important;
     }
-    .stButton>button:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 15px 25px rgba(0, 210, 255, 0.5), 
-                    0 6px 0 #1e4b8f;
-    }
-    .stButton>button:active {
-        transform: translateY(4px);
-        box-shadow: 0 2px 5px rgba(0, 210, 255, 0.4), 
-                    0 0px 0 #1e4b8f;
+    .stButton>button:hover, .stFormSubmitButton>button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 10px 20px rgba(56, 189, 248, 0.6), 0 4px 0 #1e3a8a !important;
     }
 
-    /* 3D Floating Glass Cards */
+    /* 3D ഡാർക്ക് കാർഡുകൾ */
     .card-3d {
-        background: rgba(255, 255, 255, 0.06);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border-radius: 24px;
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        padding: 30px;
-        text-align: center;
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7),
-                    inset 0 1px 1px rgba(255, 255, 255, 0.3);
-        transform-style: preserve-3d;
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-        margin-bottom: 25px;
-    }
-    .card-3d:hover {
-        transform: perspective(1000px) rotateX(4deg) rotateY(-4deg) scale(1.02);
-        box-shadow: 0 35px 60px -15px rgba(0, 210, 255, 0.35),
-                    inset 0 1px 2px rgba(255, 255, 255, 0.5);
+        background: linear-gradient(145deg, #0f172a, #1e293b) !important;
+        border-radius: 20px !important;
+        border: 1px solid #334155 !important;
+        padding: 25px !important;
+        text-align: center !important;
+        box-shadow: 0 20px 35px rgba(0, 0, 0, 0.8), inset 0 1px 1px rgba(255, 255, 255, 0.1) !important;
+        margin-bottom: 20px !important;
     }
     .card-3d .b-label { 
-        color: #00d2ff !important; 
-        font-size: 18px; 
-        letter-spacing: 2px;
-        text-transform: uppercase;
-        transform: translateZ(30px);
+        color: #38bdf8 !important; 
+        font-size: 16px !important; 
+        letter-spacing: 1.5px !important;
+        text-transform: uppercase !important;
     }
     .card-3d .b-value { 
         color: #ffffff !important; 
-        font-size: 52px; 
-        font-weight: 900; 
-        text-shadow: 0 5px 15px rgba(0, 210, 255, 0.6);
-        transform: translateZ(50px);
+        font-size: 42px !important; 
+        font-weight: 900 !important; 
+        text-shadow: 0 0 15px rgba(56, 189, 248, 0.5) !important;
     }
 
-    /* Text & Labels */
-    h1, h2, h3, p, label, span, div { 
-        color: #f8fafc !important; 
-    }
-
-    /* Inputs */
-    input, textarea, select, [data-baseweb="select"] > div {
-        background-color: rgba(15, 23, 42, 0.7) !important;
+    /* ഇൻപുട്ട് ബോക്സുകൾ (Text Input, Selectbox, Textarea) ഡാർക്ക് ആക്കുന്നു */
+    input, textarea, select, 
+    [data-baseweb="input"] > div, 
+    [data-baseweb="select"] > div,
+    [data-baseweb="base-input"] {
+        background-color: #1e293b !important;
         color: #ffffff !important;
-        border: 1px solid rgba(0, 210, 255, 0.4) !important;
-        border-radius: 12px !important;
+        border: 1px solid #475569 !important;
+        border-radius: 10px !important;
+    }
+    
+    /* ഡ്രോപ്പ്ഡൗൺ മെനു ലിസ്റ്റ് ഡാർക്ക് ആക്കുന്നു */
+    ul[data-baseweb="menu"] {
+        background-color: #1e293b !important;
+        border: 1px solid #38bdf8 !important;
+    }
+    ul[data-baseweb="menu"] li {
+        color: #ffffff !important;
     }
 
-    /* Chat Bubbles 3D */
+    /* ചാറ്റ് മെസ്സേജ് ബോക്സുകൾ */
     [data-testid="stChatMessage"] { 
-        background: rgba(30, 41, 59, 0.75) !important; 
-        backdrop-filter: blur(10px);
-        border-radius: 18px; 
-        padding: 16px; 
-        border: 1px solid rgba(0, 210, 255, 0.25); 
-        box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+        background-color: #111827 !important; 
+        border-radius: 16px !important; 
+        padding: 15px !important; 
+        border: 1px solid #374151 !important; 
+        box-shadow: 0 8px 20px rgba(0,0,0,0.6) !important;
+    }
+    
+    /* താഴെയുള്ള ചാറ്റ് ഇൻപുട്ട് ബാർ ഡാർക്ക് ആക്കുന്നു */
+    [data-testid="stChatInput"] {
+        background-color: #0b1120 !important;
+    }
+    [data-testid="stChatInput"] > div {
+        background-color: #1e293b !important;
+        border: 1px solid #38bdf8 !important;
+    }
+    
+    /* ടേബിളുകൾ (Dataframe) ഡാർക്ക് മോഡിൽ */
+    [data-testid="stDataFrame"] {
+        background-color: #0f172a !important;
+        border-radius: 12px !important;
+        border: 1px solid #334155 !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 🌐 INTERACTIVE 3D THREE.JS HEADER WIDGET ---
+# --- 🌐 THREE.JS DARK 3D HEADER ---
 def render_3d_header():
     three_js_html = """
-    <div id="canvas-container" style="width: 100%; height: 140px; border-radius: 20px; overflow: hidden; position: relative; background: linear-gradient(90deg, #090d16, #131c31); border: 1px solid rgba(0,210,255,0.3); box-shadow: 0 15px 35px rgba(0,0,0,0.6);">
+    <div id="canvas-container" style="width: 100%; height: 130px; border-radius: 18px; overflow: hidden; position: relative; background: #090d16; border: 1px solid #1e293b; box-shadow: 0 10px 30px rgba(0,0,0,0.8);">
         <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 10; pointer-events: none; font-family: sans-serif;">
-            <h1 style="margin: 0; font-size: 32px; color: #fff; text-shadow: 0 0 20px #00d2ff; letter-spacing: 3px;">PAICHI 3D CORE</h1>
-            <p style="margin: 5px 0 0; font-size: 13px; color: #00d2ff; letter-spacing: 1.5px;">INTERACTIVE AI BUSINESS ENGINE</p>
+            <h1 style="margin: 0; font-size: 28px; color: #ffffff; text-shadow: 0 0 15px #38bdf8; letter-spacing: 3px;">PAICHI 3D DARK</h1>
+            <p style="margin: 4px 0 0; font-size: 12px; color: #38bdf8; letter-spacing: 1.5px;">AI BUSINESS COMMAND CENTER</p>
         </div>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -196,44 +203,21 @@ def render_3d_header():
         const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
         renderer.setSize(container.clientWidth, container.clientHeight);
         container.appendChild(renderer.domElement);
-
-        // 3D Wireframe TorusKnot
         const geometry = new THREE.TorusKnotGeometry(1.4, 0.4, 100, 16);
-        const material = new THREE.MeshBasicMaterial({ color: 0x00d2ff, wireframe: true, transparent: true, opacity: 0.35 });
+        const material = new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true, transparent: true, opacity: 0.3 });
         const torusKnot = new THREE.Mesh(geometry, material);
         scene.add(torusKnot);
-
-        // Floating Particles
-        const partGeo = new THREE.BufferGeometry();
-        const partCount = 200;
-        const posArray = new Float32Array(partCount * 3);
-        for(let i = 0; i < partCount * 3; i++) {
-            posArray[i] = (Math.random() - 0.5) * 12;
-        }
-        partGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-        const partMat = new THREE.PointsMaterial({ size: 0.05, color: 0x38bdf8 });
-        const particles = new THREE.Points(partGeo, partMat);
-        scene.add(particles);
-
         camera.position.z = 4.5;
-
-        let mouseX = 0, mouseY = 0;
-        document.addEventListener('mousemove', (e) => {
-            mouseX = (e.clientX / window.innerWidth) * 2 - 1;
-            mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
-        });
-
         function animate() {
             requestAnimationFrame(animate);
-            torusKnot.rotation.x += 0.008 + mouseY * 0.02;
-            torusKnot.rotation.y += 0.012 + mouseX * 0.02;
-            particles.rotation.y -= 0.003;
+            torusKnot.rotation.x += 0.008;
+            torusKnot.rotation.y += 0.012;
             renderer.render(scene, camera);
         }
         animate();
     </script>
     """
-    components.html(three_js_html, height=150)
+    components.html(three_js_html, height=140)
 
 # --- SESSION STATES ---
 if 'auth' not in st.session_state:
@@ -255,10 +239,8 @@ def show_flash():
     if msg:
         st.success(msg)
 
-# --- HELPER: Safe CSV load ---
 def _append_cache_buster(url):
-    if not url or "YOUR_" in url:
-        raise ValueError("placeholder")
+    if not url or "YOUR_" in url: raise ValueError("placeholder")
     sep = "&" if "?" in url else "?"
     return f"{url}{sep}r={random.randint(1,999)}"
 
@@ -288,7 +270,7 @@ def load_stock_data():
 # ============================================
 tools = [
     {"type": "function", "function": {"name": "add_finance", "description": "Add finance", "parameters": {"type": "object", "properties": {"shop": {"type": "string", "enum": ["Shop 1", "Shop 2"]}, "item": {"type": "string"}, "amount": {"type": "number"}, "type": {"type": "string", "enum": ["Debit", "Credit"]}}, "required": ["shop", "item", "amount", "type"]}}},
-    {"type": "function", "function": {"name": "add_stock", "description": "Add stock", "parameters": {"type": "object", "properties": {"item_name": {"type": "string"}, "qty": {"type": "number"}, "stock_type": {"type": "string", "enum": ["Stock In", "Stock Out"]}}, "required": ["item_name", "qty", "stock_type"]}}},
+    {"type": "function", "function": {"name": "add_stock", "description": "Add stock items like 'sugar 5 kg'. Automatically extract item name and quantity.", "parameters": {"type": "object", "properties": {"item_name": {"type": "string"}, "qty": {"type": "number"}, "stock_type": {"type": "string", "enum": ["Stock In", "Stock Out"]}}, "required": ["item_name", "qty", "stock_type"]}}},
     {"type": "function", "function": {"name": "check_gmail", "description": "Read emails", "parameters": {"type": "object", "properties": {"count": {"type": "number"}}, "required": ["count"]}}}
 ]
 
@@ -383,23 +365,31 @@ def analyze_images_with_groq(images_bytes_list, is_video=False):
 
 def process_ai_agent(prompt_text):
     client = Groq(api_key=GROQ_API_KEY)
-    system_instruction = f"നീ ഒരു ബിസിനസ്സ് AI ആണ്. ബാലൻസ്: ₹{st.session_state.get('current_bal', 0):,.2f}. മലയാളത്തിൽ മറുപടി നൽകുക."
+    system_instruction = (
+        f"നീ ഒരു ബിസിനസ്സ് AI ആണ്. ബാലൻസ്: ₹{st.session_state.get('current_bal', 0):,.2f}. "
+        "ഉപയോക്താവ് ഏതെങ്കിലും സാധനവും അളവും പറഞ്ഞാൽ (ഉദാഹരണത്തിന്: 'Sugar 5 kg' അല്ലെങ്കിൽ '5kg sugar'), "
+        "ചോദ്യങ്ങൾ ചോദിച്ചു സമയം കളയാതെ ഉടൻ തന്നെ `add_stock` ടൂൾ ഉപയോഗിച്ച് അത് സ്റ്റോക്കിലേക്ക് ('Stock In' ആയി) ചേർക്കണം. "
+        "മലയാളത്തിൽ വ്യക്തമായി മറുപടി നൽകുക."
+    )
     messages = [{"role": "system", "content": system_instruction}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-4:]] + [{"role": "user", "content": prompt_text}]
+    
     response = client.chat.completions.create(model=AGENT_MODEL, messages=messages, tools=tools, tool_choice="auto")
     msg = response.choices[0].message
     tool_used = False
+    
     if msg.tool_calls:
         tool_used = True
         replies = []
         for tc in msg.tool_calls:
             try: args = json.loads(tc.function.arguments)
             except: continue
+            
             if tc.function.name == "add_finance":
                 res = execute_add_finance(args["shop"], args["item"], args["amount"], args["type"])
                 replies.append(f"✅ {args['shop']}-ൽ '{args['item']}' എൻട്രി ഇട്ടു!" if res == "Success" else "❌ എൻട്രി പറ്റിയില്ല.")
             elif tc.function.name == "add_stock":
-                res = execute_add_stock(args["item_name"], args["qty"], args["stock_type"])
-                replies.append(f"✅ {args['item_name']} സ്റ്റോക്ക് അപ്ഡേറ്റ് ചെയ്തു!" if res == "Success" else "❌ സ്റ്റോക്ക് പറ്റിയില്ല.")
+                res = execute_add_stock(args["item_name"], args["qty"], args.get("stock_type", "Stock In"))
+                replies.append(f"✅ {args['item_name']} ({args['qty']} qty) സ്റ്റോക്കിലേക്ക് വിജയകരമായി ചേർത്തു!" if res == "Success" else "❌ സ്റ്റോക്ക് അപ്ഡേറ്റ് പരാജയപ്പെട്ടു.")
             elif tc.function.name == "check_gmail":
                 raw = check_gmail_emails(args.get("count", 3))
                 summary = client.chat.completions.create(model=AGENT_MODEL, messages=[{"role": "user", "content": f"ചുരുക്കി മലയാളത്തിൽ എഴുതുക:\n{raw}"}], max_tokens=800).choices[0].message.content
@@ -409,15 +399,15 @@ def process_ai_agent(prompt_text):
         ai_reply = msg.content or ""
     return ai_reply, tool_used
 
-# --- 🔒 3D LOGIN SCREEN ---
+# --- 🔒 3D DARK LOGIN SCREEN ---
 if not st.session_state.auth:
     render_3d_header()
     _, mid, _ = st.columns([1, 2, 1])
     with mid:
-        st.markdown('<div class="card-3d"><h2 style="margin:0;">🔐 SYSTEM ACCESS</h2><p style="color:#00d2ff !important;">3D Biometric / PIN Gateway</p></div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-3d"><h2 style="margin:0;">🔐 DARK MODE LOGIN</h2><p style="color:#38bdf8 !important;">Enter PIN to Access Dashboard</p></div>', unsafe_allow_html=True)
         u = st.selectbox("👤 Select Role", ["admin", "shop1"]).lower()
         pin = st.text_input("🔑 Enter PIN", type="password", max_chars=4)
-        if st.button("LAUNCH 3D DASHBOARD", use_container_width=True):
+        if st.button("LOGIN", use_container_width=True):
             if USER_PINS.get(u) == pin:
                 st.session_state.auth, st.session_state.user = True, u; st.rerun()
             else: st.error("❌ Incorrect PIN!")
@@ -437,7 +427,7 @@ else:
     bal = (df_fin['Credit'].sum() - df_fin['Debit'].sum()) if not df_fin.empty else 0
     st.session_state['current_bal'] = bal
 
-    # --- 1. REAL 3D DASHBOARD ---
+    # --- 1. REAL 3D DARK DASHBOARD ---
     if page == "📊 3D Dashboard":
         c1, c2, c3 = st.columns(3)
         tot_cred = df_fin['Credit'].sum() if not df_fin.empty else 0
@@ -446,27 +436,27 @@ else:
         with c1:
             st.markdown(f'<div class="card-3d"><span class="b-label">Total Balance</span><br><span class="b-value">₹{bal:,.0f}</span></div>', unsafe_allow_html=True)
         with c2:
-            st.markdown(f'<div class="card-3d"><span class="b-label" style="color:#00ff88 !important;">Total Credit</span><br><span class="b-value" style="color:#00ff88 !important;">₹{tot_cred:,.0f}</span></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="card-3d"><span class="b-label" style="color:#4ade80 !important;">Total Credit</span><br><span class="b-value" style="color:#4ade80 !important;">₹{tot_cred:,.0f}</span></div>', unsafe_allow_html=True)
         with c3:
-            st.markdown(f'<div class="card-3d"><span class="b-label" style="color:#ff4b4b !important;">Total Debit</span><br><span class="b-value" style="color:#ff4b4b !important;">₹{tot_deb:,.0f}</span></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="card-3d"><span class="b-label" style="color:#f87171 !important;">Total Debit</span><br><span class="b-value" style="color:#f87171 !important;">₹{tot_deb:,.0f}</span></div>', unsafe_allow_html=True)
 
         if not df_fin.empty:
-            st.subheader("🌐 Interactive 3D Financial Mesh (കറക്കി നോക്കാം)")
-            # Real 3D Scatter Plot using Plotly
+            st.subheader("🌐 Interactive 3D Financial Mesh")
             df_plot = df_fin.copy()
             df_plot['Index'] = range(1, len(df_plot) + 1)
             fig_3d = px.scatter_3d(
                 df_plot, x='Index', y='Credit', z='Debit',
                 color='Shop Name', size_max=18, opacity=0.9,
                 hover_data=['Item', 'Date'],
-                color_discrete_sequence=['#00d2ff', '#ff007f']
+                color_discrete_sequence=['#38bdf8', '#f43f5e']
             )
             fig_3d.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='#060913',
+                font=dict(color='#ffffff'),
                 scene=dict(
-                    xaxis=dict(backgroundcolor="rgba(15,23,42,0.8)", gridcolor="rgba(0,210,255,0.2)"),
-                    yaxis=dict(backgroundcolor="rgba(15,23,42,0.8)", gridcolor="rgba(0,210,255,0.2)"),
-                    zaxis=dict(backgroundcolor="rgba(15,23,42,0.8)", gridcolor="rgba(0,210,255,0.2)"),
+                    xaxis=dict(backgroundcolor="#0f172a", gridcolor="#334155"),
+                    yaxis=dict(backgroundcolor="#0f172a", gridcolor="#334155"),
+                    zaxis=dict(backgroundcolor="#0f172a", gridcolor="#334155"),
                 ),
                 margin=dict(l=0, r=0, b=0, t=0),
                 height=450
@@ -587,16 +577,22 @@ else:
     # --- 9. AI AGENT ---
     elif page == "🤖 AI Agent":
         st.title("🤖 PAICHI Business AI")
+        st.info("💡 ടിപ്പ്: 'Sugar 5 kg' എന്ന് ടൈപ്പ് ചെയ്യുകയോ വോയിസ് അയക്കുകയോ ചെയ്താൽ AI ഉടൻ തന്നെ അത് സ്റ്റോക്ക് ഷീറ്റിൽ അപ്ഡേറ്റ് ചെയ്യും!")
+        
         if st.button("🗑️ Clear Chat"): st.session_state.messages = []; st.session_state['audio_counter'] += 1; st.rerun()
+        
         for message in st.session_state.messages:
             with st.chat_message(message["role"]): st.markdown(message["content"])
+            
         audio_value = st.audio_input("🎤 റെക്കോർഡ് ചെയ്യാൻ അമർത്തുക", key=f"audio_{st.session_state['audio_counter']}")
-        text_prompt = st.chat_input("ഇവിടെ ടൈപ്പ് ചെയ്യാം...")
+        text_prompt = st.chat_input("ഇവിടെ ടൈപ്പ് ചെയ്യാം (ഉദാ: Sugar 5 kg)...")
         prompt = text_prompt
+        
         if audio_value and st.session_state.get("last_audio_hash") != hashlib.md5(audio_value.getvalue()).hexdigest():
             st.session_state["last_audio_hash"] = hashlib.md5(audio_value.getvalue()).hexdigest()
             client = Groq(api_key=GROQ_API_KEY)
             prompt = client.audio.transcriptions.create(file=(audio_value.name, audio_value.getvalue()), model=WHISPER_MODEL, response_format="text").strip()
+            
         if prompt:
             st.session_state.messages.append({"role": "user", "content": prompt})
             ai_reply, _ = process_ai_agent(prompt)
