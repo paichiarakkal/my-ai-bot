@@ -553,4 +553,4 @@ else:
                 st.session_state["last_audio_hash"] = hashlib.md5(audio_value.getvalue()).hexdigest()
                 with st.spinner("ശബ്ദം കേൾക്കുന്നു..."):
                     try:
-                        client = Groq(api_key=GROQ_API_KEY
+                        client = Groq(api_key=GROQ_API_KEY)
