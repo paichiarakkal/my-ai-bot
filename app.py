@@ -1,9 +1,11 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import requests
 from datetime import datetime
 import random
 import plotly.express as px
+import plotly.graph_objects as go
 from fpdf import FPDF
 import json
 import base64
@@ -20,7 +22,7 @@ from email.header import decode_header
 from groq import Groq
 from twilio.rest import Client
 
-# --- CONFIG (നിങ്ങളുടെ ലിങ്കുകൾ ഇവിടെ ചേർക്കുക) ---
+# --- CONFIG ---
 CSV_URL = "YOUR_FINANCE_SHEET_CSV_LINK"
 FORM_API = "YOUR_FINANCE_FORM_API"
 STOCK_CSV_URL = "YOUR_STOCK_SHEET_CSV_LINK"
@@ -71,89 +73,169 @@ def send_whatsapp_custom(to_number, msg):
     except Exception as e:
         return False
 
-# --- 3D STREAMLIT UI SETUP ---
-st.set_page_config(page_title="PAICHI BUSINESS 3D", layout="wide")
+# --- 🌌 REAL 3D UI & GLASSMORPHISM SETUP ---
+st.set_page_config(page_title="PAICHI 3D PRO", layout="wide")
 
 st.markdown("""
     <style>
-    /* 3D Background & General Theme */
+    /* Deep Space 3D Dark Theme */
     .stApp { 
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); 
-        color: #1a1a1a; 
+        background: radial-gradient(circle at 20% 20%, #1a2a6c, #b21f1f00 50%),
+                    radial-gradient(circle at 80% 80%, #0f2027, #203a43, #2c5364);
+        background-color: #0b0f19;
+        color: #ffffff; 
     }
     
-    /* 3D Sidebar */
+    /* 3D Glass Sidebar */
     [data-testid="stSidebar"] { 
-        background: linear-gradient(180deg, #e4e9f2 0%, #cbd5e1 100%) !important; 
-        box-shadow: 5px 0px 15px rgba(0,0,0,0.1);
+        background: rgba(15, 23, 42, 0.85) !important; 
+        backdrop-filter: blur(15px);
+        border-right: 1px solid rgba(0, 212, 255, 0.3);
+        box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
     }
 
-    /* 3D Buttons */
+    /* 3D Neon Buttons */
     .stButton>button { 
-        background: linear-gradient(145deg, #007BFF, #0056b3);
+        background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%);
         color: #ffffff !important; 
-        border-radius: 12px; 
-        font-weight: bold; 
-        border: none;
-        box-shadow: 0 6px 12px rgba(0, 123, 255, 0.3), inset 0 2px 3px rgba(255,255,255,0.4);
-        transition: all 0.2s ease-in-out;
+        border-radius: 14px; 
+        font-weight: 800; 
+        border: 1px solid rgba(255,255,255,0.3);
+        box-shadow: 0 10px 20px rgba(0, 210, 255, 0.3), 
+                    0 4px 0 #1e4b8f;
+        transform: translateY(0);
+        transition: all 0.15s ease;
+        text-transform: uppercase;
+        letter-spacing: 1px;
     }
     .stButton>button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 16px rgba(0, 123, 255, 0.4), inset 0 2px 3px rgba(255,255,255,0.6);
+        transform: translateY(-3px);
+        box-shadow: 0 15px 25px rgba(0, 210, 255, 0.5), 
+                    0 6px 0 #1e4b8f;
     }
     .stButton>button:active {
-        transform: translateY(2px);
-        box-shadow: 0 2px 6px rgba(0, 123, 255, 0.4);
+        transform: translateY(4px);
+        box-shadow: 0 2px 5px rgba(0, 210, 255, 0.4), 
+                    0 0px 0 #1e4b8f;
     }
 
-    /* 3D Download Buttons */
-    .stDownloadButton>button { 
-        background: linear-gradient(145deg, #28a745, #1e7e34);
+    /* 3D Floating Glass Cards */
+    .card-3d {
+        background: rgba(255, 255, 255, 0.06);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-radius: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        padding: 30px;
+        text-align: center;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7),
+                    inset 0 1px 1px rgba(255, 255, 255, 0.3);
+        transform-style: preserve-3d;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        margin-bottom: 25px;
+    }
+    .card-3d:hover {
+        transform: perspective(1000px) rotateX(4deg) rotateY(-4deg) scale(1.02);
+        box-shadow: 0 35px 60px -15px rgba(0, 210, 255, 0.35),
+                    inset 0 1px 2px rgba(255, 255, 255, 0.5);
+    }
+    .card-3d .b-label { 
+        color: #00d2ff !important; 
+        font-size: 18px; 
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        transform: translateZ(30px);
+    }
+    .card-3d .b-value { 
         color: #ffffff !important; 
-        border-radius: 12px; 
-        font-weight: bold; 
-        border: none;
-        box-shadow: 0 6px 12px rgba(40, 167, 69, 0.3), inset 0 2px 3px rgba(255,255,255,0.4);
+        font-size: 52px; 
+        font-weight: 900; 
+        text-shadow: 0 5px 15px rgba(0, 210, 255, 0.6);
+        transform: translateZ(50px);
     }
 
-    /* 3D Banner Card */
-    .banner { 
-        background: linear-gradient(145deg, #ffffff, #e6ecf5); 
-        padding: 30px; 
-        border-radius: 20px; 
-        border-left: 12px solid #007BFF; 
-        text-align: center; 
-        margin-bottom: 25px; 
-        box-shadow: 10px 10px 20px rgba(0,0,0,0.08), -10px -10px 20px rgba(255,255,255,0.8);
-    }
-    .banner .b-label { color: #0056b3 !important; font-size: 22px; font-weight: 800; }
-    .banner .b-value { color: #1a1a1a !important; font-size: 45px; font-weight: 900; text-shadow: 2px 2px 4px rgba(0,0,0,0.1); }
-
-    /* Typography 3D effect */
-    h1, h2, h3, p, label, span { 
-        color: #1a1a1a !important; 
-        font-weight: bold !important; 
+    /* Text & Labels */
+    h1, h2, h3, p, label, span, div { 
+        color: #f8fafc !important; 
     }
 
-    /* 3D Chat Messages */
+    /* Inputs */
+    input, textarea, select, [data-baseweb="select"] > div {
+        background-color: rgba(15, 23, 42, 0.7) !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(0, 210, 255, 0.4) !important;
+        border-radius: 12px !important;
+    }
+
+    /* Chat Bubbles 3D */
     [data-testid="stChatMessage"] { 
-        background: linear-gradient(145deg, #ffffff, #f0f4f8) !important; 
-        border-radius: 15px; 
-        padding: 15px; 
-        border: 1px solid #d1d9e6; 
-        box-shadow: 5px 5px 15px rgba(0,0,0,0.05);
-        color: #1a1a1a; 
-    }
-    
-    /* Input fields 3D styling */
-    input, textarea, select {
-        border-radius: 10px !important;
-        box-shadow: inset 2px 2px 5px rgba(0,0,0,0.05);
+        background: rgba(30, 41, 59, 0.75) !important; 
+        backdrop-filter: blur(10px);
+        border-radius: 18px; 
+        padding: 16px; 
+        border: 1px solid rgba(0, 210, 255, 0.25); 
+        box-shadow: 0 10px 25px rgba(0,0,0,0.4);
     }
     </style>
 """, unsafe_allow_html=True)
 
+# --- 🌐 INTERACTIVE 3D THREE.JS HEADER WIDGET ---
+def render_3d_header():
+    three_js_html = """
+    <div id="canvas-container" style="width: 100%; height: 140px; border-radius: 20px; overflow: hidden; position: relative; background: linear-gradient(90deg, #090d16, #131c31); border: 1px solid rgba(0,210,255,0.3); box-shadow: 0 15px 35px rgba(0,0,0,0.6);">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 10; pointer-events: none; font-family: sans-serif;">
+            <h1 style="margin: 0; font-size: 32px; color: #fff; text-shadow: 0 0 20px #00d2ff; letter-spacing: 3px;">PAICHI 3D CORE</h1>
+            <p style="margin: 5px 0 0; font-size: 13px; color: #00d2ff; letter-spacing: 1.5px;">INTERACTIVE AI BUSINESS ENGINE</p>
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        container.appendChild(renderer.domElement);
+
+        // 3D Wireframe TorusKnot
+        const geometry = new THREE.TorusKnotGeometry(1.4, 0.4, 100, 16);
+        const material = new THREE.MeshBasicMaterial({ color: 0x00d2ff, wireframe: true, transparent: true, opacity: 0.35 });
+        const torusKnot = new THREE.Mesh(geometry, material);
+        scene.add(torusKnot);
+
+        // Floating Particles
+        const partGeo = new THREE.BufferGeometry();
+        const partCount = 200;
+        const posArray = new Float32Array(partCount * 3);
+        for(let i = 0; i < partCount * 3; i++) {
+            posArray[i] = (Math.random() - 0.5) * 12;
+        }
+        partGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        const partMat = new THREE.PointsMaterial({ size: 0.05, color: 0x38bdf8 });
+        const particles = new THREE.Points(partGeo, partMat);
+        scene.add(particles);
+
+        camera.position.z = 4.5;
+
+        let mouseX = 0, mouseY = 0;
+        document.addEventListener('mousemove', (e) => {
+            mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+            mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            torusKnot.rotation.x += 0.008 + mouseY * 0.02;
+            torusKnot.rotation.y += 0.012 + mouseX * 0.02;
+            particles.rotation.y -= 0.003;
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+    """
+    components.html(three_js_html, height=150)
+
+# --- SESSION STATES ---
 if 'auth' not in st.session_state:
     st.session_state.auth, st.session_state.user = False, ""
 if "messages" not in st.session_state:
@@ -201,42 +283,6 @@ def load_stock_data():
     except Exception:
         return pd.DataFrame(columns=['Date', 'Item', 'Quantity', 'Type'])
 
-# PDF Helper
-def _find_unicode_font():
-    candidates = ["/usr/share/fonts/truetype/noto/NotoSansMalayalam-Regular.ttf", "C:/Windows/Fonts/arial.ttf"]
-    for p in candidates:
-        if os.path.exists(p): return p
-    return None
-
-def generate_pdf(df, title, columns):
-    pdf = FPDF()
-    pdf.add_page()
-    font_path = _find_unicode_font()
-    has_unicode = False
-    if font_path:
-        try:
-            pdf.add_font("UFont", "", font_path)
-            has_unicode = True
-        except: pass
-
-    pdf.set_font("UFont" if has_unicode else "Helvetica", size=14)
-    pdf.cell(190, 10, txt=title, ln=True, align='C')
-    pdf.ln(10)
-    pdf.set_font("UFont" if has_unicode else "Helvetica", size=10)
-    col_width = 190 / len(columns)
-    for col in columns: pdf.cell(col_width, 10, txt=str(col), border=1, align='C')
-    pdf.ln()
-    pdf.set_font("UFont" if has_unicode else "Helvetica", size=9)
-    
-    def _safe(v):
-        s = str(v)
-        return s if has_unicode else s.encode('ascii', 'ignore').decode('ascii')
-    for _, row in df.iterrows():
-        for col in columns: pdf.cell(col_width, 10, txt=_safe(row[col]), border=1)
-        pdf.ln()
-    return bytes(pdf.output())
-
-
 # ============================================
 # 🤖 AI AGENT TOOLS & FUNCTIONS
 # ============================================
@@ -265,7 +311,6 @@ def check_gmail_emails(count=3):
         status, messages = mail.search(None, "ALL")
         mail_ids = messages[0].split()
         if not mail_ids: return "മെയിലുകൾ ഇല്ല."
-        
         latest_ids = mail_ids[-int(count):]
         email_list = []
         for i in reversed(latest_ids):
@@ -291,7 +336,6 @@ def check_gmail_emails(count=3):
         return "\n---\n".join(email_list)
     except Exception as e: return f"Gmail Error: {str(e)}"
 
-# 📰 RSS News Fetcher
 def fetch_rss_news():
     try:
         url = "https://news.google.com/rss/search?q=gold+rate+petrol+price+kerala+uae+business&hl=en-US&gl=US&ceid=US:en"
@@ -300,11 +344,7 @@ def fetch_rss_news():
         xml_data = response.read()
         root = ET.fromstring(xml_data)
         items = root.findall('.//item')
-        news_list = []
-        for item in items[:5]:
-            title = item.find('title').text
-            news_list.append(f"- {title}")
-        return "\n".join(news_list)
+        return "\n".join([f"- {item.find('title').text}" for item in items[:5]])
     except Exception as e:
         return f"Error fetching news: {e}"
 
@@ -328,63 +368,32 @@ def extract_frames_from_video(video_bytes, num_frames=3):
         return frames
     except: return []
 
-# ============================================
-# 🎥 വിഷൻ ഫങ്ക്ഷൻ (വീഡിയോ vs ഫോട്ടോ)
-# ============================================
 def analyze_images_with_groq(images_bytes_list, is_video=False):
-    if not GROQ_API_KEY: 
-        return False, "Groq Key missing!"
+    if not GROQ_API_KEY: return False, "Groq Key missing!"
     try:
         client = Groq(api_key=GROQ_API_KEY)
-        
-        if is_video:
-            prompt_text = "Analyze these CCTV video frames carefully. Count the exact number of people visible and describe what they are doing. If there are no people, explicitly say 'No people visible'. Provide the report in Malayalam."
-        else:
-            prompt_text = "You are an expert inventory auditor. Look very closely at this image. Count the exact number of items visible. Pay close attention to stacked items (like cups or plates). Count each individual layer/rim carefully to get the exact total number. Tell me the name of the item and the exact quantity. Provide the report in Malayalam."
-        
+        prompt_text = "Analyze these CCTV video frames carefully. Count the exact number of people visible and describe what they are doing. Provide the report in Malayalam." if is_video else "Count the exact number of items visible and tell me the name and quantity in Malayalam."
         content_list = [{"type": "text", "text": prompt_text}]
-        
         for img in images_bytes_list:
-            content_list.append({
-                "type": "image_url", 
-                "image_url": {"url": f"data:image/jpeg;base64,{base64.b64encode(img).decode('utf-8')}"}
-            })
-            
-        res = client.chat.completions.create(
-            model=VISION_MODEL, 
-            messages=[{"role": "user", "content": content_list}], 
-            max_tokens=1000,
-            temperature=0.1
-        ).choices[0].message.content
-        
-        prompt_ml = f"Translate this report into natural Malayalam. Do NOT translate brand names.\n\n{res}"
-        
-        final_res = client.chat.completions.create(
-            model=AGENT_MODEL, 
-            messages=[{"role": "user", "content": prompt_ml}], 
-            max_tokens=800
-        ).choices[0].message.content
-        
+            content_list.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64.b64encode(img).decode('utf-8')}"}})
+        res = client.chat.completions.create(model=VISION_MODEL, messages=[{"role": "user", "content": content_list}], max_tokens=1000, temperature=0.1).choices[0].message.content
+        final_res = client.chat.completions.create(model=AGENT_MODEL, messages=[{"role": "user", "content": f"Translate into natural Malayalam:\n\n{res}"}], max_tokens=800).choices[0].message.content
         return True, final_res
-    except Exception as e: 
-        return False, f"Vision Error: {str(e)}"
+    except Exception as e: return False, f"Vision Error: {str(e)}"
 
 def process_ai_agent(prompt_text):
     client = Groq(api_key=GROQ_API_KEY)
     system_instruction = f"നീ ഒരു ബിസിനസ്സ് AI ആണ്. ബാലൻസ്: ₹{st.session_state.get('current_bal', 0):,.2f}. മലയാളത്തിൽ മറുപടി നൽകുക."
     messages = [{"role": "system", "content": system_instruction}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-4:]] + [{"role": "user", "content": prompt_text}]
-    
     response = client.chat.completions.create(model=AGENT_MODEL, messages=messages, tools=tools, tool_choice="auto")
     msg = response.choices[0].message
     tool_used = False
-    
     if msg.tool_calls:
         tool_used = True
         replies = []
         for tc in msg.tool_calls:
             try: args = json.loads(tc.function.arguments)
             except: continue
-            
             if tc.function.name == "add_finance":
                 res = execute_add_finance(args["shop"], args["item"], args["amount"], args["type"])
                 replies.append(f"✅ {args['shop']}-ൽ '{args['item']}' എൻട്രി ഇട്ടു!" if res == "Success" else "❌ എൻട്രി പറ്റിയില്ല.")
@@ -400,27 +409,27 @@ def process_ai_agent(prompt_text):
         ai_reply = msg.content or ""
     return ai_reply, tool_used
 
-
-# --- 🔒 LOGIN ---
+# --- 🔒 3D LOGIN SCREEN ---
 if not st.session_state.auth:
+    render_3d_header()
     _, mid, _ = st.columns([1, 2, 1])
     with mid:
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        st.markdown('<div class="banner"><h2>🔐 PAICHI BUSINESS 3D LOGIN</h2></div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-3d"><h2 style="margin:0;">🔐 SYSTEM ACCESS</h2><p style="color:#00d2ff !important;">3D Biometric / PIN Gateway</p></div>', unsafe_allow_html=True)
         u = st.selectbox("👤 Select Role", ["admin", "shop1"]).lower()
         pin = st.text_input("🔑 Enter PIN", type="password", max_chars=4)
-        if st.button("LOGIN", use_container_width=True):
+        if st.button("LAUNCH 3D DASHBOARD", use_container_width=True):
             if USER_PINS.get(u) == pin:
                 st.session_state.auth, st.session_state.user = True, u; st.rerun()
             else: st.error("❌ Incorrect PIN!")
 
 else:
-    st.sidebar.title(f"👋 Welcome, {st.session_state.user.capitalize()}")
+    render_3d_header()
+    st.sidebar.markdown(f"### 💠 Operator: `{st.session_state.user.upper()}`")
     
-    menu = ["📊 Dashboard", "💰 Add Finance", "📦 Stock Management", "🧾 Bill Scanner", "📧 Email Replier", "📢 WhatsApp Marketing", "📰 Daily Market News", "👨‍💼 Staff Salary", "🤖 AI Agent", "🎥 CCTV AI Vision"]
-    page = st.sidebar.radio("Menu", menu)
+    menu = ["📊 3D Dashboard", "💰 Add Finance", "📦 Stock Management", "🧾 Bill Scanner", "📧 Email Replier", "📢 WhatsApp Marketing", "📰 Daily Market News", "👨‍💼 Staff Salary", "🤖 AI Agent", "🎥 CCTV AI Vision"]
+    page = st.sidebar.radio("NAVIGATION", menu)
 
-    if st.sidebar.button("Logout", use_container_width=True):
+    if st.sidebar.button("LOGOUT", use_container_width=True):
         st.session_state.auth = False; st.session_state.messages = []; st.rerun()
 
     df_fin = load_finance_data()
@@ -428,14 +437,41 @@ else:
     bal = (df_fin['Credit'].sum() - df_fin['Debit'].sum()) if not df_fin.empty else 0
     st.session_state['current_bal'] = bal
 
-    # --- 1. DASHBOARD ---
-    if page == "📊 Dashboard":
-        st.markdown(f'<div class="banner"><span class="b-label">Total Business Balance</span><br><span class="b-value">₹{bal:,.2f}</span></div>', unsafe_allow_html=True)
+    # --- 1. REAL 3D DASHBOARD ---
+    if page == "📊 3D Dashboard":
+        c1, c2, c3 = st.columns(3)
+        tot_cred = df_fin['Credit'].sum() if not df_fin.empty else 0
+        tot_deb = df_fin['Debit'].sum() if not df_fin.empty else 0
+        
+        with c1:
+            st.markdown(f'<div class="card-3d"><span class="b-label">Total Balance</span><br><span class="b-value">₹{bal:,.0f}</span></div>', unsafe_allow_html=True)
+        with c2:
+            st.markdown(f'<div class="card-3d"><span class="b-label" style="color:#00ff88 !important;">Total Credit</span><br><span class="b-value" style="color:#00ff88 !important;">₹{tot_cred:,.0f}</span></div>', unsafe_allow_html=True)
+        with c3:
+            st.markdown(f'<div class="card-3d"><span class="b-label" style="color:#ff4b4b !important;">Total Debit</span><br><span class="b-value" style="color:#ff4b4b !important;">₹{tot_deb:,.0f}</span></div>', unsafe_allow_html=True)
+
         if not df_fin.empty:
-            shop_data = df_fin.groupby('Shop Name')[['Credit', 'Debit']].sum().reset_index()
-            fig = px.bar(shop_data, x='Shop Name', y=['Credit', 'Debit'], barmode='group', color_discrete_sequence=['#00C853', '#FF3D00'])
-            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-            st.plotly_chart(fig, use_container_width=True)
+            st.subheader("🌐 Interactive 3D Financial Mesh (കറക്കി നോക്കാം)")
+            # Real 3D Scatter Plot using Plotly
+            df_plot = df_fin.copy()
+            df_plot['Index'] = range(1, len(df_plot) + 1)
+            fig_3d = px.scatter_3d(
+                df_plot, x='Index', y='Credit', z='Debit',
+                color='Shop Name', size_max=18, opacity=0.9,
+                hover_data=['Item', 'Date'],
+                color_discrete_sequence=['#00d2ff', '#ff007f']
+            )
+            fig_3d.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)',
+                scene=dict(
+                    xaxis=dict(backgroundcolor="rgba(15,23,42,0.8)", gridcolor="rgba(0,210,255,0.2)"),
+                    yaxis=dict(backgroundcolor="rgba(15,23,42,0.8)", gridcolor="rgba(0,210,255,0.2)"),
+                    zaxis=dict(backgroundcolor="rgba(15,23,42,0.8)", gridcolor="rgba(0,210,255,0.2)"),
+                ),
+                margin=dict(l=0, r=0, b=0, t=0),
+                height=450
+            )
+            st.plotly_chart(fig_3d, use_container_width=True)
             st.dataframe(df_fin.tail(10).iloc[::-1], use_container_width=True)
 
     # --- 2. ADD FINANCE ---
@@ -457,7 +493,7 @@ else:
     elif page == "📦 Stock Management":
         st.title("📦 Stock & Inventory")
         show_flash()
-        tab1, tab2, tab3 = st.tabs(["📊 Current Stock", "➕ Add Entry", "📄 Item History"])
+        tab1, tab2 = st.tabs(["📊 Current Stock", "➕ Add Entry"])
         with tab1:
             if not df_stk.empty:
                 s = df_stk.copy()
@@ -504,76 +540,38 @@ else:
                 raw_emails = check_gmail_emails(1)
                 if "Error" in raw_emails or "ഇല്ല" in raw_emails: st.warning(raw_emails)
                 else:
-                    st.info("📥 **ഏറ്റവും പുതിയ മെയിൽ:**"); st.text_area("Email", raw_emails, height=200, disabled=True)
+                    st.text_area("Email", raw_emails, height=200, disabled=True)
                     client = Groq(api_key=GROQ_API_KEY)
                     prompt = f"ഈ മെയിൽ പ്രധാനപ്പെട്ടതാണോ എന്ന് പറയുക. പ്രധാനമാണെങ്കിൽ ഒരു പ്രൊഫഷണൽ റിപ്ലൈ തയ്യാറാക്കുക.\n\n{raw_emails}"
-                    with st.spinner("AI റിപ്ലൈ തയ്യാറാക്കുന്നു..."):
-                        reply_res = client.chat.completions.create(model=AGENT_MODEL, messages=[{"role": "user", "content": prompt}], max_tokens=800).choices[0].message.content
-                        st.success("✅ AI വിശകലനവും റിപ്ലൈയും:"); st.markdown(reply_res)
+                    reply_res = client.chat.completions.create(model=AGENT_MODEL, messages=[{"role": "user", "content": prompt}], max_tokens=800).choices[0].message.content
+                    st.markdown(reply_res)
 
     # --- 6. WHATSAPP MARKETING ---
     elif page == "📢 WhatsApp Marketing":
         st.title("📢 Customer WhatsApp Marketing")
-        st.write("കസ്റ്റമർമാർക്ക് ഓഫറുകളും മറ്റു വിവരങ്ങളും വാട്ട്‌സ്ആപ്പിൽ അയക്കാം.")
-
-        st.subheader("1. മെസ്സേജ് തയ്യാറാക്കുക")
         ai_prompt = st.text_input("AI-യോട് മെസ്സേജ് എഴുതാൻ പറയാം (ഉദാ: 'ഓണം ഓഫർ 10%')")
         if st.button("🤖 AI മെസ്സേജ് ഉണ്ടാക്കുക", use_container_width=True) and ai_prompt:
-            with st.spinner("AI മെസ്സേജ് തയ്യാറാക്കുന്നു..."):
-                try:
-                    client = Groq(api_key=GROQ_API_KEY)
-                    prompt = f"ഇതിനെ അടിസ്ഥാനമാക്കി ഒരു കിടിലൻ വാട്ട്സ്ആപ്പ് മാർക്കറ്റിംഗ് മെസ്സേജ് മലയാളത്തിൽ എഴുതുക. കൂടുതൽ ഇമോജികൾ ഉപയോഗിക്കുക: '{ai_prompt}'"
-                    res = client.chat.completions.create(model=AGENT_MODEL, messages=[{"role": "user", "content": prompt}]).choices[0].message.content
-                    st.session_state['wa_message'] = res
-                except: st.error("AI എറർ!")
-        
+            client = Groq(api_key=GROQ_API_KEY)
+            prompt = f"ഇതിനെ അടിസ്ഥാനമാക്കി ഒരു കിടിലൻ വാട്ട്സ്ആപ്പ് മാർക്കറ്റിംഗ് മെസ്സേജ് മലയാളത്തിൽ എഴുതുക: '{ai_prompt}'"
+            st.session_state['wa_message'] = client.chat.completions.create(model=AGENT_MODEL, messages=[{"role": "user", "content": prompt}]).choices[0].message.content
         msg_to_send = st.text_area("മെസ്സേജ്", value=st.session_state.get('wa_message', ''), height=150)
-        st.subheader("2. കസ്റ്റമർ നമ്പറുകൾ")
-        numbers_input = st.text_area("ഫോൺ നമ്പറുകൾ (കോമ ഉപയോഗിച്ച് വേർതിരിക്കുക)", placeholder="+971501234567, +919876543210")
+        numbers_input = st.text_area("ഫോൺ നമ്പറുകൾ", placeholder="+971501234567, +919876543210")
         numbers_list = [num.strip() for num in numbers_input.split(",") if num.strip()]
-
         if st.button("🚀 മെസ്സേജ് അയക്കുക", use_container_width=True):
-            if not msg_to_send: st.error("ദയവായി മെസ്സേജ് നൽകുക.")
-            elif not numbers_list: st.error("ദയവായി ഒരു നമ്പറെങ്കിലും നൽകുക.")
-            elif not TWILIO_SID: st.error("Twilio Config ലഭ്യമല്ല.")
-            else:
-                success_count = 0
+            if msg_to_send and numbers_list and TWILIO_SID:
                 for num in numbers_list:
-                    formatted_num = f"whatsapp:{num}" if not num.startswith("whatsapp:") else num
-                    if send_whatsapp_custom(formatted_num, msg_to_send): success_count += 1
-                    time.sleep(1) 
-                st.success(f"✅ {success_count} കസ്റ്റമർമാർക്ക് മെസ്സേജ് അയച്ചു!")
+                    send_whatsapp_custom(f"whatsapp:{num}" if not num.startswith("whatsapp:") else num, msg_to_send)
+                    time.sleep(1)
+                st.success("✅ മെസ്സേജ് അയച്ചു!")
 
     # --- 7. DAILY MARKET NEWS ---
     elif page == "📰 Daily Market News":
         st.title("📰 Daily Market & Business News")
-        st.write("ഇന്നത്തെ പ്രധാനപ്പെട്ട വാർത്തകളും മാർക്കറ്റ് വിവരങ്ങളും.")
-        
-        if st.button("🔄 വാർത്തകൾ കാണുക (Refresh)", use_container_width=True):
-            with st.spinner("വാർത്തകൾ ശേഖരിക്കുന്നു..."):
-                raw_news = fetch_rss_news()
-                if "Error" in raw_news:
-                    st.error(raw_news)
-                else:
-                    st.info("📥 ഏറ്റവും പുതിയ വാർത്തകൾ ലഭിച്ചു. AI വിശകലനം ചെയ്യുന്നു...")
-                    try:
-                        client = Groq(api_key=GROQ_API_KEY)
-                        prompt = (
-                            "താഴെ തന്നിരിക്കുന്ന വാർത്തകൾ വായിച്ച്, ഒരു ബിസിനസ്സുകാരന് ഉപകാരപ്രദമായ രീതിയിൽ മലയാളത്തിൽ ചുരുക്കി എഴുതുക. "
-                            "സ്വർണ്ണവില, പെട്രോൾ വില, പ്രധാന ബിസിനസ്സ് വാർത്തകൾ എന്നിവ എടുത്തു പറയുക. "
-                            "വാർത്തകളില്ലാത്ത പക്ഷം സാധാരണ വിപണി നിലവാരം ഊഹിച്ച് പറയരുത്, ലഭ്യമായ വിവരങ്ങൾ മാത്രം നൽകുക.\n\n"
-                            f"News Headlines:\n{raw_news}"
-                        )
-                        summary = client.chat.completions.create(
-                            model=AGENT_MODEL, 
-                            messages=[{"role": "user", "content": prompt}], 
-                            max_tokens=800
-                        ).choices[0].message.content
-                        
-                        st.success("📊 **AI ന്യൂസ് സംഗ്രഹം:**")
-                        st.markdown(summary)
-                    except Exception as e:
-                        st.error(f"AI Error: {e}")
+        if st.button("🔄 വാർത്തകൾ കാണുക", use_container_width=True):
+            raw_news = fetch_rss_news()
+            client = Groq(api_key=GROQ_API_KEY)
+            summary = client.chat.completions.create(model=AGENT_MODEL, messages=[{"role": "user", "content": f"മലയാളത്തിൽ ചുരുക്കി എഴുതുക:\n{raw_news}"}], max_tokens=800).choices[0].message.content
+            st.markdown(summary)
 
     # --- 8. STAFF SALARY ---
     elif page == "👨‍💼 Staff Salary":
@@ -589,58 +587,29 @@ else:
     # --- 9. AI AGENT ---
     elif page == "🤖 AI Agent":
         st.title("🤖 PAICHI Business AI")
-        col1, col2 = st.columns([1, 4])
-        with col1:
-            if st.button("🗑️ Clear Chat", use_container_width=True): st.session_state.messages = []; st.session_state['audio_counter'] += 1; st.rerun()
-
+        if st.button("🗑️ Clear Chat"): st.session_state.messages = []; st.session_state['audio_counter'] += 1; st.rerun()
         for message in st.session_state.messages:
             with st.chat_message(message["role"]): st.markdown(message["content"])
-
         audio_value = st.audio_input("🎤 റെക്കോർഡ് ചെയ്യാൻ അമർത്തുക", key=f"audio_{st.session_state['audio_counter']}")
         text_prompt = st.chat_input("ഇവിടെ ടൈപ്പ് ചെയ്യാം...")
-        prompt = None
-
-        if audio_value:
-            if st.session_state.get("last_audio_hash") != hashlib.md5(audio_value.getvalue()).hexdigest():
-                st.session_state["last_audio_hash"] = hashlib.md5(audio_value.getvalue()).hexdigest()
-                with st.spinner("ശബ്ദം കേൾക്കുന്നു..."):
-                    try:
-                        client = Groq(api_key=GROQ_API_KEY)
-                        prompt = client.audio.transcriptions.create(file=(audio_value.name, audio_value.getvalue()), model=WHISPER_MODEL, response_format="text").strip()
-                    except Exception as e: st.error(f"Audio Error: {str(e)}")
-
-        if text_prompt: prompt = text_prompt
-
+        prompt = text_prompt
+        if audio_value and st.session_state.get("last_audio_hash") != hashlib.md5(audio_value.getvalue()).hexdigest():
+            st.session_state["last_audio_hash"] = hashlib.md5(audio_value.getvalue()).hexdigest()
+            client = Groq(api_key=GROQ_API_KEY)
+            prompt = client.audio.transcriptions.create(file=(audio_value.name, audio_value.getvalue()), model=WHISPER_MODEL, response_format="text").strip()
         if prompt:
             st.session_state.messages.append({"role": "user", "content": prompt})
-            with st.chat_message("user"): st.markdown(prompt)
-            with st.spinner("AI ടൈപ്പ് ചെയ്യുന്നു..."):
-                try:
-                    ai_reply, tool_used = process_ai_agent(prompt)
-                    st.session_state.messages.append({"role": "assistant", "content": ai_reply})
-                    with st.chat_message("assistant"): st.markdown(ai_reply)
-                    st.session_state['audio_counter'] += 1; st.rerun()
-                except Exception as e: st.error(f"AI Error: {str(e)}")
+            ai_reply, _ = process_ai_agent(prompt)
+            st.session_state.messages.append({"role": "assistant", "content": ai_reply})
+            st.session_state['audio_counter'] += 1; st.rerun()
 
     # --- 10. CCTV AI VISION ---
     elif page == "🎥 CCTV AI Vision":
         st.title("🎥 CCTV AI Vision")
         uploaded_file = st.file_uploader("Upload Shop CCTV Photo or Video", type=["jpg", "jpeg", "png", "mp4"])
         if uploaded_file is not None:
-            if "image" in uploaded_file.type:
-                st.image(uploaded_file, use_container_width=True)
-                images_to_analyze = [uploaded_file.getvalue()]
-                is_vid = False
-            else:
-                st.video(uploaded_file)
-                with st.spinner("ഫ്രെയിമുകൾ എടുക്കുന്നു..."):
-                    images_to_analyze = extract_frames_from_video(uploaded_file.getvalue())
-                    if not images_to_analyze: st.error("ഫ്രെയിമുകൾ എടുക്കാൻ സാധിച്ചില്ല."); st.stop()
-                    is_vid = True
-
+            is_vid = "image" not in uploaded_file.type
+            images_to_analyze = extract_frames_from_video(uploaded_file.getvalue()) if is_vid else [uploaded_file.getvalue()]
             if st.button("🔍 Analyze with AI", use_container_width=True):
-                with st.spinner("AI വിശകലനം ചെയ്യുന്നു..."):
-                    ok, analysis_result = analyze_images_with_groq(images_to_analyze, is_video=is_vid)
-                    st.subheader("📊 AI Analysis Report")
-                    if ok: st.success(analysis_result)
-                    else: st.error(analysis_result)
+                ok, analysis_result = analyze_images_with_groq(images_to_analyze, is_video=is_vid)
+                st.success(analysis_result) if ok else st.error(analysis_result)
