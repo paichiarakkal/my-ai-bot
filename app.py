@@ -782,3 +782,61 @@ else:
                     with st.chat_message("assistant"): st.markdown(ai_reply)
                 except Exception as e: 
                     st.error(f"Error: {e}")
+import streamlit as st
+from groq import Groq
+
+# Page Config
+st.set_page_config(page_title="My AI Assistant", layout="centered")
+
+st.title("🤖 എന്റെ സ്വന്തം AI അസിസ്റ്റന്റ്")
+st.write("ചേട്ടന് ആവശ്യമായ എന്ത് സംശയങ്ങളും ചോദിക്കാം, ഞാൻ കൃത്യമായി ഉത്തരം തരാം!")
+
+# Groq API Key (Streamlit Secrets-ൽ നിന്ന് എടുക്കുന്നു)
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
+
+if not GROQ_API_KEY:
+    st.error("⚠️ Groq API Key ക്രമീകരിച്ചിട്ടില്ല! ദയവായി secrets.toml-ൽ കീ നൽകുക.")
+else:
+    client = Groq(api_key=GROQ_API_KEY)
+
+    # Chat history initialize ചെയ്യുക
+    if "my_ai_messages" not in st.session_state:
+        st.session_state.my_ai_messages = []
+
+    # പഴയ ചാറ്റുകൾ കാണിക്കുക
+    for message in st.session_state.my_ai_messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    # യൂസർ ഇൻപുട്ട്
+    user_input = st.chat_input("ഇവിടെ ചോദിക്കാം...")
+
+    if user_input:
+        # യൂസർ മെസ്സേജ് സേവ് ചെയ്യുകയും കാണിക്കുകയും ചെയ്യുക
+        st.session_state.my_ai_messages.append({"role": "user", "content": user_input})
+        with st.chat_message("user"):
+            st.markdown(user_input)
+
+        # AI മറുപടി ജനേറ്റ് ചെയ്യുക
+        with st.spinner("ആലോചിക്കുന്നു..."):
+            try:
+                system_prompt = "You are a helpful, friendly personal AI assistant for a Malayali. Answer all questions in natural Malayalam in a warm and engaging way."
+                messages = [{"role": "system", "content": system_prompt}] + [
+                    {"role": m["role"], "content": m["content"]} for m in st.session_state.my_ai_messages
+                ]
+                
+                response = client.chat.completions.create(
+                    model="openai/gpt-oss-120b",  # ശക്തമായ AI മോഡൽ
+                    messages=messages,
+                    max_tokens=1024
+                )
+                
+                ai_reply = response.choices[0].message.content
+                
+                # AI മറുപടി സേവ് ചെയ്യുകയും കാണിക്കുകയും ചെയ്യുക
+                st.session_state.my_ai_messages.append({"role": "assistant", "content": ai_reply})
+                with st.chat_message("assistant"):
+                    st.markdown(ai_reply)
+                    
+            except Exception as e:
+                st.error(f"എറർ വന്നു: {e}")
