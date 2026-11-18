@@ -23,10 +23,8 @@ from email.header import decode_header
 from groq import Groq
 from streamlit_calendar import calendar
 from twilio.rest import Client
-from twilio.twiml.messaging_response import MessagingResponse
 from streamlit_mic_recorder import speech_to_text
 from streamlit_autorefresh import st_autorefresh
-from flask import Flask, request
 
 # --- STREAMLIT UI SETUP ---
 st.set_page_config(page_title="PAICHI EXPENSES v3.0 - FULL COMMAND CENTER", layout="wide", initial_sidebar_state="expanded")
@@ -329,7 +327,7 @@ def check_gmail_emails(count=3):
                                 except: pass
                                 break
                     else:
-                        try: body = part.get_payload(decode=True).decode()
+                        try: body = msg.get_payload(decode=True).decode()
                         except: pass
                     email_list.append(f"From: {from_}\nSubject: {subject}\nBody: {body[:800]}...\n")
         mail.logout()
@@ -753,7 +751,7 @@ else:
             with st.spinner("AI ആലോചിക്കുന്നു..."):
                 try:
                     client = Groq(api_key=GROQ_API_KEY)
-                    system_instruction = f"നീ ഒരു ഫിനാൻസ് & സ്റ്റോക്ക് AI അസിസ്റ്റന്റാണ്. ബാലൻസ്: {bal}. ഉപയോക്താവ് നൽകുന്ന വിവരങ്ങൾ ഉടൻ ടൂൾ ഉപയോഗിക്കാതെ, ആദ്യം അനുവാദം ചോദിക്കുക."
+                    system_instruction = f"നീ ഒരു ഫിനാൻസ്, സ്റ്റോക്ക് & CCTV വിഷൻ AI അസിസ്റ്റന്റാണ്. ബാലൻസ്: {bal}. ഉപയോക്താവ് ക്യാമറ പരിശോധിക്കാനോ ഫൂട്ടേജുകളെക്കുറിച്ച് ചോദിക്കാനോ ആവശ്യപ്പെട്ടാൽ, '🎥 CCTV Vision' പേജ് ഉപയോഗിക്കാൻ നിർദ്ദേശിക്കുക."
                     messages = [{"role": "system", "content": system_instruction}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-4:]]
                     response = client.chat.completions.create(model=AGENT_MODEL, messages=messages, tools=tools, tool_choice="auto")
                     msg = response.choices[0].message
