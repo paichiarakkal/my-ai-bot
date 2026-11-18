@@ -23,11 +23,13 @@ from email.header import decode_header
 from groq import Groq
 from streamlit_calendar import calendar
 from twilio.rest import Client
+from twilio.twiml.messaging_response import MessagingResponse
 from streamlit_mic_recorder import speech_to_text
 from streamlit_autorefresh import st_autorefresh
+from flask import Flask, request
 
 # --- STREAMLIT UI SETUP ---
-st.set_page_config(page_title="PAICHI EXPENSES v3.0 - 3D DARK", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="PAICHI EXPENSES v3.0 - FULL COMMAND CENTER", layout="wide", initial_sidebar_state="expanded")
 
 # --- CONFIG & SETTINGS ---
 CSV_URL = st.secrets.get("GOOGLE_SHEET_CSV", "YOUR_FINANCE_SHEET_CSV_LINK")
@@ -144,7 +146,7 @@ def render_3d_header():
     """
     components.html(three_js_html, height=140)
 
-# --- SESSION STATES INITIALIZATION ---
+# --- SESSION STATES ---
 if 'auth' not in st.session_state: st.session_state.auth, st.session_state.user = False, ""
 if 'custom_alert_text' not in st.session_state: st.session_state.custom_alert_text = "Shop kuri book"
 if 'low_limit' not in st.session_state: st.session_state.low_limit = 6000
@@ -281,26 +283,6 @@ def add_new_entry(item, amount, category="Others", type="Debit", entry_date=None
     except Exception as e: 
         return f"Error: {str(e)}"
 
-def add_multiple_entries(entries_list):
-    results = []
-    try:
-        for entry in entries_list:
-            item = entry.get('item', 'Unknown')
-            amount = entry.get('amount', 0)
-            category = entry.get('category', 'Others')
-            entry_type = entry.get('type', 'Debit')
-            entry_date = entry.get('date', datetime.now(GST).strftime('%Y-%m-%d %H:%M:%S'))
-            
-            payload = {"item": item, "amount": amount, "category": category, "type": entry_type, "date": entry_date, "sender": st.session_state.user.capitalize()}
-            if WEB_APP_URL and "YOUR_" not in WEB_APP_URL:
-                requests.post(WEB_APP_URL, json=payload, timeout=10)
-            results.append(f'{item} - ₹{amount}')
-        summary_text = '\n'.join([f'• {r}' for r in results])
-        send_whatsapp_auto(f'✅ *AI Multi-Entries Added*\n{summary_text}')
-        return f'Success: Added {len(results)} items.'
-    except Exception as e: 
-        return f'Error: {str(e)}'
-
 def add_debt_via_ai(name, type, amount, date=None):
     try:
         if not date: 
@@ -416,33 +398,6 @@ tools = [
                     "date": {"type": "string", "description": "YYYY-MM-DD HH:MM:SS"}
                 }, 
                 "required": ["item", "amount"]
-            }
-        }
-    },
-    {
-        "type": "function", 
-        "function": {
-            "name": "add_multiple_entries", 
-            "description": "Add multiple expenses", 
-            "parameters": {
-                "type": "object", 
-                "properties": {
-                    "entries_list": {
-                        "type": "array", 
-                        "items": {
-                            "type": "object", 
-                            "properties": {
-                                "item": {"type": "string"}, 
-                                "amount": {"type": "number"}, 
-                                "category": {"type": "string"}, 
-                                "type": {"type": "string", "enum": ["Debit", "Credit"]}, 
-                                "date": {"type": "string"}
-                            }, 
-                            "required": ["item", "amount"]
-                        }
-                    }
-                }, 
-                "required": ["entries_list"]
             }
         }
     },
