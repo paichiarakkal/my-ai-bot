@@ -781,4 +781,4 @@ else:
                     st.session_state.buddy_messages.append({"role": "assistant", "content": ai_reply})
                     with st.chat_message("assistant"): st.markdown(ai_reply)
                 except Exception as e: 
-                    st.error(f"Error: {e}"
+                    st.error(f"Error: {e}")
