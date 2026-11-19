@@ -1,205 +1,430 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import pandas as pd
 import requests
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 import random
 import plotly.express as px
+from streamlit_mic_recorder import speech_to_text
+from streamlit_autorefresh import st_autorefresh
 from fpdf import FPDF
 import re
 import json
-import base64
-import os
-import cv2
-import tempfile
-import hashlib
-import imaplib
-import email
-import time
-import urllib.request
-import xml.etree.ElementTree as ET
-from email.header import decode_header
 from groq import Groq
 from streamlit_calendar import calendar
 from twilio.rest import Client
-from streamlit_mic_recorder import speech_to_text
-from streamlit_autorefresh import st_autorefresh
 
 # --- STREAMLIT UI SETUP ---
-st.set_page_config(page_title="PAICHI EXPENSES v3.0 - FULL AGENT", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="PAICHI EXPENSES", layout="wide")
 
-# --- SECRETS & CONFIG ---
+# --- CONFIG & SETTINGS ---
 CSV_URL = st.secrets.get("GOOGLE_SHEET_CSV", "")
-DEBT_CSV_URL = st.secrets.get("GOOGLE_SHEET_DEBT_CSV", "")
 WEB_APP_URL = st.secrets.get("APPS_SCRIPT_URL", "")
-STOCK_CSV_URL = st.secrets.get("STOCK_SHEET_CSV_LINK", "")
-STOCK_FORM_API = st.secrets.get("STOCK_FORM_API", "")
-WA_PHONE = st.secrets.get("WA_PHONE", "971551347989")
+WA_PHONE = "971551347989"
 
 USER_PINS = {
-    "faisal": st.secrets.get("PIN_FAISAL", "1234"),
-    "shabana": st.secrets.get("PIN_SHABANA", "2222"),
-    "admin": st.secrets.get("PIN_ADMIN", "1111")
+    "faisal": st.secrets.get("PIN_FAISAL", ""),
+    "shabana": st.secrets.get("PIN_SHABANA", ""),
+    "admin": st.secrets.get("PIN_ADMIN", "")
 }
-
 BG_IMAGE_URL = "https://raw.githubusercontent.com/paichiarakkal/paichiarakkal/main/profile.jpg"
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
 
-# Gmail Credentials
-GMAIL_USER = st.secrets.get("GMAIL_USER", "")
-GMAIL_APP_PASSWORD = st.secrets.get("GMAIL_APP_PASSWORD", "")
-
-# Twilio WhatsApp Credentials
-TWILIO_SID = st.secrets.get("TWILIO_SID", st.secrets.get("TWILIO_ACCOUNT_SID", ""))
-TWILIO_AUTH_TOKEN = st.secrets.get("TWILIO_AUTH_TOKEN", "")
-TWILIO_FROM = st.secrets.get("TWILIO_FROM", "whatsapp:+14155238886")
-
-VISION_MODEL = "qwen/qwen3.8-27b"
-AGENT_MODEL  = "openai/gpt-oss-120b"
-WHISPER_MODEL = "whisper-large-v3"
-
-GST = timezone(timedelta(hours=4))
 st_autorefresh(interval=60000, key="auto_refresh")
 
-# --- STYLING ---
+# ============================================
+# 🎨 3D GLASSMORPHISM CSS
+# ============================================
 st.markdown(f"""
     <style>
-    html, body, [data-testid="stAppViewContainer"], .stApp {{ 
-        background-color: #060913 !important;
+    [data-testid="stAppViewContainer"] {{ 
         background-image: linear-gradient(rgba(10, 10, 25, 0.85), rgba(10, 10, 25, 0.95)), url("{BG_IMAGE_URL}"); 
         background-size: cover; background-attachment: fixed; background-position: center;
-        color: #ffffff !important; 
     }}
-    [data-testid="stHeader"] {{ background-color: rgba(6, 9, 19, 0.9) !important; }}
-    [data-testid="stSidebar"] {{ background: rgba(20, 20, 35, 0.85) !important; backdrop-filter: blur(15px); }}
+    [data-testid="stSidebar"] {{ 
+        background: rgba(20, 20, 35, 0.6) !important; backdrop-filter: blur(15px);
+        border-right: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 5px 0 15px rgba(0,0,0,0.5);
+    }}
     .stButton>button {{ 
         background: linear-gradient(135deg, #FFD700, #FFA500); color: #000; border-radius: 12px; 
         font-weight: bold; width: 100%; border: none; padding: 10px;
+        box-shadow: 0 4px 15px rgba(255, 215, 0, 0.4), inset 0 -3px 0 rgba(0,0,0,0.2);
+        transition: all 0.2s ease;
     }}
-    .glass-card {{ background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 25px; margin-bottom: 25px; text-align: center; }}
-    h1, h2, h3, p, label {{ color: #FFFFFF !important; }}
+    .stButton>button:hover {{ transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255, 215, 0, 0.6); }}
+    .glass-card {{ background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 25px; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); margin-bottom: 25px; text-align: center; }}
+    .balance-banner {{ background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02)); backdrop-filter: blur(10px); padding: 30px; border-radius: 20px; border-left: 8px solid #FFD700; text-align: center; margin-bottom: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }}
+    .category-box {{ background: rgba(0, 0, 0, 0.5); padding: 20px; border-radius: 15px; text-align: center; border-bottom: 4px solid #FFD700; margin-bottom: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }}
+    .category-box:hover {{ transform: scale(1.03); }}
+    .alert-banner {{ background: linear-gradient(90deg, #ff4d4d, #cc0000); color: white; padding: 15px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(255, 77, 77, 0.4); }}
+    .login-card {{ background: rgba(20, 20, 35, 0.8); backdrop-filter: blur(20px); padding: 40px; border-radius: 20px; max-width: 450px; margin: auto; margin-top: 80px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 15px 35px rgba(0,0,0,0.6); }}
+    h1, h2, h3, p, label {{ color: #FFFFFF !important; font-weight: bold !important; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }}
+    [data-testid="stChatMessage"] {{ background: rgba(32, 44, 51, 0.9) !important; border-radius: 15px !important; padding: 15px !important; margin-bottom: 10px !important; border: 1px solid rgba(255,255,255,0.05) !important; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }}
+    [data-testid="stChatInput"] {{ background-color: rgba(42, 57, 66, 0.8) !important; border-radius: 25px !important; border: 1px solid rgba(255,255,255,0.1) !important; padding: 5px !important; }}
+    [data-testid="stChatInput"] textarea {{ color: white !important; }}
+    input, textarea, select {{ color: #FFFFFF !important; -webkit-text-fill-color: #FFFFFF !important; background-color: rgba(0, 0, 0, 0.5) !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; border-radius: 8px !important; }}
+    ::placeholder {{ color: #AAAAAA !important; }}
     </style>
 """, unsafe_allow_html=True)
 
-# --- SESSION STATES ---
 if 'auth' not in st.session_state: st.session_state.auth, st.session_state.user = False, ""
-if "messages" not in st.session_state: st.session_state.messages = []
-if "audio_counter" not in st.session_state: st.session_state.audio_counter = 0
+if 'custom_alert_text' not in st.session_state: st.session_state.custom_alert_text = "Shop kuri book"
+if 'low_limit' not in st.session_state: st.session_state.low_limit = 6000
+if "pending_entry" not in st.session_state: st.session_state.pending_entry = None
 
+# --- HELPER FUNCTIONS ---
 def send_whatsapp_auto(msg):
     try:
-        if TWILIO_SID and TWILIO_AUTH_TOKEN:
-            client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
-            client.messages.create(from_=TWILIO_FROM, body=msg, to=f'whatsapp:+{WA_PHONE}')
-    except Exception: 
-        pass 
+        account_sid = st.secrets.get("TWILIO_ACCOUNT_SID", "")
+        auth_token = st.secrets.get("TWILIO_AUTH_TOKEN", "")
+        if account_sid and auth_token:
+            client = Client(account_sid, auth_token)
+            client.messages.create(from_='whatsapp:+14155238886', body=msg, to=f'whatsapp:+{WA_PHONE}')
+    except: pass 
 
-def send_whatsapp_custom(to_number, msg):
-    if not TWILIO_SID or not TWILIO_AUTH_TOKEN: return False
+def parse_mixed_dates(date_series):
+    parsed = []
+    for val in date_series:
+        dt = pd.to_datetime(str(val).strip(), errors='coerce')
+        if not pd.isna(dt) and dt.year == 2026 and dt.month < 4: dt = datetime(2026, dt.day, dt.month)
+        if pd.isna(dt): dt = pd.to_datetime(str(val).strip(), dayfirst=True, errors='coerce')
+        parsed.append(dt)
+    return pd.Series(parsed)
+
+@st.cache_data(ttl=10)
+def load_data():
     try:
-        client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
-        client.messages.create(body=msg, from_=TWILIO_FROM, to=to_number)
-        return True
-    except Exception: 
-        return False
+        if not CSV_URL: return pd.DataFrame()
+        df = pd.read_csv(f"{CSV_URL}&r={random.randint(1,999)}")
+        df.columns = df.columns.str.strip()
+        df['Date'] = parse_mixed_dates(df['Date'])
+        df['Debit'] = pd.to_numeric(df['Debit'], errors='coerce').fillna(0)
+        df['Credit'] = pd.to_numeric(df['Credit'], errors='coerce').fillna(0)
+        return df
+    except: return pd.DataFrame()
 
-def check_gmail_emails(count=3):
-    if not GMAIL_USER or not GMAIL_APP_PASSWORD: return "Gmail App Password ക്രമീകരിച്ചിട്ടില്ല."
+def create_pdf(df):
     try:
-        mail = imaplib.IMAP4_SSL("imap.gmail.com")
-        mail.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        mail.select("inbox")
-        status, messages = mail.search(None, "ALL")
-        mail_ids = messages[0].split()
-        if not mail_ids: return "മെയിലുകൾ ഒന്നും ലഭ്യമല്ല."
-        latest_ids = mail_ids[-int(count):]
-        email_list = []
-        for i in reversed(latest_ids):
-            res, msg = mail.fetch(i, "(RFC822)")
-            for response in msg:
-                if isinstance(response, tuple):
-                    msg = email.message_from_bytes(response[1])
-                    subject, encoding = decode_header(msg["Subject"])[0]
-                    if isinstance(subject, bytes): subject = subject.decode(encoding if encoding else "utf-8")
-                    from_ = msg.get("From")
-                    body = ""
-                    if msg.is_multipart():
-                        for part in msg.walk():
-                            if part.get_content_type() == "text/plain":
-                                try: body = part.get_payload(decode=True).decode()
-                                except: pass
-                                break
-                    else:
-                        try: body = msg.get_payload(decode=True).decode()
-                        except: pass
-                    email_list.append(f"From: {from_}\nSubject: {subject}\nBody: {body[:500]}...\n")
-        mail.logout()
-        return "\n---\n".join(email_list)
-    except Exception as e: return f"Gmail Error: {str(e)}"
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(190, 10, txt="PAICHI FINANCE REPORT", ln=True, align='C')
+        pdf.ln(10)
+        pdf.set_font("Arial", 'B', 10)
+        widths = {"Date": 30, "Item": 85, "Debit": 35, "Credit": 35}
+        for col in widths: pdf.cell(widths[col], 10, txt=col, border=1, align='C')
+        pdf.ln()
+        pdf.set_font("Arial", size=9)
+        for _, row in df.iterrows():
+            if pdf.get_y() > 260: pdf.add_page()
+            y_start = pdf.get_y()
+            pdf.cell(30, 10, txt=str(row['Date']), border=0)
+            x_after_date = pdf.get_x()
+            pdf.multi_cell(85, 5, txt=str(row['Item']).encode('ascii', 'ignore').decode('ascii'), border=0)
+            h = max(10, pdf.get_y() - y_start)
+            pdf.set_xy(x_after_date + 85, y_start)
+            pdf.cell(35, h, txt=str(row['Debit']), border=0, align='R')
+            pdf.cell(35, h, txt=str(row['Credit']), border=0, align='R')
+            pdf.set_xy(10, y_start)
+            for w in widths.values(): pdf.cell(w, h, txt="", border=1)
+            pdf.set_y(y_start + h)
+        return bytes(pdf.output())
+    except: return None
 
-# --- LOGIN SCREEN ---
+def add_new_entry(item, amount, category="Others", type="Debit", entry_date=None):
+    try:
+        if not entry_date: entry_date = datetime.now().strftime("%Y-%m-%d")
+        payload = {"item": item, "amount": amount, "category": category, "type": type, "date": entry_date, "sender": st.session_state.user.capitalize()}
+        requests.post(WEB_APP_URL, json=payload, timeout=10)
+        send_whatsapp_auto(f"✅ *AI Entry Added*\n📝 Item: {item}\n💰 Amt: ₹{amount}")
+        return f"Success: {item} - ₹{amount} ({type}) on {entry_date}"
+    except Exception as e: return f"Error: {str(e)}"
+
+def add_multiple_entries(entries_list):
+    results = []
+    try:
+        for entry in entries_list:
+            item = entry.get('item', 'Unknown')
+            amount = entry.get('amount', 0)
+            category = entry.get('category', 'Others')
+            entry_type = entry.get('type', 'Debit')
+            entry_date = entry.get('date', datetime.now().strftime('%Y-%m-%d'))
+            payload = {"item": item, "amount": amount, "category": category, "type": entry_type, "date": entry_date, "sender": st.session_state.user.capitalize()}
+            requests.post(WEB_APP_URL, json=payload, timeout=10)
+            results.append(f'{item} - ₹{amount}')
+        summary_text = '\n'.join([f'• {r}' for r in results])
+        send_whatsapp_auto(f'✅ *AI Multi-Entries Added*\n{summary_text}')
+        return f'Success: Added {len(results)} items.'
+    except Exception as e: return f'Error: {str(e)}'
+
+tools = [
+    {"type": "function", "function": {"name": "add_new_entry", "description": "Add a single expense or income", "parameters": {"type": "object", "properties": {"item": {"type": "string"}, "amount": {"type": "number"}, "category": {"type": "string", "description": "Food, Shop, Fish, Travel, Rent, Others"}, "type": {"type": "string", "enum": ["Debit", "Credit"]}, "date": {"type": "string", "description": "YYYY-MM-DD"}}, "required": ["item", "amount"]}}},
+    {"type": "function", "function": {"name": "add_multiple_entries", "description": "Add multiple expenses", "parameters": {"type": "object", "properties": {"entries_list": {"type": "array", "items": {"type": "object", "properties": {"item": {"type": "string"}, "amount": {"type": "number"}, "category": {"type": "string"}, "type": {"type": "string", "enum": ["Debit", "Credit"]}, "date": {"type": "string"}}, "required": ["item", "amount"]}}}, "required": ["entries_list"]}}}
+]
+
+# --- 🔒 LOGIN SCREEN ---
 if not st.session_state.auth:
     _, mid, _ = st.columns([1, 2, 1])
     with mid:
-        st.subheader("🔐 LOGIN PAICHI AGENT")
+        st.markdown('<div class="login-card">', unsafe_allow_html=True)
+        st.subheader("🔐 PAICHI EXPENSES LOGIN")
         u = st.selectbox("👤 Select User", ["faisal", "shabana", "admin"]).lower()
-        pin = st.text_input("🔑 Enter PIN", type="password", max_chars=4)
-        if st.button("UNLOCK 🔓"):
+        pin = st.text_input("🔑 Enter 4-Digit PIN", type="password", max_chars=4)
+        if st.button("UNLOCK APP 🔓"):
             if USER_PINS.get(u) == pin:
                 st.session_state.auth, st.session_state.user = True, u
                 st.rerun()
             else: st.error("❌ Incorrect PIN!")
-else:
-    st.title("🤖 PAICHI FULL AGENT (Gmail, WhatsApp, Mobile Access)")
-    
-    menu = ["🤖 AI Agent Chat", "📧 Gmail Inbox", "📢 WhatsApp Marketing", "🎥 Mobile/CCTV Vision"]
-    page = st.sidebar.radio("Navigation", menu)
-    
-    if st.sidebar.button("Logout"): 
-        st.session_state.auth = False
-        st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    if page == "🤖 AI Agent Chat":
-        st.subheader("AI Voice & Text Assistant")
-        for m in st.session_state.messages:
-            with st.chat_message(m["role"]): st.markdown(m["content"])
-            
-        audio_val = st.audio_input("🎤 വോയ്‌സ് റെക്കോർഡ് ചെയ്യുക", key=f"aud_{st.session_state.audio_counter}")
-        prompt = st.chat_input("ചോദ്യങ്ങൾ ചോദിക്കാം...")
+else:
+    df = load_data()
+    t_in, t_out = (df['Credit'].sum(), df['Debit'].sum()) if not df.empty else (0.0, 0.0)
+    bal = t_in - t_out
+    
+    if st.session_state.user != "shabana":
+        with st.sidebar.expander("⚙️ Settings"):
+            st.session_state.custom_alert_text = st.text_area("Alert Message", value=st.session_state.custom_alert_text)
+            st.session_state.low_limit = st.number_input("Low Balance Limit (₹)", value=st.session_state.low_limit)
+    
+    if bal < st.session_state.low_limit:
+        st.markdown(f'<div class="alert-banner">⚠️ ബാലൻസ് കുറവാണ്: {st.session_state.custom_alert_text} (₹{bal:,.2f})!</div>', unsafe_allow_html=True)
+
+    st.markdown(f'<div class="balance-banner"><span style="font-size:22px; color:#E0B0FF; letter-spacing: 2px;">AVAILABLE BALANCE</span><br><span style="font-size:50px; color:#FFD700; font-family: monospace;">₹{bal:,.2f}</span></div>', unsafe_allow_html=True)
+    
+    menu = ["💰 Add Entry", "📅 Calendar", "📊 Report", "🔍 History", "🤝 Debt Tracker", "🤖 AI Chat", "🧠 My AI Buddy"]
+    if st.session_state.user != "shabana": menu.insert(0, "🏠 Dashboard")
+    page = st.sidebar.radio("Menu", menu)
+    if st.sidebar.button("Logout"): st.session_state.auth = False; st.rerun()
+
+    # --- DASHBOARD ---
+    if page == "🏠 Dashboard" and not df.empty:
+        st.title("Financial Overview")
+        st.markdown(f'<div class="glass-card"><h2 style="color:#00FF00;">Credit: ₹{t_in:,.2f}</h2><h2 style="color:#FF3131;">Debit: ₹{t_out:,.2f}</h2></div>', unsafe_allow_html=True)
         
-        if audio_val:
-            client = Groq(api_key=GROQ_API_KEY)
-            prompt = client.audio.transcriptions.create(file=(audio_val.name, audio_val.getvalue()), model=WHISPER_MODEL, response_format="text").strip()
+        def extract_cat(x):
+            item_text = str(x).lower()
+            if any(w in item_text for w in ["food", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി"]): return "Food"
+            elif any(w in item_text for w in ["shop", "കട", "സാധനങ്ങൾ", "സൂപ്പർമാർക്കറ്റ്"]): return "Shop"
+            elif any(w in item_text for w in ["fish", "മീൻ", "ഇറച്ചി", "ചിക്കൻ"]): return "Fish"
+            elif any(w in item_text for w in ["travel", "യാത്ര", "പെട്രോൾ", "വണ്ടി", "ടാക്സി"]): return "Travel"
+            elif any(w in item_text for w in ["rent", "വാടക", "റൂം"]): return "Rent"
+            return "Others"
+        df['Cat'] = df['Item'].apply(extract_cat)
+        cats = df.groupby('Cat')['Debit'].sum().to_dict()
+        cols = st.columns(3)
+        for idx, (c_name, c_amt) in enumerate(cats.items()):
+            if c_amt > 0:
+                with cols[idx % 3]: 
+                    st.markdown(f'<div class="category-box"><span style="color:#aaa;">Total {c_name}</span><br><span style="font-size:24px; color:#FFF;">₹{c_amt:,.2f}</span></div>', unsafe_allow_html=True)
+
+    # --- ADD ENTRY ---
+    elif page == "💰 Add Entry":
+        st.title("Smart Voice Entry 🎙️")
+        v_raw = speech_to_text(language='ml', key='voice_v9')
+        v_cat, v_amt, v_desc, v_type = "Others", "", "", "Debit"
+        
+        if v_raw:
+            raw = v_raw.lower().replace('.', '').replace(',', '')
+            nums = re.findall(r'\d+', raw)
+            v_amt = nums[0] if nums else ""
+            v_desc = re.sub(r'\d+', '', raw).strip()
+            if any(x in raw for x in ["food", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി"]): v_cat = "Food"
+            elif any(x in raw for x in ["shop", "കട"]): v_cat = "Shop"
+            elif any(x in raw for x in ["fish", "മീൻ", "ചിക്കൻ"]): v_cat = "Fish"
+            elif any(x in raw for x in ["travel", "പെട്രോൾ", "വണ്ടി"]): v_cat = "Travel"
+            if any(x in raw for x in ["കിട്ടി", "വന്നു", "തന്നു"]): v_type = "Credit"
+
+        with st.form("entry_form", clear_on_submit=True):
+            it = st.text_input("Description", value=v_desc)
+            am_str = st.text_input("Amount", value=str(v_amt))
+            cat = st.selectbox("Category", ["Food", "Shop", "Fish", "Travel", "Rent", "Others"], index=["Food", "Shop", "Fish", "Travel", "Rent", "Others"].index(v_cat))
+            ty = st.radio("Type", ["Debit", "Credit"], horizontal=True, index=0 if v_type == "Debit" else 1)
             
-        if prompt:
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            with st.spinner("AI പ്രോസസ്സ് ചെയ്യുന്നു..."):
-                client = Groq(api_key=GROQ_API_KEY)
-                res = client.chat.completions.create(model=AGENT_MODEL, messages=[{"role": "system", "content": "You are an AI assistant in Malayalam."}] + st.session_state.messages).choices[0].message.content
-                st.session_state.messages.append({"role": "assistant", "content": res})
+            if st.form_submit_button("SAVE & NOTIFY"):
+                try:
+                    am = float(am_str.strip().replace(',', ''))
+                    payload = {"item": it, "amount": am, "category": cat, "type": ty, "date": datetime.now().strftime("%Y-%m-%d"), "sender": st.session_state.user.capitalize()}
+                    requests.post(WEB_APP_URL, json=payload, timeout=10)
+                    send_whatsapp_auto(f"✅ *Paichi Entry*\n📝 {it}\n💰 ₹{am}")
+                    st.success("Saved! ✅"); st.rerun()
+                except Exception as e: 
+                    st.error(f"Error! Valid amount required. {e}")
+
+    # --- CALENDAR ---
+    elif page == "📅 Calendar" and not df.empty:
+        st.title("P&L Calendar View 📅")
+        df_cal = df.dropna(subset=['Date'])
+        summary = df_cal.groupby(df_cal['Date'].dt.strftime('%Y-%m-%d')).agg({'Debit': 'sum', 'Credit': 'sum'}).reset_index()
+        events = []
+        for _, row in summary.iterrows():
+            if row['Credit'] > 0: events.append({"title": f" +₹{row['Credit']:,.0f}", "start": row['Date'], "backgroundColor": "#198754"})
+            if row['Debit'] > 0: events.append({"title": f" -₹{row['Debit']:,.0f}", "start": row['Date'], "backgroundColor": "#dc3545"})
+        
+        cal_data = calendar(events=events, options={"headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth"}, "initialView": "dayGridMonth"}, key="pnl_calendar")
+        
+        if cal_data and cal_data.get("callback") == "eventClick":
+            event_data = cal_data.get("eventClick", {}).get("event", {})
+            dt_click = event_data.get("start", "").split("T")[0]
+            if dt_click:
+                st.markdown("---"); st.subheader(f"📋 Details for {pd.to_datetime(dt_click).strftime('%d %B %Y')}")
+                day_df = df_cal[df_cal['Date'].dt.strftime('%Y-%m-%d') == dt_click].copy()
+                if not day_df.empty:
+                    day_df['Date'] = day_df['Date'].dt.strftime('%d/%m/%Y')
+                    st.dataframe(day_df[['Date', 'Item', 'Debit', 'Credit']], use_container_width=True)
+
+    # --- REPORT & HISTORY ---
+    elif (page == "📊 Report" or page == "🔍 History") and not df.empty:
+        df_rep = df[(df['Date'].dt.year == 2026) & (df['Date'].dt.month >= 4)].copy()
+        df_rep['Month'] = df_rep['Date'].dt.strftime('%B %Y')
+        months = df_rep.dropna(subset=['Month']).sort_values(by='Date', ascending=False)['Month'].unique()
+        
+        if len(months) == 0: st.warning("No data found!")
+        else:
+            sel_m = st.selectbox("Select Month", months)
+            m_df = df_rep[df_rep['Month'] == sel_m].copy()
+            m_deb, m_crd = m_df['Debit'].sum(), m_df['Credit'].sum()
+            
+            if page == "📊 Report":
+                st.title("Monthly Expense Analysis")
+                c1, c2, c3 = st.columns(3)
+                c1.markdown(f'<div class="glass-card"><h3 style="color:#00FF00;">Credit</h3><h1 style="color:#00FF00;">₹{m_crd:,.2f}</h1></div>', unsafe_allow_html=True)
+                c2.markdown(f'<div class="glass-card"><h3 style="color:#FF3131;">Expense</h3><h1 style="color:#FF3131;">₹{m_deb:,.2f}</h1></div>', unsafe_allow_html=True)
+                c3.markdown(f'<div class="glass-card"><h3 style="color:#FFD700;">Savings</h3><h1 style="color:#FFD700;">₹{m_crd - m_deb:,.2f}</h1></div>', unsafe_allow_html=True)
+                
+                m_df['Cat'] = m_df['Item'].apply(lambda x: x.split(':')[0] if ':' in str(x) else 'Others')
+                st.plotly_chart(px.pie(m_df[m_df['Debit'] > 0], values='Debit', names='Cat', hole=0.4), use_container_width=True)
+
+            clean_df = m_df.drop(columns=['Month'], errors='ignore')
+            clean_df['Date'] = clean_df['Date'].dt.strftime('%d/%m/%Y')
+            st.dataframe(clean_df.iloc[::-1], use_container_width=True)
+
+    # --- DEBT TRACKER ---
+    elif page == "🤝 Debt Tracker":
+        st.title("🤝 Debt Tracker")
+        st.info("വരും ദിവസങ്ങളിൽ ഇതിലേക്ക് കൂടുതൽ ഫീച്ചറുകൾ വരും!")
+
+    # --- MY AI BUDDY ---
+    elif page == "🧠 My AI Buddy":
+        st.title("🧠 Your Personal AI Buddy")
+        if "buddy_messages" not in st.session_state: st.session_state.buddy_messages = []
+        for msg in st.session_state.buddy_messages:
+            with st.chat_message(msg["role"]): st.markdown(msg["content"])
+        user_input = st.chat_input("Ask me anything...", key="buddy_chat_box")
+        if user_input:
+            st.session_state.buddy_messages.append({"role": "user", "content": user_input})
+            with st.chat_message("user"): st.markdown(user_input)
+            with st.spinner("ആലോചിക്കുന്നു..."):
+                try:
+                    client = Groq(api_key=GROQ_API_KEY)
+                    system_prompt = "You are a helpful personal AI assistant for a 51-year-old Malayali. Answer their questions in Malayalam in a friendly way."
+                    messages = [{"role": "system", "content": system_prompt}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.buddy_messages[-4:]]
+                    response = client.chat.completions.create(model="openai/gpt-oss-120b", messages=messages, max_tokens=1024)
+                    ai_reply = response.choices[0].message.content
+                    st.session_state.buddy_messages.append({"role": "assistant", "content": ai_reply})
+                    with st.chat_message("assistant"): st.markdown(ai_reply)
+                except Exception as e: st.error(f"Error: {e}")
+
+    # --- AI CHAT (AI Agent with Confirmation) ---
+    elif page == "🤖 AI Chat":
+        st.title("🤖 AI Agent & Assistant")
+        
+        if "messages" not in st.session_state: st.session_state.messages = []
+
+        # കൺഫേം ചെയ്യാനുള്ള UI
+        if st.session_state.pending_entry:
+            st.warning(f"⏳ നിങ്ങൾ പറഞ്ഞത്: **{st.session_state.pending_entry['item']} - ₹{st.session_state.pending_entry['amount']}**. ഇത് എൻട്രി ചെയ്യണോ?")
+            col1, col2 = st.columns(2)
+            
+            if col1.button("✅ Yes, Save it"):
+                result = add_new_entry(
+                    item=st.session_state.pending_entry['item'], 
+                    amount=st.session_state.pending_entry['amount'], 
+                    category=st.session_state.pending_entry['category'], 
+                    type=st.session_state.pending_entry['type'],
+                    entry_date=st.session_state.pending_entry['date']
+                )
+                if "Success" in result:
+                    ai_msg = f"✅ ചേട്ടാ, {st.session_state.pending_entry['item']}-ന് ₹{st.session_state.pending_entry['amount']} എൻട്രി ഇട്ടിട്ടുണ്ട്!"
+                else:
+                    ai_msg = f"❌ എൻട്രി ഇടാൻ പറ്റിയില്ല: {result}"
+                
+                st.session_state.messages.append({"role": "assistant", "content": ai_msg})
+                st.session_state.pending_entry = None
+                st.rerun()
+                
+            if col2.button("❌ No, Cancel"):
+                ai_msg = "ശരി ചേട്ടാ, ഞാൻ എൻട്രി ഇട്ടിട്ടില്ല. വേറെ എന്തെങ്കിലും വേണോ?"
+                st.session_state.messages.append({"role": "assistant", "content": ai_msg})
+                st.session_state.pending_entry = None
                 st.rerun()
 
-    elif page == "📧 Gmail Inbox":
-        st.subheader("📧 Gmail Integration")
-        if st.button("🔄 Check Latest Emails"):
-            emails_data = check_gmail_emails(5)
-            st.text_area("Inbox Messages", emails_data, height=300)
+        # ചാറ്റ് ഹിസ്റ്ററി കാണിക്കുക
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]): st.markdown(message["content"])
 
-    elif page == "📢 WhatsApp Marketing":
-        st.subheader("📢 Twilio WhatsApp Integration")
-        num = st.text_input("Mobile Number (with country code, e.g., 971501234567)")
-        msg_text = st.text_area("Message")
-        if st.button("🚀 Send WhatsApp"):
-            if send_whatsapp_custom(f"whatsapp:+{num}", msg_text):
-                st.success("✅ WhatsApp message sent successfully!")
-            else:
-                st.error("❌ Failed to send message. Check Twilio credentials.")
+        # യൂസർ ഇൻപുട്ട് എടുക്കുക
+        v_raw = speech_to_text(language='ml', key='ai_voice_input')
+        prompt = st.chat_input("Ask anything or add expense...", key="ai_chat_box")
+        
+        final_prompt = v_raw if v_raw else prompt
 
-    elif page == "🎥 Mobile/CCTV Vision":
-        st.subheader("📷 Mobile Camera / Image / Video Vision")
-        uploaded = st.file_uploader("Upload Image or Video", type=["jpg", "png", "mp4"])
-        if uploaded and st.button("🔍 Analyze with AI Vision"):
-            client = Groq(api_key=GROQ_API_KEY)
-            b64 = base64.b64encode(uploaded.getvalue()).decode('utf-8')
-            res = client.chat.completions.create(model=VISION_MODEL, messages=[{"role": "user", "content": [{"type": "text", "text": "Describe this image in Malayalam."}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}]}])
-            st.success(res.choices[0].message.content)
+        if final_prompt:
+            st.session_state.messages.append({"role": "user", "content": final_prompt})
+            with st.chat_message("user"): st.markdown(final_prompt)
+
+            with st.spinner("AI ആലോചിക്കുന്നു..."):
+                try:
+                    client = Groq(api_key=GROQ_API_KEY)
+                    today_date = datetime.now().strftime("%Y-%m-%d")
+                    
+                    system_instruction = f"""
+                    നീ ഒരു ഫിനാൻസ് AI അസിസ്റ്റന്റാണ്. 
+                    ഇന്നത്തെ തീയതി: {today_date}.
+                    ബാലൻസ്: {bal} Rs. 
+                    'Item Amount' എന്ന രീതിയിൽ എഴുതിയാൽ ഉടൻ 'add_new_entry' എന്ന ടൂൾ ഉപയോഗിക്കുക.
+                    തീയതി പ്രത്യേകം പറഞ്ഞിട്ടില്ലെങ്കിൽ, ഇന്നത്തെ തീയതി തന്നെ നൽകുക. ഒരിക്കലും null കൊടുക്കരുത്.
+                    """
+                    
+                    messages_for_api = [{"role": "system", "content": system_instruction}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-3:]]
+
+                    response = client.chat.completions.create(
+                        model="openai/gpt-oss-120b", 
+                        messages=messages_for_api,
+                        tools=tools,
+                        tool_choice="auto",
+                        max_tokens=1024
+                    )
+
+                    response_message = response.choices[0].message
+                    
+                    if response_message.tool_calls:
+                        for tool_call in response_message.tool_calls:
+                            if tool_call.function.name == 'add_new_entry':
+                                args = json.loads(tool_call.function.arguments)
+                                
+                                entry_date = args.get("date")
+                                if not entry_date or entry_date == "null":
+                                    entry_date = datetime.now().strftime("%Y-%m-%d")
+
+                                st.session_state.pending_entry = {
+                                    "item": args.get("item"),
+                                    "amount": args.get("amount"),
+                                    "category": args.get("category", "Others"),
+                                    "type": args.get("type", "Debit"),
+                                    "date": entry_date
+                                }
+                                ai_reply = f"ഞാൻ ഇത് എൻട്രി ചെയ്യാൻ പോകുന്നു: {st.session_state.pending_entry['item']} - ₹{st.session_state.pending_entry['amount']}. ശരിയാണോ?"
+                                
+                                if not st.session_state.messages or st.session_state.messages[-1]["content"] != ai_reply:
+                                    st.session_state.messages.append({"role": "assistant", "content": ai_reply})
+                                
+                                st.rerun()
+                                
+                    elif response_message.content:
+                        ai_reply = response_message.content
+                        if not st.session_state.messages or st.session_state.messages[-1]["content"] != ai_reply:
+                            st.session_state.messages.append({"role": "assistant", "content": ai_reply})
+                        with st.chat_message("assistant"): st.markdown(ai_reply)
+
+                except Exception as e:
+                    st.error(f"AI Error: {str(e)}")
