@@ -209,4 +209,4 @@ if prompt:
                 st.session_state.messages.append({"role": "assistant", "content": final_res})
                 
             except Exception as e:
-                st.error(f"Error: {e}"
+                st.error(f"Error: {e}")
