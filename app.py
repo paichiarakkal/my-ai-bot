@@ -396,6 +396,7 @@ if "pending_entry" not in st.session_state: st.session_state.pending_entry = Non
 if "ai_action_notice" not in st.session_state: st.session_state.ai_action_notice = None
 if "entry_saved_flag" not in st.session_state: st.session_state.entry_saved_flag = False
 if "ai_chat_key_id" not in st.session_state: st.session_state.ai_chat_key_id = 0
+if "last_voice_text" not in st.session_state: st.session_state.last_voice_text = ""
 
 if "signup_otp" not in st.session_state: st.session_state.signup_otp = None
 if "signup_otp_email" not in st.session_state: st.session_state.signup_otp_email = ""
@@ -645,7 +646,7 @@ tools = [
                     "amount": {"type": "number"},
                     "category": {"type": "string", "description": "Food, Shop, Fish, Travel, Rent, Others"},
                     "type": {"type": "string", "enum": ["Debit", "Credit"]},
-                    "date": {"type": "string", "description": "English date format e.g. 21 Nov 2026 20:11:00"}
+                    "date": {"type": "string", "description": "English date format e.g. 21 Nov 2026 20:22:00"}
                 },
                 "required": ["item", "amount"]
             }
@@ -1214,7 +1215,7 @@ else:
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-    # --- AI CHAT (Single Confirmation Box, Save/Cancel Status Message, English Output, No Loop) ---
+    # --- AI CHAT (Fast Voice Reset, Single Confirmation Box, Save/Cancel Status Message, English Output, No Loop) ---
     elif page == "🤖 AI Chat":
         st.title("🤖 AI Agent & Assistant")
 
@@ -1233,6 +1234,7 @@ else:
                 entry_data = st.session_state.pending_entry
                 st.session_state.pending_entry = None
                 st.session_state.last_processed_prompt = None
+                st.session_state.last_voice_text = ""
                 ok, status_msg = add_new_entry(
                     item=entry_data['item'],
                     amount=entry_data['amount'],
@@ -1248,23 +1250,35 @@ else:
                 cancelled_amt = st.session_state.pending_entry["amount"]
                 st.session_state.pending_entry = None
                 st.session_state.last_processed_prompt = None
+                st.session_state.last_voice_text = ""
                 st.session_state.ai_action_notice = f"Not saved to sheet: {cancelled_item} - ₹{cancelled_amt} (Cancelled)."
                 st.rerun()
 
-        v_raw = speech_to_text(language='en', key=f'ai_voice_input_{st.session_state.ai_chat_key_id}')
+        v_raw = speech_to_text(
+            language='en',
+            start_prompt="🎙️ Speak",
+            stop_prompt="⏹️ Stop",
+            just_once=True,
+            key=f'ai_voice_input_{st.session_state.ai_chat_key_id}'
+        )
         prompt = st.chat_input("Type or speak in English, Malayalam, Arabic, or Hindi...", key="ai_chat_box")
-        final_prompt = v_raw if v_raw else prompt
+
+        final_prompt = None
+        if v_raw and v_raw.strip() and v_raw.strip() != st.session_state.last_voice_text:
+            st.session_state.last_voice_text = v_raw.strip()
+            st.session_state.ai_chat_key_id += 1
+            final_prompt = v_raw.strip()
+        elif prompt and prompt.strip():
+            final_prompt = prompt.strip()
 
         if final_prompt:
-            if v_raw:
-                st.session_state.ai_chat_key_id += 1
-
             clean_cmd = final_prompt.lower().strip()
 
             if clean_cmd in ["yes", "y", "yep", "ya", "ok", "okay", "അതെ", "ശരി", "نعم", "हां"] and st.session_state.pending_entry:
                 entry_data = st.session_state.pending_entry
                 st.session_state.pending_entry = None
                 st.session_state.last_processed_prompt = None
+                st.session_state.last_voice_text = ""
                 ok, status_msg = add_new_entry(
                     item=entry_data['item'],
                     amount=entry_data['amount'],
@@ -1280,6 +1294,7 @@ else:
                 cancelled_amt = st.session_state.pending_entry["amount"]
                 st.session_state.pending_entry = None
                 st.session_state.last_processed_prompt = None
+                st.session_state.last_voice_text = ""
                 st.session_state.ai_action_notice = f"Not saved to sheet: {cancelled_item} - ₹{cancelled_amt} (Cancelled)."
                 st.rerun()
 
