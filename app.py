@@ -381,7 +381,7 @@ st.markdown(f"""
     .login-card {{ background: rgba(20, 20, 35, 0.8); backdrop-filter: blur(20px); padding: 40px; border-radius: 20px; max-width: 450px; margin: auto; margin-top: 80px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 15px 35px rgba(0,0,0,0.6); }}
     h1, h2, h3, p, label {{ color: #FFFFFF !important; font-weight: bold !important; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }}
     [data-testid="stChatMessage"] {{ background: rgba(32, 44, 51, 0.9) !important; border-radius: 15px !important; padding: 15px !important; margin-bottom: 10px !important; border: 1px solid rgba(255,255,255,0.05) !important; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }}
-    [data-testid="stChatInput"] {{ background-color: rgba(42, 57, 66, 0.92) !important; border-radius: 28px !important; border: 1px solid rgba(255,255,255,0.18) !important; padding: 4px 8px !important; }}
+    [data-testid="stChatInput"] {{ background-color: rgba(42, 57, 66, 0.8) !important; border-radius: 25px !important; border: 1px solid rgba(255,255,255,0.1) !important; padding: 5px !important; }}
     [data-testid="stChatInput"] textarea {{ color: white !important; }}
     input, textarea, select {{ color: #FFFFFF !important; -webkit-text-fill-color: #FFFFFF !important; background-color: rgba(0, 0, 0, 0.5) !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; border-radius: 8px !important; }}
     ::placeholder {{ color: #AAAAAA !important; }}
@@ -646,7 +646,7 @@ tools = [
                     "amount": {"type": "number"},
                     "category": {"type": "string", "description": "Food, Shop, Fish, Travel, Rent, Others"},
                     "type": {"type": "string", "enum": ["Debit", "Credit"]},
-                    "date": {"type": "string", "description": "English date format e.g. 21 Nov 2026 20:36:00"}
+                    "date": {"type": "string", "description": "English date format e.g. 21 Nov 2026 20:22:00"}
                 },
                 "required": ["item", "amount"]
             }
@@ -1215,7 +1215,7 @@ else:
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-    # --- AI CHAT (Clean Voice Button, Single Confirmation Box, Save/Cancel Status Message, English Output, No Loop) ---
+    # --- AI CHAT (Fast Voice Reset, Single Confirmation Box, Save/Cancel Status Message, English Output, No Loop) ---
     elif page == "🤖 AI Chat":
         st.title("🤖 AI Agent & Assistant")
 
@@ -1254,17 +1254,14 @@ else:
                 st.session_state.ai_action_notice = f"Not saved to sheet: {cancelled_item} - ₹{cancelled_amt} (Cancelled)."
                 st.rerun()
 
-        v_col, _ = st.columns([1.3, 2.7])
-        with v_col:
-            v_raw = speech_to_text(
-                language='en',
-                start_prompt="🎙️ Speak",
-                stop_prompt="⏹️ Stop",
-                just_once=True,
-                key=f'ai_voice_input_{st.session_state.ai_chat_key_id}'
-            )
-
-        prompt = st.chat_input("Type in English, Malayalam, Arabic, or Hindi...", key="ai_chat_box")
+        v_raw = speech_to_text(
+            language='en',
+            start_prompt="🎙️ Speak",
+            stop_prompt="⏹️ Stop",
+            just_once=True,
+            key=f'ai_voice_input_{st.session_state.ai_chat_key_id}'
+        )
+        prompt = st.chat_input("Type or speak in English, Malayalam, Arabic, or Hindi...", key="ai_chat_box")
 
         final_prompt = None
         if v_raw and v_raw.strip() and v_raw.strip() != st.session_state.last_voice_text:
@@ -1305,24 +1302,11 @@ else:
                 st.session_state.ai_action_notice = None
                 with st.spinner("Processing..."):
                     try:
-                        today_str = datetime.now(GST).strftime('%Y-%m-%d')
-                        today_deb = 0.0
-                        today_crd = 0.0
-                        if not df.empty and 'Date' in df.columns:
-                            d_valid = df.dropna(subset=['Date'])
-                            t_rows = d_valid[d_valid['Date'].dt.strftime('%Y-%m-%d') == today_str]
-                            if not t_rows.empty:
-                                today_deb = float(t_rows['Debit'].sum())
-                                today_crd = float(t_rows['Credit'].sum())
-
                         client = Groq(api_key=GROQ_API_KEY)
                         eng_now = format_english_datetime()
                         system_instruction = (
-                            f"You are an accurate English finance AI assistant. Current time (GST): {eng_now}. "
-                            f"Available balance: ₹{bal:,.2f}. Total Credit: ₹{t_in:,.2f}, Total Debit: ₹{t_out:,.2f}. "
-                            f"Today's Credit: ₹{today_crd:,.2f}, Today's Debit: ₹{today_deb:,.2f}. "
+                            f"You are an accurate English finance AI assistant. Current time (GST): {eng_now}. Available balance: ₹{bal:,.2f}. "
                             f"Understand user speech or text in English, Malayalam, Arabic, or Hindi, but ALWAYS respond in clean English. "
-                            f"When the user asks for balance or today's balance, clearly state the Available Balance (₹{bal:,.2f}) and today's summary. "
                             f"Accurately interpret Malayalam/Arabic/Hindi/English expense words and numbers (for example 'ചായ മൂന്ന്' -> item 'Tea', amount 3; "
                             f"'ജയയ്ക്ക് 500 കൊടുത്തു' -> debt lent to 'Jaya', amount 500). "
                             f"Do NOT invent weird names or ask unnecessary follow-up questions when an expense item and amount are clear. "
@@ -1377,8 +1361,4 @@ else:
                                     st.session_state.ai_action_notice = msg
                                     st.rerun()
 
-                        elif response_message.content:
-                            st.info(response_message.content)
-
-                    except Exception as e:
-                        st.error(f"AI Error: {str(e)}")
+                        elif response_mes
