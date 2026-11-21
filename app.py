@@ -32,6 +32,8 @@ SMTP_EMAIL = st.secrets.get("SMTP_EMAIL", "")
 SMTP_APP_PASSWORD = st.secrets.get("SMTP_APP_PASSWORD", "")
 RESEND_API_KEY = st.secrets.get("RESEND_API_KEY", "")
 OTP_FROM_EMAIL = st.secrets.get("OTP_FROM_EMAIL", "onboarding@resend.dev")
+BREVO_API_KEY = st.secrets.get("BREVO_API_KEY", "")
+BREVO_SENDER_EMAIL = st.secrets.get("BREVO_SENDER_EMAIL", "")
 DB_FILE = "paichi_users.db"
 
 # --- TIMEZONE SETUP (GST - Dubai Time) ---
@@ -96,9 +98,11 @@ def db_update_links(username: str, sheet_url: str, csv_url: str):
     conn.close()
 
 # ============================================
-# 📧 EMAIL OTP HELPER (RESEND API + SMTP FALLBACK)
+# 📧 EMAIL OTP HELPER (BREVO -> RESEND -> SMTP)
 # ============================================
 def send_otp_email(to_email: str, otp_code: str, purpose: str = "Verification") -> bool:
+    brevo_key = (st.secrets.get("BREVO_API_KEY", BREVO_API_KEY) or "").strip()
+    brevo_sender = (st.secrets.get("BREVO_SENDER_EMAIL", BREVO_SENDER_EMAIL) or "").strip()
     resend_key = (st.secrets.get("RESEND_API_KEY", RESEND_API_KEY) or "").strip()
     from_email = (st.secrets.get("OTP_FROM_EMAIL", OTP_FROM_EMAIL) or "onboarding@resend.dev").strip()
 
@@ -108,6 +112,26 @@ def send_otp_email(to_email: str, otp_code: str, purpose: str = "Verification") 
         f"OTP: {otp_code}\n\n"
         f"ഈ കോഡ് മറ്റാരുമായും പങ്കുവെക്കരുത്."
     )
+
+    if brevo_key and brevo_sender:
+        resp = requests.post(
+            "https://api.brevo.com/v3/smtp/email",
+            headers={
+                "api-key": brevo_key,
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            },
+            json={
+                "sender": {"name": "PAICHI EXPENSES", "email": brevo_sender},
+                "to": [{"email": to_email}],
+                "subject": f"PAICHI EXPENSES - {purpose} OTP",
+                "textContent": body_text
+            },
+            timeout=15
+        )
+        if resp.status_code in (200, 201, 202):
+            return True
+        raise RuntimeError(f"Brevo API Error ({resp.status_code}): {resp.text}")
 
     if resend_key:
         resp = requests.post(
@@ -132,7 +156,7 @@ def send_otp_email(to_email: str, otp_code: str, purpose: str = "Verification") 
     app_pwd = (st.secrets.get("SMTP_APP_PASSWORD", SMTP_APP_PASSWORD) or "").replace(" ", "").strip()
 
     if not sender or not app_pwd:
-        raise ValueError("RESEND_API_KEY അല്ലെങ്കിൽ SMTP_EMAIL / SMTP_APP_PASSWORD Secrets-ൽ സെറ്റ് ചെയ്തിട്ടില്ല!")
+        raise ValueError("BREVO_API_KEY / BREVO_SENDER_EMAIL, RESEND_API_KEY അല്ലെങ്കിൽ SMTP_EMAIL / SMTP_APP_PASSWORD Secrets-ൽ സെറ്റ് ചെയ്തിട്ടില്ല!")
 
     msg = EmailMessage()
     msg["Subject"] = f"PAICHI EXPENSES - {purpose} OTP"
