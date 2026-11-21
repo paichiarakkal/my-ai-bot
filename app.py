@@ -55,7 +55,7 @@ def init_db():
             password_hash TEXT NOT NULL,
             sheet_url TEXT DEFAULT '',
             csv_url TEXT DEFAULT '',
-            links_locked INTEGER DEFAULT 1
+            links_locked INTEGER DEFAULT 0
         )
     """)
     c.execute("PRAGMA table_info(users)")
@@ -65,7 +65,7 @@ def init_db():
     if "csv_url" not in existing_cols:
         c.execute("ALTER TABLE users ADD COLUMN csv_url TEXT DEFAULT ''")
     if "links_locked" not in existing_cols:
-        c.execute("ALTER TABLE users ADD COLUMN links_locked INTEGER DEFAULT 1")
+        c.execute("ALTER TABLE users ADD COLUMN links_locked INTEGER DEFAULT 0")
     conn.commit()
     conn.close()
 
@@ -97,31 +97,35 @@ def db_get_user(username: str):
     if isinstance(s_rec, dict) and s_rec.get("password_hash"):
         sheet_val = (s_rec.get("sheet_url") or "").strip()
         csv_val = (s_rec.get("csv_url") or "").strip()
+        locked_val = 1 if (sheet_val or csv_val or s_rec.get("links_locked")) else 0
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         c.execute(
             """
             INSERT INTO users (username, password_hash, sheet_url, csv_url, links_locked)
-            VALUES (?, ?, ?, ?, 1)
+            VALUES (?, ?, ?, ?, ?)
             ON CONFLICT(username) DO UPDATE SET
                 password_hash = excluded.password_hash,
                 sheet_url = CASE WHEN users.sheet_url != '' THEN users.sheet_url ELSE excluded.sheet_url END,
                 csv_url = CASE WHEN users.csv_url != '' THEN users.csv_url ELSE excluded.csv_url END,
-                links_locked = 1
+                links_locked = CASE WHEN users.links_locked = 1 OR excluded.links_locked = 1 THEN 1 ELSE 0 END
             """,
-            (u, s_rec.get("password_hash", ""), sheet_val, csv_val)
+            (u, s_rec.get("password_hash", ""), sheet_val, csv_val, locked_val)
         )
         conn.commit()
         c.execute("SELECT username, password_hash, sheet_url, csv_url, links_locked FROM users WHERE username = ?", (u,))
         row = c.fetchone()
         conn.close()
         if row:
+            s_url_db = row[2] or ""
+            c_url_db = row[3] or ""
+            is_locked = 1 if (s_url_db or c_url_db or int(row[4] or 0) == 1) else 0
             return {
                 "username": row[0],
                 "password_hash": row[1],
-                "sheet_url": row[2] or "",
-                "csv_url": row[3] or "",
-                "links_locked": int(row[4] if row[4] is not None else 1)
+                "sheet_url": s_url_db,
+                "csv_url": c_url_db,
+                "links_locked": is_locked
             }
 
     conn = sqlite3.connect(DB_FILE)
@@ -130,12 +134,15 @@ def db_get_user(username: str):
     row = c.fetchone()
     conn.close()
     if row:
+        s_url_db = row[2] or ""
+        c_url_db = row[3] or ""
+        is_locked = 1 if (s_url_db or c_url_db or int(row[4] or 0) == 1) else 0
         return {
             "username": row[0],
             "password_hash": row[1],
-            "sheet_url": row[2] or "",
-            "csv_url": row[3] or "",
-            "links_locked": int(row[4] if row[4] is not None else 1)
+            "sheet_url": s_url_db,
+            "csv_url": c_url_db,
+            "links_locked": is_locked
         }
     return None
 
@@ -145,11 +152,12 @@ def db_create_user(username: str, password: str, sheet_url: str = "", csv_url: s
     pwd_hash = hash_password(password)
     s_url = (sheet_url or "").strip()
     c_url = (csv_url or "").strip()
+    locked_flag = 1 if (s_url or c_url) else 0
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute(
-        "INSERT INTO users (username, password_hash, sheet_url, csv_url, links_locked) VALUES (?, ?, ?, ?, 1)",
-        (u, pwd_hash, s_url, c_url)
+        "INSERT INTO users (username, password_hash, sheet_url, csv_url, links_locked) VALUES (?, ?, ?, ?, ?)",
+        (u, pwd_hash, s_url, c_url, locked_flag)
     )
     conn.commit()
     conn.close()
@@ -158,9 +166,33 @@ def db_create_user(username: str, password: str, sheet_url: str = "", csv_url: s
             "password_hash": pwd_hash,
             "sheet_url": s_url,
             "csv_url": c_url,
-            "links_locked": True
+            "links_locked": bool(locked_flag)
         }
     }
+
+def db_bind_links_once(username: str, sheet_url: str = "", csv_url: str = ""):
+    init_db()
+    u = username.strip().lower()
+    existing = db_get_user(u)
+    if not existing:
+        return False, "Account not found."
+    if existing.get("links_locked") == 1 or existing.get("sheet_url") or existing.get("csv_url"):
+        return False, "Sheet links are already locked for this account and cannot be changed again."
+
+    s_url = (sheet_url or "").strip()
+    c_url = (csv_url or "").strip()
+    if not s_url and not c_url:
+        return False, "Please enter at least one link (Web App URL or CSV URL) to link."
+
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute(
+        "UPDATE users SET sheet_url = ?, csv_url = ?, links_locked = 1 WHERE username = ?",
+        (s_url, c_url, u)
+    )
+    conn.commit()
+    conn.close()
+    return True, "Sheet links bound and permanently locked for this account."
 
 def db_update_password(username: str, new_password: str):
     init_db()
@@ -168,7 +200,7 @@ def db_update_password(username: str, new_password: str):
     pwd_hash = hash_password(new_password)
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("UPDATE users SET password_hash = ?, links_locked = 1 WHERE username = ?", (pwd_hash, u))
+    c.execute("UPDATE users SET password_hash = ? WHERE username = ?", (pwd_hash, u))
     conn.commit()
     conn.close()
     return pwd_hash
@@ -349,6 +381,10 @@ if "signup_otp_verified" not in st.session_state: st.session_state.signup_otp_ve
 if "reset_otp" not in st.session_state: st.session_state.reset_otp = None
 if "reset_otp_email" not in st.session_state: st.session_state.reset_otp_email = ""
 if "reset_otp_verified" not in st.session_state: st.session_state.reset_otp_verified = False
+
+if "bind_otp" not in st.session_state: st.session_state.bind_otp = None
+if "bind_otp_email" not in st.session_state: st.session_state.bind_otp_email = ""
+if "bind_otp_verified" not in st.session_state: st.session_state.bind_otp_verified = False
 
 restore_session_from_url()
 
@@ -590,7 +626,7 @@ tools = [
                     "amount": {"type": "number"},
                     "category": {"type": "string", "description": "Food, Shop, Fish, Travel, Rent, Others"},
                     "type": {"type": "string", "enum": ["Debit", "Credit"]},
-                    "date": {"type": "string", "description": "English date format e.g. 21 Nov 2026 19:55:00"}
+                    "date": {"type": "string", "description": "English date format e.g. 21 Nov 2026 20:05:00"}
                 },
                 "required": ["item", "amount"]
             }
@@ -669,6 +705,51 @@ if not st.session_state.auth:
                     st.rerun()
                 else:
                     st.error("❌ Incorrect password.")
+
+            with st.expander("🔗 Link Sheet Once (If Not Linked Yet)"):
+                b_user = st.text_input("📧 Registered Email", key="bind_user", placeholder="Enter your registered email").strip().lower()
+                b_pass = st.text_input("🔑 Account Password", type="password", key="bind_pass", placeholder="Enter your password")
+                b_sheet_url = st.text_input("🔗 Sheet Web App Link (One-time only)", key="bind_sheet_url", placeholder="https://script.google.com/macros/s/.../exec").strip()
+                b_csv_url = st.text_input("📄 Sheet CSV Link (One-time only)", key="bind_csv_url", placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv").strip()
+
+                if st.button("📩 Send Link OTP", key="btn_send_bind_otp"):
+                    rec = db_get_user(b_user)
+                    if not b_user or "@" not in b_user:
+                        st.error("❌ Please enter a valid registered email.")
+                    elif not rec:
+                        st.error("❌ Account not found.")
+                    elif rec["password_hash"] != hash_password(b_pass):
+                        st.error("❌ Incorrect password.")
+                    elif rec.get("links_locked") == 1 or rec.get("sheet_url") or rec.get("csv_url"):
+                        st.error("❌ Links are already bound and permanently locked for this account.")
+                    elif not b_sheet_url and not b_csv_url:
+                        st.error("❌ Please enter at least one link (Web App URL or CSV URL).")
+                    else:
+                        code = f"{random.randint(100000, 999999)}"
+                        st.session_state.bind_otp = code
+                        st.session_state.bind_otp_email = b_user
+                        st.session_state.bind_otp_verified = False
+                        try:
+                            send_otp_email(b_user, code, purpose="One-Time Sheet Link")
+                            st.success("✅ 6-digit OTP sent to your email.")
+                        except Exception as e:
+                            st.error(f"❌ Failed to send OTP: {e}")
+
+                if st.session_state.bind_otp and st.session_state.bind_otp_email == b_user:
+                    b_otp_in = st.text_input("🔢 Enter Link OTP", key="bind_otp_input", max_chars=6, placeholder="6-digit OTP")
+                    if st.button("🔒 BIND & LOCK LINKS ONCE", key="btn_confirm_bind_links"):
+                        if b_otp_in.strip() != st.session_state.bind_otp:
+                            st.error("❌ Invalid OTP.")
+                        else:
+                            ok_b, msg_b = db_bind_links_once(b_user, b_sheet_url, b_csv_url)
+                            if ok_b:
+                                st.session_state.bind_otp = None
+                                st.session_state.bind_otp_email = ""
+                                st.session_state.bind_otp_verified = False
+                                refresh_user_sheet_cache()
+                                st.success(f"✅ {msg_b}")
+                            else:
+                                st.error(f"❌ {msg_b}")
 
             with st.expander("🔄 Forgot Password (Email OTP)"):
                 r_user = st.text_input("📧 Registered Email", key="reset_user", placeholder="Enter your registered email").strip().lower()
@@ -1272,4 +1353,4 @@ else:
                             st.info(response_message.content)
 
                     except Exception as e:
-                        st.error(f"AI Error: {str(e)}") 
+                        st.error(f"AI Error: {str(e)}")
