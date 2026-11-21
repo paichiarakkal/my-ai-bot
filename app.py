@@ -30,6 +30,8 @@ GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
 SECRET_KEY = st.secrets.get("SESSION_SECRET_KEY", "paichi_expenses_secure_key_2026")
 SMTP_EMAIL = st.secrets.get("SMTP_EMAIL", "")
 SMTP_APP_PASSWORD = st.secrets.get("SMTP_APP_PASSWORD", "")
+RESEND_API_KEY = st.secrets.get("RESEND_API_KEY", "")
+OTP_FROM_EMAIL = st.secrets.get("OTP_FROM_EMAIL", "onboarding@resend.dev")
 DB_FILE = "paichi_users.db"
 
 # --- TIMEZONE SETUP (GST - Dubai Time) ---
@@ -94,34 +96,54 @@ def db_update_links(username: str, sheet_url: str, csv_url: str):
     conn.close()
 
 # ============================================
-# 📧 EMAIL OTP HELPER (SSL 465 + TLS 587 FALLBACK)
+# 📧 EMAIL OTP HELPER (RESEND API + SMTP FALLBACK)
 # ============================================
 def send_otp_email(to_email: str, otp_code: str, purpose: str = "Verification") -> bool:
-    sender = (SMTP_EMAIL or "").strip()
-    app_pwd = (SMTP_APP_PASSWORD or "").replace(" ", "").strip()
+    resend_key = (st.secrets.get("RESEND_API_KEY", RESEND_API_KEY) or "").strip()
+    from_email = (st.secrets.get("OTP_FROM_EMAIL", OTP_FROM_EMAIL) or "onboarding@resend.dev").strip()
 
-    if not sender or not app_pwd:
-        raise ValueError("SMTP_EMAIL അല്ലെങ്കിൽ SMTP_APP_PASSWORD Secrets-ൽ സെറ്റ് ചെയ്തിട്ടില്ല!")
-
-    msg = EmailMessage()
-    msg["Subject"] = f"PAICHI EXPENSES - {purpose} OTP"
-    msg["From"] = sender
-    msg["To"] = to_email
-    msg.set_content(
+    body_text = (
         f"നമസ്കാരം,\n\n"
         f"PAICHI EXPENSES ({purpose})-നായുള്ള നിങ്ങളുടെ 6-അക്ക OTP കോഡ് താഴെ നൽകുന്നു:\n\n"
         f"OTP: {otp_code}\n\n"
         f"ഈ കോഡ് മറ്റാരുമായും പങ്കുവെക്കരുത്."
     )
 
+    if resend_key:
+        resp = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {resend_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "from": from_email,
+                "to": [to_email],
+                "subject": f"PAICHI EXPENSES - {purpose} OTP",
+                "text": body_text
+            },
+            timeout=15
+        )
+        if resp.status_code in (200, 201):
+            return True
+        raise RuntimeError(f"Resend API Error ({resp.status_code}): {resp.text}")
+
+    sender = (st.secrets.get("SMTP_EMAIL", SMTP_EMAIL) or "").strip()
+    app_pwd = (st.secrets.get("SMTP_APP_PASSWORD", SMTP_APP_PASSWORD) or "").replace(" ", "").strip()
+
+    if not sender or not app_pwd:
+        raise ValueError("RESEND_API_KEY അല്ലെങ്കിൽ SMTP_EMAIL / SMTP_APP_PASSWORD Secrets-ൽ സെറ്റ് ചെയ്തിട്ടില്ല!")
+
+    msg = EmailMessage()
+    msg["Subject"] = f"PAICHI EXPENSES - {purpose} OTP"
+    msg["From"] = sender
+    msg["To"] = to_email
+    msg.set_content(body_text)
+
     try:
-       
- with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-        server.login(SMTP_EMAIL, SMTP_APP_PASSWORD.replace(" ", ""))
-        server.send_message(msg)
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
+            server.login(sender, app_pwd)
+            server.send_message(msg)
         return True
     except Exception as ssl_err:
         try:
@@ -584,7 +606,7 @@ if not st.session_state.auth:
                             if sent:
                                 st.success("✅ നിങ്ങളുടെ ഇമെയിലിലേക്ക് 6-അക്ക OTP അയച്ചിട്ടുണ്ട്! (Inbox അല്ലെങ്കിൽ Spam നോക്കുക)")
                             else:
-                                st.info(f"ℹ️ SMTP സെറ്റ് ചെയ്തിട്ടില്ല. ടെസ്റ്റിംഗ് OTP: **{code}**")
+                                st.info(f"ℹ️ OTP സെറ്റ് ചെയ്തിട്ടില്ല. ടെസ്റ്റിംഗ് OTP: **{code}**")
                         except Exception as e:
                             st.error(f"❌ OTP മെയിൽ അയക്കാൻ കഴിഞ്ഞില്ല: {e}")
 
@@ -613,7 +635,7 @@ if not st.session_state.auth:
                             st.session_state.reset_otp_verified = False
                             st.success("✅ പാസ്‌വേഡ് വിജയകരമായി മാറ്റി! ഇനി Sign In ചെയ്യാം.")
 
-        # --- TAB 2: SIGN UP (WITH GMAIL OTP VERIFICATION) ---
+        # --- TAB 2: SIGN UP (WITH EMAIL OTP VERIFICATION) ---
         with mode_tab2:
             s_user = st.text_input("📧 Gmail / Email", key="signup_user", placeholder="example@gmail.com").strip().lower()
 
@@ -630,9 +652,9 @@ if not st.session_state.auth:
                     try:
                         sent = send_otp_email(s_user, code, purpose="Sign Up")
                         if sent:
-                            st.success("✅ നിങ്ങളുടെ ജിമെയിലിലേക്ക് OTP അയച്ചിട്ടുണ്ട്! (Inbox അല്ലെങ്കിൽ Spam നോക്കുക)")
+                            st.success("✅ നിങ്ങളുടെ ഇമെയിലിലേക്ക് OTP അയച്ചിട്ടുണ്ട്! (Inbox അല്ലെങ്കിൽ Spam നോക്കുക)")
                         else:
-                            st.info(f"ℹ️ SMTP സെറ്റ് ചെയ്തിട്ടില്ല. ടെസ്റ്റിംഗ് OTP: **{code}**")
+                            st.info(f"ℹ️ OTP സെറ്റ് ചെയ്തിട്ടില്ല. ടെസ്റ്റിംഗ് OTP: **{code}**")
                     except Exception as e:
                         st.error(f"❌ OTP മെയിൽ അയക്കാൻ കഴിഞ്ഞില്ല: {e}")
 
