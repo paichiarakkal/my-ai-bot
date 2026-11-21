@@ -34,6 +34,8 @@ RESEND_API_KEY = st.secrets.get("RESEND_API_KEY", "")
 OTP_FROM_EMAIL = st.secrets.get("OTP_FROM_EMAIL", "onboarding@resend.dev")
 BREVO_API_KEY = st.secrets.get("BREVO_API_KEY", "")
 BREVO_SENDER_EMAIL = st.secrets.get("BREVO_SENDER_EMAIL", "")
+DEFAULT_WEB_APP_URL = st.secrets.get("SHEET_WEB_APP_URL", st.secrets.get("GOOGLE_SHEET_WEB_APP_URL", ""))
+DEFAULT_CSV_URL = st.secrets.get("SHEET_CSV_URL", st.secrets.get("GOOGLE_SHEET_CSV_URL", ""))
 DB_FILE = "paichi_users.db"
 
 # --- TIMEZONE SETUP (GST - Dubai Time) ---
@@ -83,30 +85,28 @@ def db_get_user(username: str):
     secrets_users = load_secrets_users()
     s_rec = secrets_users.get(u)
     if isinstance(s_rec, dict) and s_rec.get("password_hash"):
+        sheet_val = (s_rec.get("sheet_url") or DEFAULT_WEB_APP_URL or "").strip()
+        csv_val = (s_rec.get("csv_url") or DEFAULT_CSV_URL or "").strip()
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
-        c.execute("SELECT sheet_url, csv_url FROM users WHERE username = ?", (u,))
-        local_row = c.fetchone()
-        sheet_val = local_row[0] if (local_row and local_row[0]) else s_rec.get("sheet_url", "")
-        csv_val = local_row[1] if (local_row and local_row[1]) else s_rec.get("csv_url", "")
         c.execute(
             """
             INSERT INTO users (username, password_hash, sheet_url, csv_url)
             VALUES (?, ?, ?, ?)
             ON CONFLICT(username) DO UPDATE SET
                 password_hash = excluded.password_hash,
-                sheet_url = CASE WHEN excluded.sheet_url != '' THEN excluded.sheet_url ELSE users.sheet_url END,
-                csv_url = CASE WHEN excluded.csv_url != '' THEN excluded.csv_url ELSE users.csv_url END
+                sheet_url = excluded.sheet_url,
+                csv_url = excluded.csv_url
             """,
-            (u, s_rec.get("password_hash", ""), sheet_val.strip(), csv_val.strip())
+            (u, s_rec.get("password_hash", ""), sheet_val, csv_val)
         )
         conn.commit()
         conn.close()
         return {
             "username": u,
             "password_hash": s_rec.get("password_hash", ""),
-            "sheet_url": sheet_val.strip(),
-            "csv_url": csv_val.strip()
+            "sheet_url": sheet_val,
+            "csv_url": csv_val
         }
 
     conn = sqlite3.connect(DB_FILE)
@@ -115,25 +115,27 @@ def db_get_user(username: str):
     row = c.fetchone()
     conn.close()
     if row:
-        return {"username": row[0], "password_hash": row[1], "sheet_url": row[2], "csv_url": row[3]}
+        sheet_val = (row[2] or DEFAULT_WEB_APP_URL or "").strip()
+        csv_val = (row[3] or DEFAULT_CSV_URL or "").strip()
+        return {"username": row[0], "password_hash": row[1], "sheet_url": sheet_val, "csv_url": csv_val}
     return None
 
-def db_create_user(username: str, password: str, sheet_url: str = "", csv_url: str = ""):
+def db_create_user(username: str, password: str):
     u = username.strip().lower()
     pwd_hash = hash_password(password)
+    sheet_val = (DEFAULT_WEB_APP_URL or "").strip()
+    csv_val = (DEFAULT_CSV_URL or "").strip()
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute(
         "INSERT INTO users (username, password_hash, sheet_url, csv_url) VALUES (?, ?, ?, ?)",
-        (u, pwd_hash, sheet_url.strip(), csv_url.strip())
+        (u, pwd_hash, sheet_val, csv_val)
     )
     conn.commit()
     conn.close()
     return {
         u: {
-            "password_hash": pwd_hash,
-            "sheet_url": sheet_url.strip(),
-            "csv_url": csv_url.strip()
+            "password_hash": pwd_hash
         }
     }
 
@@ -146,14 +148,6 @@ def db_update_password(username: str, new_password: str):
     conn.commit()
     conn.close()
     return pwd_hash
-
-def db_update_links(username: str, sheet_url: str, csv_url: str):
-    u = username.strip().lower()
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("UPDATE users SET sheet_url = ?, csv_url = ? WHERE username = ?", (sheet_url.strip(), csv_url.strip(), u))
-    conn.commit()
-    conn.close()
 
 # ============================================
 # 📧 FREE EMAIL OTP HELPER (BREVO -> RESEND -> SMTP)
@@ -321,8 +315,6 @@ if 'low_limit' not in st.session_state: st.session_state.low_limit = 6000
 if "last_processed_prompt" not in st.session_state: st.session_state.last_processed_prompt = None
 if "pending_entry" not in st.session_state: st.session_state.pending_entry = None
 if "entry_saved_flag" not in st.session_state: st.session_state.entry_saved_flag = False
-if "user_sheet_url" not in st.session_state: st.session_state.user_sheet_url = ""
-if "user_sheet_csv_url" not in st.session_state: st.session_state.user_sheet_csv_url = ""
 
 if "signup_otp" not in st.session_state: st.session_state.signup_otp = None
 if "signup_otp_email" not in st.session_state: st.session_state.signup_otp_email = ""
@@ -341,19 +333,17 @@ def format_display_name(username: str) -> str:
         return u.split("@", 1)[0]
     return u
 
-def sync_active_user_profile(username: str):
-    prof = db_get_user(username)
-    if prof:
-        st.session_state.user_sheet_url = prof.get("sheet_url", "")
-        st.session_state.user_sheet_csv_url = prof.get("csv_url", "")
-
-def get_active_web_app_url():
+def get_active_web_app_url() -> str:
     prof = db_get_user(st.session_state.get("user", ""))
-    return (prof.get("sheet_url", "") if prof else st.session_state.get("user_sheet_url", "")).strip()
+    if prof and prof.get("sheet_url"):
+        return prof["sheet_url"].strip()
+    return (st.secrets.get("SHEET_WEB_APP_URL", DEFAULT_WEB_APP_URL) or "").strip()
 
-def get_active_csv_url():
+def get_active_csv_url() -> str:
     prof = db_get_user(st.session_state.get("user", ""))
-    return (prof.get("csv_url", "") if prof else st.session_state.get("user_sheet_csv_url", "")).strip()
+    if prof and prof.get("csv_url"):
+        return prof["csv_url"].strip()
+    return (st.secrets.get("SHEET_CSV_URL", DEFAULT_CSV_URL) or "").strip()
 
 def send_whatsapp_auto(msg):
     try:
@@ -581,21 +571,6 @@ if not st.session_state.auth:
         with mode_tab1:
             l_user = st.text_input("👤 Username / Email", key="login_user", placeholder="Enter your username or email").strip().lower()
             l_pass = st.text_input("🔑 Password", type="password", key="login_pass", placeholder="Enter your password")
-            existing_prof = db_get_user(l_user) if l_user else None
-
-            with st.expander("📄 My Google Sheet Links (Optional)"):
-                l_web = st.text_input(
-                    "Sheet Web App URL",
-                    value=(existing_prof.get("sheet_url", "") if existing_prof else ""),
-                    key="login_web_url",
-                    placeholder="https://script.google.com/macros/s/.../exec"
-                )
-                l_csv = st.text_input(
-                    "Sheet CSV URL",
-                    value=(existing_prof.get("csv_url", "") if existing_prof else ""),
-                    key="login_csv_url",
-                    placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv"
-                )
 
             if st.button("LOGIN 🔓", key="btn_login"):
                 user_rec = db_get_user(l_user)
@@ -606,9 +581,6 @@ if not st.session_state.auth:
                 elif not user_rec:
                     st.error("❌ അക്കൗണ്ട് കണ്ടെത്താനായില്ല! ആദ്യം Sign Up ടാബിൽ അക്കൗണ്ട് തുടങ്ങുക.")
                 elif user_rec["password_hash"] == hash_password(l_pass):
-                    final_web = l_web.strip() if l_web.strip() else user_rec.get("sheet_url", "")
-                    final_csv = l_csv.strip() if l_csv.strip() else user_rec.get("csv_url", "")
-                    db_update_links(l_user, final_web, final_csv)
                     refresh_user_sheet_cache()
                     set_persistent_login(l_user)
                     st.rerun()
@@ -665,20 +637,6 @@ if not st.session_state.auth:
         with mode_tab2:
             s_user = st.text_input("📧 Email / Username", key="signup_user", placeholder="example@gmail.com").strip().lower()
 
-            with st.expander("📄 My Google Sheet Links (Optional)"):
-                s_web = st.text_input(
-                    "Sheet Web App URL",
-                    value="",
-                    key="signup_web_url",
-                    placeholder="https://script.google.com/macros/s/.../exec"
-                )
-                s_csv = st.text_input(
-                    "Sheet CSV URL",
-                    value="",
-                    key="signup_csv_url",
-                    placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv"
-                )
-
             if st.button("📩 Send Sign Up OTP", key="btn_send_signup_otp"):
                 if not s_user or "@" not in s_user:
                     st.error("❌ OTP വെരിഫിക്കേഷനായി സാധുവായ ഒരു ഇമെയിൽ വിലാസം നൽകുക!")
@@ -716,7 +674,7 @@ if not st.session_state.auth:
                     elif s_pass != s_confirm:
                         st.error("❌ രണ്ട് പാസ്‌വേഡുകളും ഒരുപോലെയല്ല!")
                     else:
-                        created_entry = db_create_user(s_user, s_pass, s_web, s_csv)
+                        created_entry = db_create_user(s_user, s_pass)
                         st.session_state.signup_otp = None
                         st.session_state.signup_otp_email = ""
                         st.session_state.signup_otp_verified = False
@@ -729,9 +687,7 @@ if not st.session_state.auth:
         st.markdown('</div>', unsafe_allow_html=True)
 
 else:
-    sync_active_user_profile(st.session_state.user)
     active_csv = get_active_csv_url()
-    active_web = get_active_web_app_url()
     df = load_data(active_csv)
     t_in, t_out = (df['Credit'].sum(), df['Debit'].sum()) if not df.empty else (0.0, 0.0)
     bal = t_in - t_out
@@ -739,27 +695,7 @@ else:
     st.sidebar.caption(f"👤 {format_display_name(st.session_state.user)}")
 
     with st.sidebar.expander("⚙️ Settings"):
-        updated_web = st.text_input(
-            "📄 Target Sheet Web App URL",
-            value=active_web,
-            key="settings_web_url",
-            placeholder="https://script.google.com/macros/s/.../exec"
-        ).strip()
-        updated_csv = st.text_input(
-            "📊 Target Sheet CSV URL",
-            value=active_csv,
-            key="settings_csv_url",
-            placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv"
-        ).strip()
-
-        if st.button("💾 Save Sheet Links"):
-            db_update_links(st.session_state.user, updated_web, updated_csv)
-            sync_active_user_profile(st.session_state.user)
-            refresh_user_sheet_cache()
-            st.success("Links saved! ✅")
-            st.rerun()
-
-        if st.button("🔄 Sync From My Sheet"):
+        if st.button("🔄 Sync Data"):
             refresh_user_sheet_cache()
             st.rerun()
 
@@ -774,8 +710,6 @@ else:
 
     # --- DASHBOARD ---
     if page == "🏠 Dashboard":
-        if not active_csv:
-            st.info("ℹ️ നിങ്ങളുടെ Google Sheet CSV URL ഇതുവരെ നൽകിയിട്ടില്ല. ഇടതുവശത്തെ **Settings**-ൽ Sheet CSV URL നൽകി **Save Sheet Links** ക്ലിക്ക് ചെയ്യുക.")
         if bal < st.session_state.low_limit:
             st.markdown(f'<div class="alert-banner">⚠️ ബാലൻസ് കുറവാണ്: {st.session_state.custom_alert_text} (₹{bal:,.2f})!</div>', unsafe_allow_html=True)
 
@@ -887,7 +821,7 @@ else:
         """, unsafe_allow_html=True)
 
         if df.empty:
-            st.info("No data available yet. Connect your Sheet CSV URL in Settings or add entries.")
+            st.info("No data available yet.")
         else:
             df_cal = df.dropna(subset=['Date']).copy()
             df_cal['DayKey'] = df_cal['Date'].dt.strftime('%Y-%m-%d')
