@@ -95,19 +95,17 @@ def db_get_user(username: str):
             VALUES (?, ?, ?, ?)
             ON CONFLICT(username) DO UPDATE SET
                 password_hash = excluded.password_hash,
-                sheet_url = excluded.sheet_url,
-                csv_url = excluded.csv_url
+                sheet_url = CASE WHEN excluded.sheet_url != '' THEN excluded.sheet_url ELSE users.sheet_url END,
+                csv_url = CASE WHEN excluded.csv_url != '' THEN excluded.csv_url ELSE users.csv_url END
             """,
             (u, s_rec.get("password_hash", ""), sheet_val, csv_val)
         )
         conn.commit()
+        c.execute("SELECT username, password_hash, sheet_url, csv_url FROM users WHERE username = ?", (u,))
+        row = c.fetchone()
         conn.close()
-        return {
-            "username": u,
-            "password_hash": s_rec.get("password_hash", ""),
-            "sheet_url": sheet_val,
-            "csv_url": csv_val
-        }
+        if row:
+            return {"username": row[0], "password_hash": row[1], "sheet_url": row[2] or "", "csv_url": row[3] or ""}
 
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -115,27 +113,27 @@ def db_get_user(username: str):
     row = c.fetchone()
     conn.close()
     if row:
-        sheet_val = (row[2] or DEFAULT_WEB_APP_URL or "").strip()
-        csv_val = (row[3] or DEFAULT_CSV_URL or "").strip()
-        return {"username": row[0], "password_hash": row[1], "sheet_url": sheet_val, "csv_url": csv_val}
+        return {"username": row[0], "password_hash": row[1], "sheet_url": row[2] or "", "csv_url": row[3] or ""}
     return None
 
-def db_create_user(username: str, password: str):
+def db_create_user(username: str, password: str, sheet_url: str = "", csv_url: str = ""):
     u = username.strip().lower()
     pwd_hash = hash_password(password)
-    sheet_val = (DEFAULT_WEB_APP_URL or "").strip()
-    csv_val = (DEFAULT_CSV_URL or "").strip()
+    s_url = (sheet_url or "").strip()
+    c_url = (csv_url or "").strip()
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute(
         "INSERT INTO users (username, password_hash, sheet_url, csv_url) VALUES (?, ?, ?, ?)",
-        (u, pwd_hash, sheet_val, csv_val)
+        (u, pwd_hash, s_url, c_url)
     )
     conn.commit()
     conn.close()
     return {
         u: {
-            "password_hash": pwd_hash
+            "password_hash": pwd_hash,
+            "sheet_url": s_url,
+            "csv_url": c_url
         }
     }
 
@@ -314,6 +312,7 @@ if 'custom_alert_text' not in st.session_state: st.session_state.custom_alert_te
 if 'low_limit' not in st.session_state: st.session_state.low_limit = 6000
 if "last_processed_prompt" not in st.session_state: st.session_state.last_processed_prompt = None
 if "pending_entry" not in st.session_state: st.session_state.pending_entry = None
+if "ai_action_notice" not in st.session_state: st.session_state.ai_action_notice = None
 if "entry_saved_flag" not in st.session_state: st.session_state.entry_saved_flag = False
 if "ai_chat_key_id" not in st.session_state: st.session_state.ai_chat_key_id = 0
 
@@ -360,6 +359,7 @@ def translate_to_english_label(text: str, default_label: str = "Expense") -> str
         "യാത്ര": "Travel",
         "പെട്രോൾ": "Petrol",
         "വാടക": "Rent",
+        "ജയ": "Jaya",
         "شاي": "Tea",
         "قهوة": "Coffee",
         "طعام": "Food",
@@ -375,7 +375,7 @@ def translate_to_english_label(text: str, default_label: str = "Expense") -> str
             resp = client.chat.completions.create(
                 model="openai/gpt-oss-120b",
                 messages=[
-                    {"role": "system", "content": "Translate the given expense/item text into concise English (1 to 3 words). Return ONLY the English text."},
+                    {"role": "system", "content": "Translate the given expense/item/name text into clean concise English (1 to 2 words). Fix voice transcription mistakes. Return ONLY the English text."},
                     {"role": "user", "content": raw}
                 ],
                 max_tokens=30
@@ -392,13 +392,13 @@ def get_active_web_app_url() -> str:
     prof = db_get_user(st.session_state.get("user", ""))
     if prof and prof.get("sheet_url"):
         return prof["sheet_url"].strip()
-    return (st.secrets.get("SHEET_WEB_APP_URL", DEFAULT_WEB_APP_URL) or "").strip()
+    return ""
 
 def get_active_csv_url() -> str:
     prof = db_get_user(st.session_state.get("user", ""))
     if prof and prof.get("csv_url"):
         return prof["csv_url"].strip()
-    return (st.secrets.get("SHEET_CSV_URL", DEFAULT_CSV_URL) or "").strip()
+    return ""
 
 def send_whatsapp_auto(msg):
     try:
@@ -498,9 +498,9 @@ def add_new_entry(item, amount, category="Others", type="Debit", entry_date=None
             requests.post(target_url, json=payload, timeout=10)
             refresh_user_sheet_cache()
         send_whatsapp_auto(f"✅ *AI Entry Added*\n📝 Item: {eng_item}\n💰 Amt: ₹{amount}\n📅 Date: {eng_date}")
-        return f"Success: {eng_item} - ₹{amount} ({type})"
+        return True, f"Entry saved to sheet: {eng_item} - ₹{amount} ({type})"
     except Exception as e:
-        return f"Error: {str(e)}"
+        return False, f"Failed to save to sheet: {str(e)}"
 
 def add_multiple_entries(entries_list):
     results = []
@@ -526,17 +526,16 @@ def add_multiple_entries(entries_list):
             refresh_user_sheet_cache()
         summary_text = '\n'.join([f'• {r}' for r in results])
         send_whatsapp_auto(f'✅ *AI Multi-Entries Added*\n{summary_text}')
-        return f'Success: Added {len(results)} items.'
+        return True, f"Saved {len(results)} entries to sheet: " + ", ".join(results)
     except Exception as e:
-        return f'Error: {str(e)}'
+        return False, f"Failed to save entries: {str(e)}"
 
 def add_debt_via_ai(name, type, amount, date=None):
     try:
         target_url = get_active_web_app_url()
         eng_name = translate_to_english_label(name, "Person")
         eng_type = "Lent" if "Lent" in str(type) or "കൊടുത്ത" in str(type) else "Borrowed"
-        eng_date = format_english_datetime(date).split(" ")[0:3]
-        eng_date_str = " ".join(eng_date)
+        eng_date_str = " ".join(format_english_datetime(date).split(" ")[0:3])
         payload = {
             "action": "add_debt",
             "name": eng_name,
@@ -548,24 +547,24 @@ def add_debt_via_ai(name, type, amount, date=None):
             requests.post(target_url, json=payload, timeout=10)
             refresh_user_sheet_cache()
         send_whatsapp_auto(f"🤝 *AI Debt Added*\n👤 Person: {eng_name}\n📌 Type: {eng_type}\n💰 Amt: ₹{amount}")
-        return f"Success: {eng_type} - {eng_name} - ₹{amount}"
+        return True, f"Debt saved to sheet: {eng_type} - {eng_name} - ₹{amount}"
     except Exception as e:
-        return f"Error: {str(e)}"
+        return False, f"Failed to save debt: {str(e)}"
 
 tools = [
     {
         "type": "function",
         "function": {
             "name": "add_new_entry",
-            "description": "Add a single expense or income in English",
+            "description": "Add a single expense or income in English when item and amount are clear",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "item": {"type": "string", "description": "Item name translated to English"},
+                    "item": {"type": "string", "description": "Item name translated to clean English"},
                     "amount": {"type": "number"},
                     "category": {"type": "string", "description": "Food, Shop, Fish, Travel, Rent, Others"},
                     "type": {"type": "string", "enum": ["Debit", "Credit"]},
-                    "date": {"type": "string", "description": "English date format e.g. 21 Nov 2026 19:28:00"}
+                    "date": {"type": "string", "description": "English date format e.g. 21 Nov 2026 19:44:00"}
                 },
                 "required": ["item", "amount"]
             }
@@ -617,23 +616,23 @@ tools = [
     }
 ]
 
-# --- 🔒 PUBLIC SIGN UP (OTP), LOGIN & RESET PASSWORD (OTP) SCREEN ---
+# --- 🔒 LOGIN, SIGN UP (2 LINKS + OTP + ONE ACCOUNT PER EMAIL) & FORGOT PASSWORD (OTP) ---
 if not st.session_state.auth:
     _, mid, _ = st.columns([1, 2, 1])
     with mid:
         st.markdown('<div class="login-card">', unsafe_allow_html=True)
         st.subheader("🔐 PAICHI EXPENSES")
 
-        mode_tab1, mode_tab2 = st.tabs(["🔑 Login", "📝 Sign Up (OTP)"])
+        mode_tab1, mode_tab2 = st.tabs(["🔑 Login", "📝 Sign Up"])
 
         with mode_tab1:
-            l_user = st.text_input("👤 Username / Email", key="login_user", placeholder="Enter your username or email").strip().lower()
+            l_user = st.text_input("📧 Email / Username", key="login_user", placeholder="Enter your email or username").strip().lower()
             l_pass = st.text_input("🔑 Password", type="password", key="login_pass", placeholder="Enter your password")
 
             if st.button("LOGIN 🔓", key="btn_login"):
                 user_rec = db_get_user(l_user)
                 if not l_user:
-                    st.error("❌ Please enter your username or email.")
+                    st.error("❌ Please enter your email or username.")
                 elif not l_pass:
                     st.error("❌ Please enter your password.")
                 elif not user_rec:
@@ -645,16 +644,16 @@ if not st.session_state.auth:
                 else:
                     st.error("❌ Incorrect password.")
 
-            with st.expander("🔄 Forgot / Reset Password (Email OTP)"):
-                r_user = st.text_input("📧 Registered Email / Username", key="reset_user", placeholder="Enter your registered email").strip().lower()
+            with st.expander("🔄 Forgot Password (Email OTP)"):
+                r_user = st.text_input("📧 Registered Email", key="reset_user", placeholder="Enter your registered email").strip().lower()
 
                 if st.button("📩 Send Reset OTP", key="btn_send_reset_otp"):
                     if not r_user:
-                        st.error("❌ Please enter your email or username.")
+                        st.error("❌ Please enter your registered email.")
                     elif not db_get_user(r_user):
-                        st.error("❌ No account found for this email or username.")
+                        st.error("❌ No account found for this email.")
                     elif "@" not in r_user:
-                        st.error("❌ A valid email address is required to send OTP.")
+                        st.error("❌ A valid email address is required for OTP.")
                     else:
                         code = f"{random.randint(100000, 999999)}"
                         st.session_state.reset_otp = code
@@ -693,13 +692,15 @@ if not st.session_state.auth:
                             st.code(f'"{r_user}": {{"password_hash": "{new_hash}"}}', language="json")
 
         with mode_tab2:
-            s_user = st.text_input("📧 Email / Username", key="signup_user", placeholder="example@gmail.com").strip().lower()
+            s_user = st.text_input("📧 Google / Email ID", key="signup_user", placeholder="example@gmail.com").strip().lower()
+            s_sheet_url = st.text_input("🔗 Sheet Web App Link (Optional)", key="signup_sheet_url", placeholder="https://script.google.com/macros/s/.../exec").strip()
+            s_csv_url = st.text_input("📄 Sheet CSV Link (Optional)", key="signup_csv_url", placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv").strip()
 
             if st.button("📩 Send Sign Up OTP", key="btn_send_signup_otp"):
                 if not s_user or "@" not in s_user:
-                    st.error("❌ Please enter a valid email address for OTP verification.")
+                    st.error("❌ Please enter a valid email address.")
                 elif db_get_user(s_user):
-                    st.error("❌ This account already exists. Please use the Login tab.")
+                    st.error("❌ Only one registration is allowed per Google/email account. Please log in instead.")
                 else:
                     code = f"{random.randint(100000, 999999)}"
                     st.session_state.signup_otp = code
@@ -712,11 +713,11 @@ if not st.session_state.auth:
                         st.error(f"❌ Failed to send OTP: {e}")
 
             if st.session_state.signup_otp and st.session_state.signup_otp_email == s_user:
-                s_otp_in = st.text_input("🔢 Enter Sign Up OTP", key="signup_otp_input", max_chars=6, placeholder="6-digit OTP")
-                if st.button("✅ Verify Sign Up OTP", key="btn_verify_signup_otp"):
+                s_otp_in = st.text_input("🔢 Enter OTP", key="signup_otp_input", max_chars=6, placeholder="6-digit OTP")
+                if st.button("✅ Verify OTP", key="btn_verify_signup_otp"):
                     if s_otp_in.strip() == st.session_state.signup_otp:
                         st.session_state.signup_otp_verified = True
-                        st.success("✅ Email OTP verified. Set your password below.")
+                        st.success("✅ OTP verified. Set your password to complete registration.")
                     else:
                         st.error("❌ Invalid OTP.")
 
@@ -724,15 +725,15 @@ if not st.session_state.auth:
                 s_pass = st.text_input("🔑 Create Password", type="password", key="signup_pass", placeholder="Create your password")
                 s_confirm = st.text_input("🔒 Confirm Password", type="password", key="signup_confirm", placeholder="Re-enter your password")
 
-                if st.button("CREATE ACCOUNT ✨", key="btn_signup"):
+                if st.button("COMPLETE SIGN UP ✨", key="btn_signup"):
                     if db_get_user(s_user):
-                        st.error("❌ This account already exists. Please use the Login tab.")
+                        st.error("❌ Only one registration is allowed per Google/email account.")
                     elif not s_pass:
                         st.error("❌ Please enter a password.")
                     elif s_pass != s_confirm:
                         st.error("❌ Passwords do not match.")
                     else:
-                        created_entry = db_create_user(s_user, s_pass)
+                        created_entry = db_create_user(s_user, s_pass, s_sheet_url, s_csv_url)
                         st.session_state.signup_otp = None
                         st.session_state.signup_otp_email = ""
                         st.session_state.signup_otp_verified = False
@@ -1108,34 +1109,41 @@ else:
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-    # --- AI CHAT (Single Confirmation Box, English Output, No Loop) ---
+    # --- AI CHAT (Single Confirmation Box, Save/Cancel Status Message, English Output, No Loop) ---
     elif page == "🤖 AI Chat":
         st.title("🤖 AI Agent & Assistant")
+
+        if st.session_state.ai_action_notice:
+            st.success(st.session_state.ai_action_notice)
 
         if st.session_state.pending_entry:
             p_item = st.session_state.pending_entry["item"]
             p_amt = st.session_state.pending_entry["amount"]
             p_date = st.session_state.pending_entry["date"]
 
-            st.info(f"**Confirm Entry:** {p_item} - ₹{p_amt} ({p_date}). Save this entry?")
+            st.info(f"**Confirm Entry:** {p_item} - ₹{p_amt} ({p_date}). Save this entry to sheet?")
             col1, col2 = st.columns(2)
 
             if col1.button("Yes", key="save_entry_btn"):
                 entry_data = st.session_state.pending_entry
                 st.session_state.pending_entry = None
                 st.session_state.last_processed_prompt = None
-                add_new_entry(
+                ok, status_msg = add_new_entry(
                     item=entry_data['item'],
                     amount=entry_data['amount'],
                     category=entry_data['category'],
                     type=entry_data['type'],
                     entry_date=entry_data['date']
                 )
+                st.session_state.ai_action_notice = status_msg if ok else f"Not saved: {status_msg}"
                 st.rerun()
 
             if col2.button("No", key="cancel_entry_btn"):
+                cancelled_item = st.session_state.pending_entry["item"]
+                cancelled_amt = st.session_state.pending_entry["amount"]
                 st.session_state.pending_entry = None
                 st.session_state.last_processed_prompt = None
+                st.session_state.ai_action_notice = f"Not saved to sheet: {cancelled_item} - ₹{cancelled_amt} (Cancelled)."
                 st.rerun()
 
         v_raw = speech_to_text(language='en', key=f'ai_voice_input_{st.session_state.ai_chat_key_id}')
@@ -1152,30 +1160,36 @@ else:
                 entry_data = st.session_state.pending_entry
                 st.session_state.pending_entry = None
                 st.session_state.last_processed_prompt = None
-                add_new_entry(
+                ok, status_msg = add_new_entry(
                     item=entry_data['item'],
                     amount=entry_data['amount'],
                     category=entry_data['category'],
                     type=entry_data['type'],
                     entry_date=entry_data['date']
                 )
+                st.session_state.ai_action_notice = status_msg if ok else f"Not saved: {status_msg}"
                 st.rerun()
 
             elif clean_cmd in ["no", "n", "nope", "cancel", "അല്ല", "വേണ്ട", "لا", "नहीं"] and st.session_state.pending_entry:
+                cancelled_item = st.session_state.pending_entry["item"]
+                cancelled_amt = st.session_state.pending_entry["amount"]
                 st.session_state.pending_entry = None
                 st.session_state.last_processed_prompt = None
+                st.session_state.ai_action_notice = f"Not saved to sheet: {cancelled_item} - ₹{cancelled_amt} (Cancelled)."
                 st.rerun()
 
             else:
+                st.session_state.ai_action_notice = None
                 with st.spinner("Processing..."):
                     try:
                         client = Groq(api_key=GROQ_API_KEY)
                         eng_now = format_english_datetime()
                         system_instruction = (
-                            f"You are an English finance AI assistant. Current time (GST): {eng_now}. Available balance: ₹{bal:,.2f}. "
-                            f"Understand user speech or text in English, Malayalam, Arabic, or Hindi, but ALWAYS respond in English. "
-                            f"Translate any item or person name into clean English (for example 'ചായ' -> 'Tea', 'شاي' -> 'Tea', 'चाय' -> 'Tea') "
-                            f"and use English date format ({eng_now}). "
+                            f"You are an accurate English finance AI assistant. Current time (GST): {eng_now}. Available balance: ₹{bal:,.2f}. "
+                            f"Understand user speech or text in English, Malayalam, Arabic, or Hindi, but ALWAYS respond in clean English. "
+                            f"Accurately interpret Malayalam/Arabic/Hindi/English expense words and numbers (for example 'ചായ മൂന്ന്' -> item 'Tea', amount 3; "
+                            f"'ജയയ്ക്ക് 500 കൊടുത്തു' -> debt lent to 'Jaya', amount 500). "
+                            f"Do NOT invent weird names or ask unnecessary follow-up questions when an expense item and amount are clear. "
                             f"When the user adds an expense or income, call 'add_new_entry' or 'add_multiple_entries'. "
                             f"When money is lent or borrowed, call 'add_debt_entry'."
                         )
@@ -1213,8 +1227,8 @@ else:
                                 elif tool_call.function.name == 'add_multiple_entries':
                                     args = json.loads(tool_call.function.arguments)
                                     entries = args.get("entries_list", [])
-                                    add_multiple_entries(entries)
-                                    st.success(f"Added {len(entries)} entries.")
+                                    ok, msg = add_multiple_entries(entries)
+                                    st.session_state.ai_action_notice = msg
                                     st.rerun()
 
                                 elif tool_call.function.name == 'add_debt_entry':
@@ -1223,8 +1237,8 @@ else:
                                     d_type = args.get("type", "Lent")
                                     d_amount = args.get("amount", 0)
                                     d_date = format_english_datetime(args.get("date"))
-                                    add_debt_via_ai(d_name, d_type, d_amount, d_date)
-                                    st.success(f"Saved {d_type}: {d_name} - ₹{d_amount}")
+                                    ok, msg = add_debt_via_ai(d_name, d_type, d_amount, d_date)
+                                    st.session_state.ai_action_notice = msg
                                     st.rerun()
 
                         elif response_message.content:
