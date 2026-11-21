@@ -436,6 +436,7 @@ def translate_to_english_label(text: str, default_label: str = "Expense") -> str
     mapping = {
         "ചായ": "Tea",
         "കാപ്പി": "Coffee",
+        "കോഫി": "Coffee",
         "ഭക്ഷണം": "Food",
         "ചിക്കൻ": "Chicken",
         "മീൻ": "Fish",
@@ -475,7 +476,7 @@ def translate_to_english_label(text: str, default_label: str = "Expense") -> str
 
 def categorize_item_label(item_str: str) -> str:
     low = str(item_str or "").lower()
-    if any(w in low for w in ["food", "tea", "coffee", "biryani", "meal", "lunch", "dinner", "breakfast", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി"]):
+    if any(w in low for w in ["food", "tea", "coffee", "biryani", "meal", "lunch", "dinner", "breakfast", "ഭക്ഷണം", "ചായ", "കോഫി", "ഹോട്ടൽ", "ബിരിയാണി"]):
         return "Food"
     elif any(w in low for w in ["shop", "store", "supermarket", "grocery", "കട", "സാധനങ്ങൾ", "സൂപ്പർമാർക്കറ്റ്"]):
         return "Shop"
@@ -684,34 +685,6 @@ def add_new_entry(item, amount, category="Others", type="Debit", entry_date=None
     except Exception as e:
         return False, f"Failed to save to sheet: {str(e)}"
 
-def add_multiple_entries(entries_list):
-    results = []
-    try:
-        target_url = get_active_web_app_url()
-        for entry in entries_list:
-            item = translate_to_english_label(entry.get('item', 'Expense'), 'Expense')
-            amount = entry.get('amount', 0)
-            category = translate_to_english_label(entry.get('category', 'Others'), 'Others')
-            entry_type = entry.get('type', 'Debit')
-            entry_date = format_english_datetime(entry.get('date'))
-            payload = {
-                "item": item,
-                "amount": amount,
-                "category": category,
-                "type": entry_type,
-                "date": entry_date
-            }
-            if target_url:
-                requests.post(target_url, json=payload, timeout=10)
-            results.append(f'{item} - ₹{amount}')
-        if target_url:
-            refresh_user_sheet_cache()
-        summary_text = '\n'.join([f'• {r}' for r in results])
-        send_whatsapp_auto(f'✅ *AI Multi-Entries Added*\n{summary_text}')
-        return True, f"Saved {len(results)} entries to sheet: " + ", ".join(results)
-    except Exception as e:
-        return False, f"Failed to save entries: {str(e)}"
-
 def add_debt_via_ai(name, type, amount, date=None):
     try:
         target_url = get_active_web_app_url()
@@ -732,71 +705,6 @@ def add_debt_via_ai(name, type, amount, date=None):
         return True, f"Debt saved to sheet: {eng_type} - {eng_name} - ₹{amount}"
     except Exception as e:
         return False, f"Failed to save debt: {str(e)}"
-
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "add_new_entry",
-            "description": "Add a single expense or income in English when item and amount are clear",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "item": {"type": "string", "description": "Item name translated to clean English"},
-                    "amount": {"type": "number"},
-                    "category": {"type": "string", "description": "Food, Shop, Fish, Travel, Rent, Others"},
-                    "type": {"type": "string", "enum": ["Debit", "Credit"]},
-                    "date": {"type": "string", "description": "English date format e.g. 21 Nov 2026 21:01:00"}
-                },
-                "required": ["item", "amount"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "add_multiple_entries",
-            "description": "Add multiple expenses in English",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "entries_list": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "item": {"type": "string"},
-                                "amount": {"type": "number"},
-                                "category": {"type": "string"},
-                                "type": {"type": "string", "enum": ["Debit", "Credit"]},
-                                "date": {"type": "string"}
-                            },
-                            "required": ["item", "amount"]
-                        }
-                    }
-                },
-                "required": ["entries_list"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "add_debt_entry",
-            "description": "Add money lent or borrowed to Debt Tracker in English",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string", "description": "Person name in English"},
-                    "type": {"type": "string", "enum": ["Lent", "Borrowed"]},
-                    "amount": {"type": "number"},
-                    "date": {"type": "string"}
-                },
-                "required": ["name", "type", "amount"]
-            }
-        }
-    }
-]
 
 # --- 🔒 LOGIN, PERMANENT SINGLE-REGISTRATION SIGN UP & FORGOT PASSWORD (OTP) ---
 if not st.session_state.auth:
@@ -1003,7 +911,7 @@ else:
             v_amt = nums[0] if nums else ""
             raw_desc = re.sub(r'\d+', '', raw).strip()
             v_desc = translate_to_english_label(raw_desc, "Expense")
-            if any(x in raw for x in ["food", "tea", "coffee", "biryani", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി"]): v_cat = "Food"
+            if any(x in raw for x in ["food", "tea", "coffee", "biryani", "ഭക്ഷണം", "ചായ", "കോഫി", "ഹോട്ടൽ", "ബിരിയാണി"]): v_cat = "Food"
             elif any(x in raw for x in ["shop", "കട"]): v_cat = "Shop"
             elif any(x in raw for x in ["fish", "chicken", "മീൻ", "ചിക്കൻ"]): v_cat = "Fish"
             elif any(x in raw for x in ["travel", "petrol", "പെട്രോൾ", "വണ്ടി"]): v_cat = "Travel"
@@ -1307,7 +1215,7 @@ else:
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-    # --- AI CHAT (Guaranteed Reply Rendering + Full App Context + Daily Math + Clear Voice + Single Confirmation) ---
+    # --- AI CHAT (Zero 'Type' KeyError + Full App Context + Daily Math + Clear Voice + Single Confirmation) ---
     elif page == "🤖 AI Chat":
         st.title("🤖 AI Agent & Assistant")
 
@@ -1423,82 +1331,75 @@ else:
                         else:
                             df_debts_ctx = load_debts_data(active_csv)
                             full_ctx = build_full_financial_context(df, df_debts_ctx)
-
                             client = Groq(api_key=GROQ_API_KEY)
-                            system_instruction = (
-                                "You are PAICHI AI, a sharp, accurate English finance & daily math advisor agent. "
+
+                            router_system = (
+                                "You are PAICHI AI router. Analyze the user's input in Malayalam, English, Arabic, or Hindi. "
                                 f"LIVE APP DATA & MATH CONTEXT: {full_ctx} "
-                                "Understand user questions or commands asked in ANY phrasing or order (forward or reverse, short or detailed) "
-                                "in Malayalam, English, Arabic, or Hindi, and ALWAYS reply clearly and accurately in English. "
-                                "Use exact numbers from LIVE APP DATA for every balance, credit, debit, today's total, monthly total, category spend, "
-                                "debt status, remaining days, suggested daily spend limit, or 'what-if' math calculation. "
-                                "Accurately interpret Malayalam/Arabic/Hindi/English expense words and numbers (for example 'ചായ മൂന്ന്' -> item 'Tea', amount 3; "
-                                "'ജയയ്ക്ക് 500 കൊടുത്തു' -> debt lent to 'Jaya', amount 500). "
-                                "Do NOT invent weird names or ask unnecessary follow-up questions when an expense item and amount are clear. "
-                                "When the user adds an expense or income, call 'add_new_entry' or 'add_multiple_entries'. "
-                                "When money is lent or borrowed, call 'add_debt_entry'."
+                                "Reply ONLY with a valid JSON object (no markdown, no extra text) in one of these formats:\n"
+                                '1) Single expense/income: {"action":"single_entry","item":"English Item","amount":5,"category":"Food","type":"Debit"}\n'
+                                '2) Debt lent/borrowed: {"action":"debt_entry","name":"English Name","type":"Lent","amount":500}\n'
+                                '3) Question / math / balance / advice: {"action":"answer","reply":"Clear accurate answer in English using exact numbers from LIVE APP DATA"}'
                             )
 
                             recent_ctx = [
                                 {"role": m["role"], "content": m["content"]}
                                 for m in st.session_state.ai_chat_history[-5:-1]
                             ]
-                            messages_for_api = [
-                                {"role": "system", "content": system_instruction},
-                                *recent_ctx,
-                                {"role": "user", "content": final_prompt}
-                            ]
 
-                            response = client.chat.completions.create(
+                            resp = client.chat.completions.create(
                                 model="openai/gpt-oss-120b",
-                                messages=messages_for_api,
-                                tools=tools,
-                                tool_choice="auto",
-                                max_tokens=1024
+                                messages=[
+                                    {"role": "system", "content": router_system},
+                                    *recent_ctx,
+                                    {"role": "user", "content": final_prompt}
+                                ],
+                                max_tokens=600
                             )
 
-                            response_message = response.choices[0].message
+                            raw_out = (resp.choices[0].message.content or "").strip()
+                            json_match = re.search(r"\{.*\}", raw_out, re.DOTALL)
+                            parsed_obj = None
+                            if json_match:
+                                try:
+                                    parsed_obj = json.loads(json_match.group(0))
+                                except Exception:
+                                    parsed_obj = None
 
-                            if response_message.tool_calls:
-                                for tool_call in response_message.tool_calls:
-                                    if tool_call.function.name == 'add_new_entry':
-                                        args = json.loads(tool_call.function.arguments)
-                                        eng_item = translate_to_english_label(args.get("item", "Expense"), "Expense")
-                                        eng_cat = translate_to_english_label(args.get("category", "Others"), "Others")
-                                        st.session_state.pending_entry = {
-                                            "item": eng_item,
-                                            "amount": args.get("amount", 0),
-                                            "category": eng_cat,
-                                            "type": args.get("type", "Debit"),
-                                            "date": format_english_datetime(args.get("date"))
-                                        }
-                                        st.rerun()
+                            if isinstance(parsed_obj, dict) and parsed_obj.get("action") == "single_entry":
+                                eng_item = translate_to_english_label(str(parsed_obj.get("item", "Expense")), "Expense")
+                                eng_cat = translate_to_english_label(str(parsed_obj.get("category", "Others")), "Others")
+                                amt_val = float(parsed_obj.get("amount", 0) or 0)
+                                entry_type = "Credit" if str(parsed_obj.get("type", "Debit")).lower() == "credit" else "Debit"
+                                st.session_state.pending_entry = {
+                                    "item": eng_item,
+                                    "amount": amt_val,
+                                    "category": eng_cat,
+                                    "type": entry_type,
+                                    "date": format_english_datetime()
+                                }
+                                st.rerun()
 
-                                    elif tool_call.function.name == 'add_multiple_entries':
-                                        args = json.loads(tool_call.function.arguments)
-                                        entries = args.get("entries_list", [])
-                                        ok, msg = add_multiple_entries(entries)
-                                        st.session_state.ai_action_notice = msg
-                                        st.session_state.ai_chat_history.append({"role": "assistant", "content": msg})
-                                        st.rerun()
+                            elif isinstance(parsed_obj, dict) and parsed_obj.get("action") == "debt_entry":
+                                d_name = translate_to_english_label(str(parsed_obj.get("name", "Person")), "Person")
+                                d_type = "Borrowed" if "borrow" in str(parsed_obj.get("type", "Lent")).lower() else "Lent"
+                                d_amount = float(parsed_obj.get("amount", 0) or 0)
+                                ok, msg = add_debt_via_ai(d_name, d_type, d_amount, format_english_datetime())
+                                st.session_state.ai_action_notice = msg
+                                st.session_state.ai_chat_history.append({"role": "assistant", "content": msg})
+                                st.rerun()
 
-                                    elif tool_call.function.name == 'add_debt_entry':
-                                        args = json.loads(tool_call.function.arguments)
-                                        d_name = translate_to_english_label(args.get("name", "Person"), "Person")
-                                        d_type = args.get("type", "Lent")
-                                        d_amount = args.get("amount", 0)
-                                        d_date = format_english_datetime(args.get("date"))
-                                        ok, msg = add_debt_via_ai(d_name, d_type, d_amount, d_date)
-                                        st.session_state.ai_action_notice = msg
-                                        st.session_state.ai_chat_history.append({"role": "assistant", "content": msg})
-                                        st.rerun()
-
-                            reply_txt = (response_message.content or "").strip()
-                            if not reply_txt:
-                                reply_txt = f"Available Balance: ₹{bal:,.2f} (Total Credit: ₹{t_in:,.2f}, Total Debit: ₹{t_out:,.2f})."
-                            with st.chat_message("assistant"):
-                                st.markdown(reply_txt)
-                            st.session_state.ai_chat_history.append({"role": "assistant", "content": reply_txt})
+                            else:
+                                reply_txt = (
+                                    str(parsed_obj.get("reply", "")).strip()
+                                    if isinstance(parsed_obj, dict) and parsed_obj.get("reply")
+                                    else raw_out
+                                )
+                                if not reply_txt:
+                                    reply_txt = f"Available Balance: ₹{bal:,.2f} (Total Credit: ₹{t_in:,.2f}, Total Debit: ₹{t_out:,.2f})."
+                                with st.chat_message("assistant"):
+                                    st.markdown(reply_txt)
+                                st.session_state.ai_chat_history.append({"role": "assistant", "content": reply_txt})
 
                     except Exception as e:
                         err_text = f"AI Error: {str(e)}"
