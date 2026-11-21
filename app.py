@@ -1272,4 +1272,4 @@ else:
                             st.info(response_message.content)
 
                     except Exception as e:
-                        st.error(f"AI Error: {str(e)}")
+                        st.error(f"AI Error: {str(e)}") 
