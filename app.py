@@ -55,7 +55,8 @@ def init_db():
             password_hash TEXT NOT NULL,
             sheet_url TEXT DEFAULT '',
             csv_url TEXT DEFAULT '',
-            links_locked INTEGER DEFAULT 0
+            links_locked INTEGER DEFAULT 0,
+            account_locked INTEGER DEFAULT 1
         )
     """)
     c.execute("PRAGMA table_info(users)")
@@ -66,6 +67,8 @@ def init_db():
         c.execute("ALTER TABLE users ADD COLUMN csv_url TEXT DEFAULT ''")
     if "links_locked" not in existing_cols:
         c.execute("ALTER TABLE users ADD COLUMN links_locked INTEGER DEFAULT 0")
+    if "account_locked" not in existing_cols:
+        c.execute("ALTER TABLE users ADD COLUMN account_locked INTEGER DEFAULT 1")
     conn.commit()
     conn.close()
 
@@ -86,6 +89,20 @@ def load_secrets_users() -> dict:
         return dict(raw_users)
     return {}
 
+def is_account_already_registered(username: str) -> bool:
+    u = (username or "").strip().lower()
+    if not u:
+        return False
+    if u in load_secrets_users():
+        return True
+    init_db()
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT 1 FROM users WHERE username = ?", (u,))
+    exists = c.fetchone() is not None
+    conn.close()
+    return exists
+
 def db_get_user(username: str):
     init_db()
     u = (username or "").strip().lower()
@@ -102,18 +119,19 @@ def db_get_user(username: str):
         c = conn.cursor()
         c.execute(
             """
-            INSERT INTO users (username, password_hash, sheet_url, csv_url, links_locked)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO users (username, password_hash, sheet_url, csv_url, links_locked, account_locked)
+            VALUES (?, ?, ?, ?, ?, 1)
             ON CONFLICT(username) DO UPDATE SET
                 password_hash = excluded.password_hash,
                 sheet_url = CASE WHEN users.sheet_url != '' THEN users.sheet_url ELSE excluded.sheet_url END,
                 csv_url = CASE WHEN users.csv_url != '' THEN users.csv_url ELSE excluded.csv_url END,
-                links_locked = CASE WHEN users.links_locked = 1 OR excluded.links_locked = 1 THEN 1 ELSE 0 END
+                links_locked = CASE WHEN users.links_locked = 1 OR excluded.links_locked = 1 THEN 1 ELSE 0 END,
+                account_locked = 1
             """,
             (u, s_rec.get("password_hash", ""), sheet_val, csv_val, locked_val)
         )
         conn.commit()
-        c.execute("SELECT username, password_hash, sheet_url, csv_url, links_locked FROM users WHERE username = ?", (u,))
+        c.execute("SELECT username, password_hash, sheet_url, csv_url, links_locked, account_locked FROM users WHERE username = ?", (u,))
         row = c.fetchone()
         conn.close()
         if row:
@@ -125,12 +143,13 @@ def db_get_user(username: str):
                 "password_hash": row[1],
                 "sheet_url": s_url_db,
                 "csv_url": c_url_db,
-                "links_locked": is_locked
+                "links_locked": is_locked,
+                "account_locked": int(row[5] if row[5] is not None else 1)
             }
 
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("SELECT username, password_hash, sheet_url, csv_url, links_locked FROM users WHERE username = ?", (u,))
+    c.execute("SELECT username, password_hash, sheet_url, csv_url, links_locked, account_locked FROM users WHERE username = ?", (u,))
     row = c.fetchone()
     conn.close()
     if row:
@@ -142,13 +161,16 @@ def db_get_user(username: str):
             "password_hash": row[1],
             "sheet_url": s_url_db,
             "csv_url": c_url_db,
-            "links_locked": is_locked
+            "links_locked": is_locked,
+            "account_locked": int(row[5] if row[5] is not None else 1)
         }
     return None
 
 def db_create_user(username: str, password: str, sheet_url: str = "", csv_url: str = ""):
     init_db()
     u = username.strip().lower()
+    if is_account_already_registered(u):
+        raise ValueError("This Google/email account is already registered and locked.")
     pwd_hash = hash_password(password)
     s_url = (sheet_url or "").strip()
     c_url = (csv_url or "").strip()
@@ -156,7 +178,7 @@ def db_create_user(username: str, password: str, sheet_url: str = "", csv_url: s
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute(
-        "INSERT INTO users (username, password_hash, sheet_url, csv_url, links_locked) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO users (username, password_hash, sheet_url, csv_url, links_locked, account_locked) VALUES (?, ?, ?, ?, ?, 1)",
         (u, pwd_hash, s_url, c_url, locked_flag)
     )
     conn.commit()
@@ -166,7 +188,8 @@ def db_create_user(username: str, password: str, sheet_url: str = "", csv_url: s
             "password_hash": pwd_hash,
             "sheet_url": s_url,
             "csv_url": c_url,
-            "links_locked": bool(locked_flag)
+            "links_locked": bool(locked_flag),
+            "account_locked": True
         }
     }
 
@@ -177,12 +200,12 @@ def db_bind_links_once(username: str, sheet_url: str = "", csv_url: str = ""):
     if not existing:
         return False, "Account not found."
     if existing.get("links_locked") == 1 or existing.get("sheet_url") or existing.get("csv_url"):
-        return False, "Sheet links are already locked for this account and cannot be changed again."
+        return False, "Links are already submitted and permanently locked."
 
     s_url = (sheet_url or "").strip()
     c_url = (csv_url or "").strip()
     if not s_url and not c_url:
-        return False, "Please enter at least one link (Web App URL or CSV URL) to link."
+        return False, "Enter at least one link (Web App URL or CSV URL)."
 
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -192,7 +215,7 @@ def db_bind_links_once(username: str, sheet_url: str = "", csv_url: str = ""):
     )
     conn.commit()
     conn.close()
-    return True, "Sheet links bound and permanently locked for this account."
+    return True, "Links submitted and permanently locked."
 
 def db_update_password(username: str, new_password: str):
     init_db()
@@ -381,10 +404,6 @@ if "signup_otp_verified" not in st.session_state: st.session_state.signup_otp_ve
 if "reset_otp" not in st.session_state: st.session_state.reset_otp = None
 if "reset_otp_email" not in st.session_state: st.session_state.reset_otp_email = ""
 if "reset_otp_verified" not in st.session_state: st.session_state.reset_otp_verified = False
-
-if "bind_otp" not in st.session_state: st.session_state.bind_otp = None
-if "bind_otp_email" not in st.session_state: st.session_state.bind_otp_email = ""
-if "bind_otp_verified" not in st.session_state: st.session_state.bind_otp_verified = False
 
 restore_session_from_url()
 
@@ -626,7 +645,7 @@ tools = [
                     "amount": {"type": "number"},
                     "category": {"type": "string", "description": "Food, Shop, Fish, Travel, Rent, Others"},
                     "type": {"type": "string", "enum": ["Debit", "Credit"]},
-                    "date": {"type": "string", "description": "English date format e.g. 21 Nov 2026 20:05:00"}
+                    "date": {"type": "string", "description": "English date format e.g. 21 Nov 2026 20:11:00"}
                 },
                 "required": ["item", "amount"]
             }
@@ -678,7 +697,7 @@ tools = [
     }
 ]
 
-# --- 🔒 LOGIN, ONE-TIME LINK SIGN UP (OTP + ONE ACCOUNT PER EMAIL) & FORGOT PASSWORD (OTP) ---
+# --- 🔒 LOGIN, PERMANENT SINGLE-REGISTRATION SIGN UP & FORGOT PASSWORD (OTP) ---
 if not st.session_state.auth:
     _, mid, _ = st.columns([1, 2, 1])
     with mid:
@@ -705,51 +724,6 @@ if not st.session_state.auth:
                     st.rerun()
                 else:
                     st.error("❌ Incorrect password.")
-
-            with st.expander("🔗 Link Sheet Once (If Not Linked Yet)"):
-                b_user = st.text_input("📧 Registered Email", key="bind_user", placeholder="Enter your registered email").strip().lower()
-                b_pass = st.text_input("🔑 Account Password", type="password", key="bind_pass", placeholder="Enter your password")
-                b_sheet_url = st.text_input("🔗 Sheet Web App Link (One-time only)", key="bind_sheet_url", placeholder="https://script.google.com/macros/s/.../exec").strip()
-                b_csv_url = st.text_input("📄 Sheet CSV Link (One-time only)", key="bind_csv_url", placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv").strip()
-
-                if st.button("📩 Send Link OTP", key="btn_send_bind_otp"):
-                    rec = db_get_user(b_user)
-                    if not b_user or "@" not in b_user:
-                        st.error("❌ Please enter a valid registered email.")
-                    elif not rec:
-                        st.error("❌ Account not found.")
-                    elif rec["password_hash"] != hash_password(b_pass):
-                        st.error("❌ Incorrect password.")
-                    elif rec.get("links_locked") == 1 or rec.get("sheet_url") or rec.get("csv_url"):
-                        st.error("❌ Links are already bound and permanently locked for this account.")
-                    elif not b_sheet_url and not b_csv_url:
-                        st.error("❌ Please enter at least one link (Web App URL or CSV URL).")
-                    else:
-                        code = f"{random.randint(100000, 999999)}"
-                        st.session_state.bind_otp = code
-                        st.session_state.bind_otp_email = b_user
-                        st.session_state.bind_otp_verified = False
-                        try:
-                            send_otp_email(b_user, code, purpose="One-Time Sheet Link")
-                            st.success("✅ 6-digit OTP sent to your email.")
-                        except Exception as e:
-                            st.error(f"❌ Failed to send OTP: {e}")
-
-                if st.session_state.bind_otp and st.session_state.bind_otp_email == b_user:
-                    b_otp_in = st.text_input("🔢 Enter Link OTP", key="bind_otp_input", max_chars=6, placeholder="6-digit OTP")
-                    if st.button("🔒 BIND & LOCK LINKS ONCE", key="btn_confirm_bind_links"):
-                        if b_otp_in.strip() != st.session_state.bind_otp:
-                            st.error("❌ Invalid OTP.")
-                        else:
-                            ok_b, msg_b = db_bind_links_once(b_user, b_sheet_url, b_csv_url)
-                            if ok_b:
-                                st.session_state.bind_otp = None
-                                st.session_state.bind_otp_email = ""
-                                st.session_state.bind_otp_verified = False
-                                refresh_user_sheet_cache()
-                                st.success(f"✅ {msg_b}")
-                            else:
-                                st.error(f"❌ {msg_b}")
 
             with st.expander("🔄 Forgot Password (Email OTP)"):
                 r_user = st.text_input("📧 Registered Email", key="reset_user", placeholder="Enter your registered email").strip().lower()
@@ -795,71 +769,94 @@ if not st.session_state.auth:
                             st.session_state.reset_otp = None
                             st.session_state.reset_otp_email = ""
                             st.session_state.reset_otp_verified = False
-                            st.success("✅ Password updated. Linked sheet URLs remain locked.")
+                            st.success("✅ Password updated.")
                             st.code(f'"{r_user}": {{"password_hash": "{new_hash}"}}', language="json")
 
         with mode_tab2:
-            st.caption("One-time sheet link binding & single registration per Google/Email account.")
+            st.caption("Each Google/Email account can be registered only once.")
             s_user = st.text_input("📧 Google / Email ID", key="signup_user", placeholder="example@gmail.com").strip().lower()
-            s_sheet_url = st.text_input("🔗 Sheet Web App Link (One-time only)", key="signup_sheet_url", placeholder="https://script.google.com/macros/s/.../exec").strip()
-            s_csv_url = st.text_input("📄 Sheet CSV Link (One-time only)", key="signup_csv_url", placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv").strip()
 
-            if st.button("📩 Send Sign Up OTP", key="btn_send_signup_otp"):
-                if not s_user or "@" not in s_user:
-                    st.error("❌ Please enter a valid email address.")
-                elif db_get_user(s_user):
-                    st.error("❌ Only one registration is allowed per Google/email account. Please log in instead.")
-                else:
-                    code = f"{random.randint(100000, 999999)}"
-                    st.session_state.signup_otp = code
-                    st.session_state.signup_otp_email = s_user
-                    st.session_state.signup_otp_verified = False
-                    try:
-                        send_otp_email(s_user, code, purpose="Sign Up")
-                        st.success("✅ 6-digit OTP sent to your email. Check Inbox or Spam.")
-                    except Exception as e:
-                        st.error(f"❌ Failed to send OTP: {e}")
-
-            if st.session_state.signup_otp and st.session_state.signup_otp_email == s_user:
-                s_otp_in = st.text_input("🔢 Enter OTP", key="signup_otp_input", max_chars=6, placeholder="6-digit OTP")
-                if st.button("✅ Verify OTP", key="btn_verify_signup_otp"):
-                    if s_otp_in.strip() == st.session_state.signup_otp:
-                        st.session_state.signup_otp_verified = True
-                        st.success("✅ OTP verified. Set your password to complete registration.")
+            if is_account_already_registered(s_user):
+                st.error("❌ This Google/Email account is already registered and cannot be submitted again.")
+            else:
+                if st.button("📩 Send Sign Up OTP", key="btn_send_signup_otp"):
+                    if not s_user or "@" not in s_user:
+                        st.error("❌ Please enter a valid email address.")
+                    elif is_account_already_registered(s_user):
+                        st.error("❌ This Google/Email account is already registered and cannot be submitted again.")
                     else:
-                        st.error("❌ Invalid OTP.")
-
-            if st.session_state.signup_otp_verified and st.session_state.signup_otp_email == s_user:
-                s_pass = st.text_input("🔑 Create Password", type="password", key="signup_pass", placeholder="Create your password")
-                s_confirm = st.text_input("🔒 Confirm Password", type="password", key="signup_confirm", placeholder="Re-enter your password")
-
-                if st.button("COMPLETE SIGN UP ✨", key="btn_signup"):
-                    if db_get_user(s_user):
-                        st.error("❌ Only one registration is allowed per Google/email account.")
-                    elif not s_pass:
-                        st.error("❌ Please enter a password.")
-                    elif s_pass != s_confirm:
-                        st.error("❌ Passwords do not match.")
-                    else:
-                        created_entry = db_create_user(s_user, s_pass, s_sheet_url, s_csv_url)
-                        st.session_state.signup_otp = None
-                        st.session_state.signup_otp_email = ""
+                        code = f"{random.randint(100000, 999999)}"
+                        st.session_state.signup_otp = code
+                        st.session_state.signup_otp_email = s_user
                         st.session_state.signup_otp_verified = False
-                        refresh_user_sheet_cache()
-                        st.info("📌 Add this entry to `USERS_DATA` in Secrets to keep the account across reboots:")
-                        st.code(json.dumps(created_entry, indent=2), language="json")
-                        set_persistent_login(s_user)
-                        st.rerun()
+                        try:
+                            send_otp_email(s_user, code, purpose="Sign Up")
+                            st.success("✅ 6-digit OTP sent to your email. Check Inbox or Spam.")
+                        except Exception as e:
+                            st.error(f"❌ Failed to send OTP: {e}")
+
+                if st.session_state.signup_otp and st.session_state.signup_otp_email == s_user:
+                    s_otp_in = st.text_input("🔢 Enter OTP", key="signup_otp_input", max_chars=6, placeholder="6-digit OTP")
+                    if st.button("✅ Verify OTP", key="btn_verify_signup_otp"):
+                        if s_otp_in.strip() == st.session_state.signup_otp:
+                            st.session_state.signup_otp_verified = True
+                            st.success("✅ OTP verified. Set your password to complete registration.")
+                        else:
+                            st.error("❌ Invalid OTP.")
+
+                if st.session_state.signup_otp_verified and st.session_state.signup_otp_email == s_user:
+                    s_pass = st.text_input("🔑 Create Password", type="password", key="signup_pass", placeholder="Create your password")
+                    s_confirm = st.text_input("🔒 Confirm Password", type="password", key="signup_confirm", placeholder="Re-enter your password")
+
+                    if st.button("COMPLETE SIGN UP ✨", key="btn_signup"):
+                        if is_account_already_registered(s_user):
+                            st.error("❌ This Google/Email account is already registered and cannot be submitted again.")
+                        elif not s_pass:
+                            st.error("❌ Please enter a password.")
+                        elif s_pass != s_confirm:
+                            st.error("❌ Passwords do not match.")
+                        else:
+                            created_entry = db_create_user(s_user, s_pass, "", "")
+                            st.session_state.signup_otp = None
+                            st.session_state.signup_otp_email = ""
+                            st.session_state.signup_otp_verified = False
+                            refresh_user_sheet_cache()
+                            st.info("📌 Add this entry to `USERS_DATA` in Secrets to keep the account across reboots:")
+                            st.code(json.dumps(created_entry, indent=2), language="json")
+                            set_persistent_login(s_user)
+                            st.rerun()
 
         st.markdown('</div>', unsafe_allow_html=True)
 
 else:
+    user_profile = db_get_user(st.session_state.user) or {}
     active_csv = get_active_csv_url()
     df = load_data(active_csv)
     t_in, t_out = (df['Credit'].sum(), df['Debit'].sum()) if not df.empty else (0.0, 0.0)
     bal = t_in - t_out
 
     st.sidebar.caption(f"👤 {format_display_name(st.session_state.user)}")
+
+    with st.sidebar.expander("🔗 Link Sheet (One-Time)"):
+        has_locked_links = (
+            user_profile.get("links_locked") == 1
+            or bool((user_profile.get("sheet_url") or "").strip())
+            or bool((user_profile.get("csv_url") or "").strip())
+        )
+        if has_locked_links:
+            st.info("🔒 Sheet links are already submitted and permanently locked.")
+        else:
+            sb_sheet = st.text_input("Sheet Web App Link", key="sb_sheet_url", placeholder="https://script.google.com/macros/s/.../exec").strip()
+            sb_csv = st.text_input("Sheet CSV Link", key="sb_csv_url", placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv").strip()
+            if st.button("SUBMIT LINK ONCE 🔒", key="btn_sb_link_once"):
+                ok_l, msg_l = db_bind_links_once(st.session_state.user, sb_sheet, sb_csv)
+                if ok_l:
+                    refresh_user_sheet_cache()
+                    st.success(f"✅ {msg_l}")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error(f"❌ {msg_l}")
 
     with st.sidebar.expander("⚙️ Settings"):
         if st.button("🔄 Sync Data"):
