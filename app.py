@@ -115,7 +115,7 @@ def send_otp_email(to_email: str, otp_code: str, purpose: str = "Verification") 
     )
 
     try:
-            with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
         server.ehlo()
         server.starttls()
         server.ehlo()
