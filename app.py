@@ -159,10 +159,10 @@ def send_otp_email(to_email: str, otp_code: str, purpose: str = "OTP Verificatio
     from_email = (st.secrets.get("OTP_FROM_EMAIL", OTP_FROM_EMAIL) or "onboarding@resend.dev").strip()
 
     body_text = (
-        f"നമസ്കാരം,\n\n"
-        f"PAICHI EXPENSES ({purpose})-നായുള്ള നിങ്ങളുടെ 6-അക്ക OTP കോഡ് താഴെ നൽകുന്നു:\n\n"
+        f"Hello,\n\n"
+        f"Your 6-digit OTP code for PAICHI EXPENSES ({purpose}) is:\n\n"
         f"OTP: {otp_code}\n\n"
-        f"ഈ കോഡ് മറ്റാരുമായും പങ്കുവെക്കരുത്."
+        f"Please do not share this code with anyone."
     )
 
     if brevo_key and brevo_sender:
@@ -208,7 +208,7 @@ def send_otp_email(to_email: str, otp_code: str, purpose: str = "OTP Verificatio
     app_pwd = (st.secrets.get("SMTP_APP_PASSWORD", SMTP_APP_PASSWORD) or "").replace(" ", "").strip()
 
     if not sender or not app_pwd:
-        raise ValueError("BREVO_API_KEY / BREVO_SENDER_EMAIL, RESEND_API_KEY അല്ലെങ്കിൽ SMTP_EMAIL / SMTP_APP_PASSWORD Secrets-ൽ സെറ്റ് ചെയ്തിട്ടില്ല!")
+        raise ValueError("BREVO_API_KEY / BREVO_SENDER_EMAIL, RESEND_API_KEY, or SMTP_EMAIL / SMTP_APP_PASSWORD is not configured in Secrets.")
 
     msg = EmailMessage()
     msg["Subject"] = f"PAICHI EXPENSES - {purpose} OTP"
@@ -315,6 +315,7 @@ if 'low_limit' not in st.session_state: st.session_state.low_limit = 6000
 if "last_processed_prompt" not in st.session_state: st.session_state.last_processed_prompt = None
 if "pending_entry" not in st.session_state: st.session_state.pending_entry = None
 if "entry_saved_flag" not in st.session_state: st.session_state.entry_saved_flag = False
+if "ai_chat_key_id" not in st.session_state: st.session_state.ai_chat_key_id = 0
 
 if "signup_otp" not in st.session_state: st.session_state.signup_otp = None
 if "signup_otp_email" not in st.session_state: st.session_state.signup_otp_email = ""
@@ -332,6 +333,60 @@ def format_display_name(username: str) -> str:
     if "@" in u:
         return u.split("@", 1)[0]
     return u
+
+def format_english_datetime(dt_value=None) -> str:
+    if dt_value is None:
+        dt_obj = datetime.now(GST)
+    elif isinstance(dt_value, datetime):
+        dt_obj = dt_value
+    else:
+        parsed = pd.to_datetime(str(dt_value).strip(), errors="coerce")
+        dt_obj = parsed.to_pydatetime() if not pd.isna(parsed) else datetime.now(GST)
+    return dt_obj.strftime("%d %b %Y %H:%M:%S")
+
+def translate_to_english_label(text: str, default_label: str = "Expense") -> str:
+    raw = (text or "").strip()
+    if not raw:
+        return default_label
+    low = raw.lower()
+    mapping = {
+        "ചായ": "Tea",
+        "കാപ്പി": "Coffee",
+        "ഭക്ഷണം": "Food",
+        "ചിക്കൻ": "Chicken",
+        "മീൻ": "Fish",
+        "ബിരിയാണി": "Biryani",
+        "കട": "Shop",
+        "യാത്ര": "Travel",
+        "പെട്രോൾ": "Petrol",
+        "വാടക": "Rent",
+        "شاي": "Tea",
+        "قهوة": "Coffee",
+        "طعام": "Food",
+        "चाय": "Tea",
+        "खाना": "Food"
+    }
+    for k, v in mapping.items():
+        if k in low:
+            return v
+    if GROQ_API_KEY and re.search(r"[^\x00-\x7F]", raw):
+        try:
+            client = Groq(api_key=GROQ_API_KEY)
+            resp = client.chat.completions.create(
+                model="openai/gpt-oss-120b",
+                messages=[
+                    {"role": "system", "content": "Translate the given expense/item text into concise English (1 to 3 words). Return ONLY the English text."},
+                    {"role": "user", "content": raw}
+                ],
+                max_tokens=30
+            )
+            translated = (resp.choices[0].message.content or "").strip().strip('"').strip("'")
+            if translated:
+                return translated
+        except Exception:
+            pass
+    cleaned = re.sub(r"[^\x00-\x7F]+", "", raw).strip()
+    return cleaned if cleaned else default_label
 
 def get_active_web_app_url() -> str:
     prof = db_get_user(st.session_state.get("user", ""))
@@ -429,20 +484,21 @@ def create_pdf(df):
 def add_new_entry(item, amount, category="Others", type="Debit", entry_date=None):
     try:
         target_url = get_active_web_app_url()
-        if not entry_date:
-            entry_date = datetime.now(GST).strftime("%Y-%m-%d %H:%M:%S")
+        eng_item = translate_to_english_label(item, "Expense")
+        eng_cat = translate_to_english_label(category, "Others")
+        eng_date = format_english_datetime(entry_date)
         payload = {
-            "item": item,
+            "item": eng_item,
             "amount": amount,
-            "category": category,
+            "category": eng_cat,
             "type": type,
-            "date": entry_date
+            "date": eng_date
         }
         if target_url:
             requests.post(target_url, json=payload, timeout=10)
             refresh_user_sheet_cache()
-        send_whatsapp_auto(f"✅ *AI Entry Added*\n📝 Item: {item}\n💰 Amt: ₹{amount}")
-        return f"Success: {item} - ₹{amount} ({type})"
+        send_whatsapp_auto(f"✅ *AI Entry Added*\n📝 Item: {eng_item}\n💰 Amt: ₹{amount}\n📅 Date: {eng_date}")
+        return f"Success: {eng_item} - ₹{amount} ({type})"
     except Exception as e:
         return f"Error: {str(e)}"
 
@@ -451,11 +507,11 @@ def add_multiple_entries(entries_list):
     try:
         target_url = get_active_web_app_url()
         for entry in entries_list:
-            item = entry.get('item', 'Unknown')
+            item = translate_to_english_label(entry.get('item', 'Expense'), 'Expense')
             amount = entry.get('amount', 0)
-            category = entry.get('category', 'Others')
+            category = translate_to_english_label(entry.get('category', 'Others'), 'Others')
             entry_type = entry.get('type', 'Debit')
-            entry_date = entry.get('date', datetime.now(GST).strftime('%Y-%m-%d %H:%M:%S'))
+            entry_date = format_english_datetime(entry.get('date'))
             payload = {
                 "item": item,
                 "amount": amount,
@@ -477,20 +533,22 @@ def add_multiple_entries(entries_list):
 def add_debt_via_ai(name, type, amount, date=None):
     try:
         target_url = get_active_web_app_url()
-        if not date:
-            date = datetime.now(GST).strftime("%Y-%m-%d")
+        eng_name = translate_to_english_label(name, "Person")
+        eng_type = "Lent" if "Lent" in str(type) or "കൊടുത്ത" in str(type) else "Borrowed"
+        eng_date = format_english_datetime(date).split(" ")[0:3]
+        eng_date_str = " ".join(eng_date)
         payload = {
             "action": "add_debt",
-            "name": name,
-            "type": type,
+            "name": eng_name,
+            "type": eng_type,
             "amount": amount,
-            "date": date
+            "date": eng_date_str
         }
         if target_url:
             requests.post(target_url, json=payload, timeout=10)
             refresh_user_sheet_cache()
-        send_whatsapp_auto(f"🤝 *AI Debt Added*\n👤 Person: {name}\n📌 Type: {type}\n💰 Amt: ₹{amount}")
-        return f"Success: {type} - {name} - ₹{amount}"
+        send_whatsapp_auto(f"🤝 *AI Debt Added*\n👤 Person: {eng_name}\n📌 Type: {eng_type}\n💰 Amt: ₹{amount}")
+        return f"Success: {eng_type} - {eng_name} - ₹{amount}"
     except Exception as e:
         return f"Error: {str(e)}"
 
@@ -499,15 +557,15 @@ tools = [
         "type": "function",
         "function": {
             "name": "add_new_entry",
-            "description": "Add a single expense or income",
+            "description": "Add a single expense or income in English",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "item": {"type": "string"},
+                    "item": {"type": "string", "description": "Item name translated to English"},
                     "amount": {"type": "number"},
                     "category": {"type": "string", "description": "Food, Shop, Fish, Travel, Rent, Others"},
                     "type": {"type": "string", "enum": ["Debit", "Credit"]},
-                    "date": {"type": "string", "description": "YYYY-MM-DD HH:MM:SS"}
+                    "date": {"type": "string", "description": "English date format e.g. 21 Nov 2026 19:28:00"}
                 },
                 "required": ["item", "amount"]
             }
@@ -517,7 +575,7 @@ tools = [
         "type": "function",
         "function": {
             "name": "add_multiple_entries",
-            "description": "Add multiple expenses",
+            "description": "Add multiple expenses in English",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -544,12 +602,12 @@ tools = [
         "type": "function",
         "function": {
             "name": "add_debt_entry",
-            "description": "Add money lent or borrowed to Debt Tracker",
+            "description": "Add money lent or borrowed to Debt Tracker in English",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "name": {"type": "string", "description": "Person name"},
-                    "type": {"type": "string", "enum": ["Lent (കൊടുത്തത്)", "Borrowed (വാങ്ങിയത്)"]},
+                    "name": {"type": "string", "description": "Person name in English"},
+                    "type": {"type": "string", "enum": ["Lent", "Borrowed"]},
                     "amount": {"type": "number"},
                     "date": {"type": "string"}
                 },
@@ -575,28 +633,28 @@ if not st.session_state.auth:
             if st.button("LOGIN 🔓", key="btn_login"):
                 user_rec = db_get_user(l_user)
                 if not l_user:
-                    st.error("❌ ദയവായി നിങ്ങളുടെ യൂസർനെയിം നൽകുക!")
+                    st.error("❌ Please enter your username or email.")
                 elif not l_pass:
-                    st.error("❌ ദയവായി പാസ്‌വേഡ് നൽകുക!")
+                    st.error("❌ Please enter your password.")
                 elif not user_rec:
-                    st.error("❌ അക്കൗണ്ട് കണ്ടെത്താനായില്ല! ആദ്യം Sign Up ടാബിൽ അക്കൗണ്ട് തുടങ്ങുക.")
+                    st.error("❌ Account not found. Please sign up first.")
                 elif user_rec["password_hash"] == hash_password(l_pass):
                     refresh_user_sheet_cache()
                     set_persistent_login(l_user)
                     st.rerun()
                 else:
-                    st.error("❌ പാസ്‌വേഡ് തെറ്റാണ്!")
+                    st.error("❌ Incorrect password.")
 
             with st.expander("🔄 Forgot / Reset Password (Email OTP)"):
                 r_user = st.text_input("📧 Registered Email / Username", key="reset_user", placeholder="Enter your registered email").strip().lower()
 
                 if st.button("📩 Send Reset OTP", key="btn_send_reset_otp"):
                     if not r_user:
-                        st.error("❌ ദയവായി ഇമെയിൽ / യൂസർനെയിം നൽകുക!")
+                        st.error("❌ Please enter your email or username.")
                     elif not db_get_user(r_user):
-                        st.error("❌ ഈ ഇമെയിലിൽ / യൂസർനെയിമിൽ അക്കൗണ്ട് ഇല്ല!")
+                        st.error("❌ No account found for this email or username.")
                     elif "@" not in r_user:
-                        st.error("❌ OTP അയക്കാൻ സാധുവായ ഇമെയിൽ വിലാസം ആവശ്യമാണ്!")
+                        st.error("❌ A valid email address is required to send OTP.")
                     else:
                         code = f"{random.randint(100000, 999999)}"
                         st.session_state.reset_otp = code
@@ -604,18 +662,18 @@ if not st.session_state.auth:
                         st.session_state.reset_otp_verified = False
                         try:
                             send_otp_email(r_user, code, purpose="Reset Password")
-                            st.success("✅ നിങ്ങളുടെ ഇമെയിലിലേക്ക് 6-അക്ക OTP അയച്ചു! (Inbox / Spam നോക്കുക)")
+                            st.success("✅ 6-digit OTP sent to your email. Check Inbox or Spam.")
                         except Exception as e:
-                            st.error(f"❌ OTP അയക്കാൻ കഴിഞ്ഞില്ല: {e}")
+                            st.error(f"❌ Failed to send OTP: {e}")
 
                 if st.session_state.reset_otp and st.session_state.reset_otp_email == r_user:
                     r_otp_in = st.text_input("🔢 Enter Reset OTP", key="reset_otp_input", max_chars=6, placeholder="6-digit OTP")
                     if st.button("✅ Verify Reset OTP", key="btn_verify_reset_otp"):
                         if r_otp_in.strip() == st.session_state.reset_otp:
                             st.session_state.reset_otp_verified = True
-                            st.success("✅ OTP വെരിഫൈ ചെയ്തു! ഇനി പുതിയ പാസ്‌വേഡ് നൽകാം.")
+                            st.success("✅ OTP verified. Enter your new password.")
                         else:
-                            st.error("❌ OTP തെറ്റാണ്!")
+                            st.error("❌ Invalid OTP.")
 
                 if st.session_state.reset_otp_verified and st.session_state.reset_otp_email == r_user:
                     r_new_pass = st.text_input("🔑 New Password", type="password", key="reset_new_pass", placeholder="Enter new password")
@@ -623,15 +681,15 @@ if not st.session_state.auth:
 
                     if st.button("RESET PASSWORD 🔁", key="btn_reset_pass"):
                         if not r_new_pass:
-                            st.error("❌ പുതിയ പാസ്‌വേഡ് നൽകുക!")
+                            st.error("❌ Please enter a new password.")
                         elif r_new_pass != r_confirm_pass:
-                            st.error("❌ രണ്ട് പാസ്‌വേഡുകളും ഒരുപോലെയല്ല!")
+                            st.error("❌ Passwords do not match.")
                         else:
                             new_hash = db_update_password(r_user, r_new_pass)
                             st.session_state.reset_otp = None
                             st.session_state.reset_otp_email = ""
                             st.session_state.reset_otp_verified = False
-                            st.success("✅ പാസ്‌വേഡ് മാറ്റി! റീബൂട്ടിന് ശേഷവും നിലനിൽക്കാൻ Secrets-ലെ ഈ യൂസറിന്റെ `password_hash` അപ്ഡേറ്റ് ചെയ്യുക:")
+                            st.success("✅ Password updated. Update this entry in Secrets to persist across reboots:")
                             st.code(f'"{r_user}": {{"password_hash": "{new_hash}"}}', language="json")
 
         with mode_tab2:
@@ -639,9 +697,9 @@ if not st.session_state.auth:
 
             if st.button("📩 Send Sign Up OTP", key="btn_send_signup_otp"):
                 if not s_user or "@" not in s_user:
-                    st.error("❌ OTP വെരിഫിക്കേഷനായി സാധുവായ ഒരു ഇമെയിൽ വിലാസം നൽകുക!")
+                    st.error("❌ Please enter a valid email address for OTP verification.")
                 elif db_get_user(s_user):
-                    st.error("❌ ഈ അക്കൗണ്ട് നിലവിലുണ്ട്! Login ടാബ് ഉപയോഗിക്കുക.")
+                    st.error("❌ This account already exists. Please use the Login tab.")
                 else:
                     code = f"{random.randint(100000, 999999)}"
                     st.session_state.signup_otp = code
@@ -649,37 +707,37 @@ if not st.session_state.auth:
                     st.session_state.signup_otp_verified = False
                     try:
                         send_otp_email(s_user, code, purpose="Sign Up")
-                        st.success("✅ നിങ്ങളുടെ ഇമെയിലിലേക്ക് 6-അക്ക OTP അയച്ചു! (Inbox / Spam നോക്കുക)")
+                        st.success("✅ 6-digit OTP sent to your email. Check Inbox or Spam.")
                     except Exception as e:
-                        st.error(f"❌ OTP അയക്കാൻ കഴിഞ്ഞില്ല: {e}")
+                        st.error(f"❌ Failed to send OTP: {e}")
 
             if st.session_state.signup_otp and st.session_state.signup_otp_email == s_user:
                 s_otp_in = st.text_input("🔢 Enter Sign Up OTP", key="signup_otp_input", max_chars=6, placeholder="6-digit OTP")
                 if st.button("✅ Verify Sign Up OTP", key="btn_verify_signup_otp"):
                     if s_otp_in.strip() == st.session_state.signup_otp:
                         st.session_state.signup_otp_verified = True
-                        st.success("✅ ഇമെയിൽ OTP വെരിഫൈ ചെയ്തു! ഇനി പാസ്‌വേഡ് സെറ്റ് ചെയ്യാം.")
+                        st.success("✅ Email OTP verified. Set your password below.")
                     else:
-                        st.error("❌ നൽകിയ OTP തെറ്റാണ്!")
+                        st.error("❌ Invalid OTP.")
 
             if st.session_state.signup_otp_verified and st.session_state.signup_otp_email == s_user:
-                s_pass = st.text_input("🔑 Create Password", type="password", key="signup_pass", placeholder="Create your own password")
+                s_pass = st.text_input("🔑 Create Password", type="password", key="signup_pass", placeholder="Create your password")
                 s_confirm = st.text_input("🔒 Confirm Password", type="password", key="signup_confirm", placeholder="Re-enter your password")
 
                 if st.button("CREATE ACCOUNT ✨", key="btn_signup"):
                     if db_get_user(s_user):
-                        st.error("❌ ഈ അക്കൗണ്ട് നിലവിലുണ്ട്! Login ടാബ് ഉപയോഗിക്കുക.")
+                        st.error("❌ This account already exists. Please use the Login tab.")
                     elif not s_pass:
-                        st.error("❌ ദയവായി പാസ്‌വേഡ് നൽകുക!")
+                        st.error("❌ Please enter a password.")
                     elif s_pass != s_confirm:
-                        st.error("❌ രണ്ട് പാസ്‌വേഡുകളും ഒരുപോലെയല്ല!")
+                        st.error("❌ Passwords do not match.")
                     else:
                         created_entry = db_create_user(s_user, s_pass)
                         st.session_state.signup_otp = None
                         st.session_state.signup_otp_email = ""
                         st.session_state.signup_otp_verified = False
                         refresh_user_sheet_cache()
-                        st.info("📌 റീബൂട്ടിന് ശേഷവും അക്കൗണ്ട് നിലനിൽക്കാൻ Secrets-ലെ `USERS_DATA` JSON-ൽ ഈ എൻട്രി ചേർക്കുക:")
+                        st.info("📌 Add this entry to `USERS_DATA` in Secrets to keep the account across reboots:")
                         st.code(json.dumps(created_entry, indent=2), language="json")
                         set_persistent_login(s_user)
                         st.rerun()
@@ -711,7 +769,7 @@ else:
     # --- DASHBOARD ---
     if page == "🏠 Dashboard":
         if bal < st.session_state.low_limit:
-            st.markdown(f'<div class="alert-banner">⚠️ ബാലൻസ് കുറവാണ്: {st.session_state.custom_alert_text} (₹{bal:,.2f})!</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="alert-banner">⚠️ Low Balance Alert: {st.session_state.custom_alert_text} (₹{bal:,.2f})!</div>', unsafe_allow_html=True)
 
         st.markdown(f'<div class="balance-banner"><span style="font-size:22px; color:#E0B0FF; letter-spacing: 2px;">AVAILABLE BALANCE</span><br><span style="font-size:50px; color:#FFD700; font-family: monospace;">₹{bal:,.2f}</span></div>', unsafe_allow_html=True)
         st.title("Financial Overview")
@@ -720,11 +778,11 @@ else:
         if not df.empty and 'Item' in df.columns:
             def extract_cat(x):
                 item_text = str(x).lower()
-                if any(w in item_text for w in ["food", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി"]): return "Food"
-                elif any(w in item_text for w in ["shop", "കട", "സാധനങ്ങൾ", "സൂപ്പർമാർക്കറ്റ്"]): return "Shop"
-                elif any(w in item_text for w in ["fish", "മീൻ", "ഇറച്ചി", "ചിക്കൻ"]): return "Fish"
-                elif any(w in item_text for w in ["travel", "യാത്ര", "പെട്രോൾ", "വണ്ടി", "ടാക്സി"]): return "Travel"
-                elif any(w in item_text for w in ["rent", "വാടക", "റൂം"]): return "Rent"
+                if any(w in item_text for w in ["food", "tea", "coffee", "biryani", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി"]): return "Food"
+                elif any(w in item_text for w in ["shop", "store", "supermarket", "കട", "സാധനങ്ങൾ", "സൂപ്പർമാർക്കറ്റ്"]): return "Shop"
+                elif any(w in item_text for w in ["fish", "meat", "chicken", "മീൻ", "ഇറച്ചി", "ചിക്കൻ"]): return "Fish"
+                elif any(w in item_text for w in ["travel", "petrol", "fuel", "taxi", "യാത്ര", "പെട്രോൾ", "വണ്ടി", "ടാക്സി"]): return "Travel"
+                elif any(w in item_text for w in ["rent", "room", "വാടക", "റൂം"]): return "Rent"
                 return "Others"
             df['Cat'] = df['Item'].apply(extract_cat)
             cats = df.groupby('Cat')['Debit'].sum().to_dict()
@@ -737,19 +795,20 @@ else:
     # --- ADD ENTRY ---
     elif page == "💰 Add Entry":
         st.title("Smart Voice Entry 🎙️")
-        v_raw = speech_to_text(language='ml', key='voice_v9')
+        v_raw = speech_to_text(language='en', key='voice_v9')
         v_cat, v_amt, v_desc, v_type = "Others", "", "", "Debit"
 
         if v_raw:
             raw = v_raw.lower().replace('.', '').replace(',', '')
             nums = re.findall(r'\d+', raw)
             v_amt = nums[0] if nums else ""
-            v_desc = re.sub(r'\d+', '', raw).strip()
-            if any(x in raw for x in ["food", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി"]): v_cat = "Food"
+            raw_desc = re.sub(r'\d+', '', raw).strip()
+            v_desc = translate_to_english_label(raw_desc, "Expense")
+            if any(x in raw for x in ["food", "tea", "coffee", "biryani", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി"]): v_cat = "Food"
             elif any(x in raw for x in ["shop", "കട"]): v_cat = "Shop"
-            elif any(x in raw for x in ["fish", "മീൻ", "ചിക്കൻ"]): v_cat = "Fish"
-            elif any(x in raw for x in ["travel", "പെട്രോൾ", "വണ്ടി"]): v_cat = "Travel"
-            if any(x in raw for x in ["കിട്ടി", "വന്നു", "തന്നു"]): v_type = "Credit"
+            elif any(x in raw for x in ["fish", "chicken", "മീൻ", "ചിക്കൻ"]): v_cat = "Fish"
+            elif any(x in raw for x in ["travel", "petrol", "പെട്രോൾ", "വണ്ടി"]): v_cat = "Travel"
+            if any(x in raw for x in ["credit", "received", "salary", "കിട്ടി", "വന്നു", "തന്നു"]): v_type = "Credit"
 
         with st.form("entry_form", clear_on_submit=True):
             it = st.text_input("Description", value=v_desc)
@@ -761,18 +820,20 @@ else:
                 try:
                     am = float(am_str.strip().replace(',', ''))
                     if not st.session_state.entry_saved_flag:
+                        eng_it = translate_to_english_label(it, "Expense")
+                        eng_dt = format_english_datetime()
                         target_url = get_active_web_app_url()
                         payload = {
-                            "item": it,
+                            "item": eng_it,
                             "amount": am,
                             "category": cat,
                             "type": ty,
-                            "date": datetime.now(GST).strftime("%Y-%m-%d %H:%M:%S")
+                            "date": eng_dt
                         }
                         if target_url:
                             requests.post(target_url, json=payload, timeout=10)
                             refresh_user_sheet_cache()
-                        send_whatsapp_auto(f"✅ *Expense Entry*\n📝 {it}\n💰 ₹{am}")
+                        send_whatsapp_auto(f"✅ *Expense Entry*\n📝 {eng_it}\n💰 ₹{am}\n📅 {eng_dt}")
 
                         st.session_state.entry_saved_flag = True
                         st.success("Saved! ✅")
@@ -879,17 +940,17 @@ else:
             if selected_date:
                 st.markdown("---")
                 try:
-                    pretty_dt = pd.to_datetime(selected_date).strftime('%d %B %Y')
+                    pretty_dt = pd.to_datetime(selected_date).strftime('%d %b %Y')
                 except Exception:
                     pretty_dt = selected_date
 
                 st.subheader(f"📋 Details for {pretty_dt}")
                 day_df = df_cal[df_cal['DayKey'] == selected_date].copy()
                 if not day_df.empty:
-                    day_df['Date'] = day_df['Date'].dt.strftime('%d/%m/%Y')
+                    day_df['Date'] = day_df['Date'].dt.strftime('%d %b %Y')
                     st.dataframe(day_df[['Date', 'Item', 'Debit', 'Credit']], use_container_width=True)
                 else:
-                    st.info("ഈ ദിവസത്തിൽ എൻട്രികൾ ഒന്നും ഇല്ല.")
+                    st.info("No entries found for this date.")
 
     # --- REPORT & HISTORY ---
     elif (page == "📊 Report" or page == "🔍 History"):
@@ -918,7 +979,7 @@ else:
                     st.plotly_chart(px.pie(m_df[m_df['Debit'] > 0], values='Debit', names='Cat', hole=0.4), use_container_width=True)
 
                 clean_df = m_df.drop(columns=['Month'], errors='ignore')
-                clean_df['Date'] = clean_df['Date'].dt.strftime('%d/%m/%Y')
+                clean_df['Date'] = clean_df['Date'].dt.strftime('%d %b %Y')
                 st.dataframe(clean_df.iloc[::-1], use_container_width=True)
 
                 if page == "📊 Report":
@@ -933,7 +994,7 @@ else:
 
     # --- DEBT TRACKER ---
     elif page == "🤝 Debt Tracker":
-        st.title("🤝 Debt Tracker (കടം കണക്കുകൾ)")
+        st.title("🤝 Debt Tracker")
         df_debts = load_debts_data(active_csv)
 
         tab1, tab2, tab3 = st.tabs(["📋 View All Debts", "➕ Add New Debt", "⚙️ Settlement History"])
@@ -948,13 +1009,13 @@ else:
                 total_lent, total_borrowed = 0.0, 0.0
 
             col_a, col_b = st.columns(2)
-            col_a.markdown(f'<div class="glass-card"><h4 style="color:#00FF00;">Total Lent (കിട്ടാനുള്ളത്)</h4><h2 style="color:#00FF00;">₹{total_lent:,.2f}</h2></div>', unsafe_allow_html=True)
-            col_b.markdown(f'<div class="glass-card"><h4 style="color:#FF3131;">Total Borrowed (കൊടുക്കാനുള്ളത്)</h4><h2 style="color:#FF3131;">₹{total_borrowed:,.2f}</h2></div>', unsafe_allow_html=True)
+            col_a.markdown(f'<div class="glass-card"><h4 style="color:#00FF00;">Total Lent (Receivable)</h4><h2 style="color:#00FF00;">₹{total_lent:,.2f}</h2></div>', unsafe_allow_html=True)
+            col_b.markdown(f'<div class="glass-card"><h4 style="color:#FF3131;">Total Borrowed (Payable)</h4><h2 style="color:#FF3131;">₹{total_borrowed:,.2f}</h2></div>', unsafe_allow_html=True)
 
             st.markdown("---")
 
             if df_debts.empty or len(df_debts[df_debts['Status'] == "Pending"]) == 0:
-                st.info("നിലവിൽ പെൻഡിംഗ് ആയ കടങ്ങൾ ഒന്നുമില്ല.")
+                st.info("No pending debts available.")
             else:
                 pending_items = df_debts[df_debts['Status'] == "Pending"].to_dict('records')
                 for debt in pending_items:
@@ -972,7 +1033,7 @@ else:
                                 if target_url:
                                     requests.post(target_url, json=payload, timeout=10)
                                     refresh_user_sheet_cache()
-                                st.success(f"{debt['Name']}-ന്റെ കണക്ക് തീർപ്പാക്കി!")
+                                st.success(f"Settled debt for {debt['Name']}.")
                                 time.sleep(1)
                                 st.rerun()
                             except Exception as e:
@@ -982,28 +1043,30 @@ else:
         with tab2:
             st.subheader("Add New Debt Entry")
             with st.form("cloud_debt_form", clear_on_submit=True):
-                d_name = st.text_input("👤 Person Name (ആരുടെ പേര്)")
-                d_type = st.selectbox("📌 Transaction Type", ["Lent (കൊടുത്തത്)", "Borrowed (വാങ്ങിയത്)"])
+                d_name = st.text_input("👤 Person Name")
+                d_type = st.selectbox("📌 Transaction Type", ["Lent", "Borrowed"])
                 d_amount = st.number_input("💰 Amount (₹)", min_value=1.0, step=10.0)
                 d_date = st.date_input("📅 Date", value=datetime.now(GST).date())
 
                 if st.form_submit_button("SAVE TO GOOGLE SHEET 💾"):
                     if not d_name.strip():
-                        st.error("ദയവായി പേര് നൽകുക!")
+                        st.error("Please enter a person name.")
                     else:
                         try:
+                            eng_d_name = translate_to_english_label(d_name.strip(), "Person")
+                            eng_d_date = d_date.strftime("%d %b %Y")
                             target_url = get_active_web_app_url()
                             payload = {
                                 "action": "add_debt",
-                                "name": d_name.strip(),
+                                "name": eng_d_name,
                                 "type": d_type,
                                 "amount": d_amount,
-                                "date": str(d_date)
+                                "date": eng_d_date
                             }
                             if target_url:
                                 requests.post(target_url, json=payload, timeout=10)
                                 refresh_user_sheet_cache()
-                            send_whatsapp_auto(f"🤝 *New Debt Saved*\n👤 Person: {d_name}\n📌 Type: {d_type}\n💰 Amt: ₹{d_amount}")
+                            send_whatsapp_auto(f"🤝 *New Debt Saved*\n👤 Person: {eng_d_name}\n📌 Type: {d_type}\n💰 Amt: ₹{d_amount}")
 
                             st.success("Debt saved successfully! ✅")
                             time.sleep(1)
@@ -1014,7 +1077,7 @@ else:
         with tab3:
             st.subheader("Settled History")
             if df_debts.empty or len(df_debts[df_debts['Status'] == "Settled"]) == 0:
-                st.info("തീർപ്പാക്കിയ കണക്കുകൾ ഒന്നുമില്ല.")
+                st.info("No settled records available.")
             else:
                 settled_df = df_debts[df_debts['Status'] == "Settled"]
                 for _, item in settled_df.iterrows():
@@ -1026,14 +1089,17 @@ else:
         if "buddy_messages" not in st.session_state: st.session_state.buddy_messages = []
         for msg in st.session_state.buddy_messages:
             with st.chat_message(msg["role"]): st.markdown(msg["content"])
-        user_input = st.chat_input("Ask me anything...", key="buddy_chat_box")
+        user_input = st.chat_input("Ask me anything in English, Malayalam, Arabic, or Hindi...", key="buddy_chat_box")
         if user_input:
             st.session_state.buddy_messages.append({"role": "user", "content": user_input})
             with st.chat_message("user"): st.markdown(user_input)
-            with st.spinner("ആലോചിക്കുന്നു..."):
+            with st.spinner("Thinking..."):
                 try:
                     client = Groq(api_key=GROQ_API_KEY)
-                    system_prompt = "You are a helpful personal AI assistant. Answer questions clearly and in a friendly way."
+                    system_prompt = (
+                        "You are a helpful personal AI assistant. Understand user messages in English, Malayalam, Arabic, or Hindi, "
+                        "but ALWAYS reply clearly and politely in English."
+                    )
                     messages = [{"role": "system", "content": system_prompt}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.buddy_messages[-4:]]
                     response = client.chat.completions.create(model="openai/gpt-oss-120b", messages=messages, max_tokens=1024)
                     ai_reply = response.choices[0].message.content
@@ -1042,122 +1108,127 @@ else:
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-    # --- AI CHAT (AI Agent with Confirmation & Loop Fixed) ---
+    # --- AI CHAT (Single Confirmation Box, English Output, No Loop) ---
     elif page == "🤖 AI Chat":
         st.title("🤖 AI Agent & Assistant")
 
-        if "messages" not in st.session_state: st.session_state.messages = []
-
         if st.session_state.pending_entry:
-            st.warning(f"⏳ നിങ്ങൾ പറഞ്ഞത്: **{st.session_state.pending_entry['item']} - ₹{st.session_state.pending_entry['amount']}**. ഇത് എൻട്രി ചെയ്യണോ?")
+            p_item = st.session_state.pending_entry["item"]
+            p_amt = st.session_state.pending_entry["amount"]
+            p_date = st.session_state.pending_entry["date"]
+
+            st.info(f"**Confirm Entry:** {p_item} - ₹{p_amt} ({p_date}). Save this entry?")
             col1, col2 = st.columns(2)
-            if col1.button("✅ Yes, Save it", key="save_entry_btn"):
+
+            if col1.button("Yes", key="save_entry_btn"):
                 entry_data = st.session_state.pending_entry
                 st.session_state.pending_entry = None
-
-                result = add_new_entry(
-                    item=entry_data['item'], amount=entry_data['amount'],
-                    category=entry_data['category'], type=entry_data['type'], entry_date=entry_data['date']
+                st.session_state.last_processed_prompt = None
+                add_new_entry(
+                    item=entry_data['item'],
+                    amount=entry_data['amount'],
+                    category=entry_data['category'],
+                    type=entry_data['type'],
+                    entry_date=entry_data['date']
                 )
-                ai_msg = f"✅ {entry_data['item']}-ന് ₹{entry_data['amount']} എൻട്രി ഇട്ടിട്ടുണ്ട്!" if "Success" in result else f"❌ {result}"
-                st.session_state.messages.append({"role": "assistant", "content": ai_msg})
-                st.session_state.last_processed_prompt = None
                 st.rerun()
 
-            if col2.button("❌ No, Cancel", key="cancel_entry_btn"):
+            if col2.button("No", key="cancel_entry_btn"):
                 st.session_state.pending_entry = None
-                st.session_state.messages.append({"role": "assistant", "content": "ശരി, ഞാൻ എൻട്രി ഇട്ടിട്ടില്ല."})
                 st.session_state.last_processed_prompt = None
                 st.rerun()
 
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]): st.markdown(message["content"])
-
-        v_raw = speech_to_text(language='ml', key='ai_voice_input')
-        prompt = st.chat_input("Ask anything or add expense...", key="ai_chat_box")
+        v_raw = speech_to_text(language='en', key=f'ai_voice_input_{st.session_state.ai_chat_key_id}')
+        prompt = st.chat_input("Type or speak in English, Malayalam, Arabic, or Hindi...", key="ai_chat_box")
         final_prompt = v_raw if v_raw else prompt
 
         if final_prompt:
-            if st.session_state.get("last_processed_prompt") != final_prompt:
-                st.session_state.last_processed_prompt = final_prompt
+            if v_raw:
+                st.session_state.ai_chat_key_id += 1
 
-                if final_prompt.lower().strip() in ["yes", "y", "yep", "ya", "അതെ", "ശരി"] and st.session_state.pending_entry:
-                    entry_data = st.session_state.pending_entry
-                    st.session_state.messages.append({"role": "user", "content": final_prompt})
-                    st.session_state.pending_entry = None
+            clean_cmd = final_prompt.lower().strip()
 
-                    result = add_new_entry(
-                        item=entry_data['item'], amount=entry_data['amount'],
-                        category=entry_data['category'], type=entry_data['type'], entry_date=entry_data['date']
-                    )
-                    ai_msg = f"✅ {entry_data['item']}-ന് ₹{entry_data['amount']} എൻട്രി ഇട്ടിട്ടുണ്ട്!" if "Success" in result else f"❌ {result}"
-                    st.session_state.messages.append({"role": "assistant", "content": ai_msg})
-                    st.session_state.last_processed_prompt = None
-                    st.rerun()
+            if clean_cmd in ["yes", "y", "yep", "ya", "ok", "okay", "അതെ", "ശരി", "نعم", "हां"] and st.session_state.pending_entry:
+                entry_data = st.session_state.pending_entry
+                st.session_state.pending_entry = None
+                st.session_state.last_processed_prompt = None
+                add_new_entry(
+                    item=entry_data['item'],
+                    amount=entry_data['amount'],
+                    category=entry_data['category'],
+                    type=entry_data['type'],
+                    entry_date=entry_data['date']
+                )
+                st.rerun()
 
-                elif final_prompt.lower().strip() in ["no", "n", "nope", "അല്ല", "വേണ്ട"] and st.session_state.pending_entry:
-                    st.session_state.messages.append({"role": "user", "content": final_prompt})
-                    st.session_state.pending_entry = None
-                    st.session_state.messages.append({"role": "assistant", "content": "ശരി, ഞാൻ എൻട്രി ഇട്ടിട്ടില്ല."})
-                    st.session_state.last_processed_prompt = None
-                    st.rerun()
+            elif clean_cmd in ["no", "n", "nope", "cancel", "അല്ല", "വേണ്ട", "لا", "नहीं"] and st.session_state.pending_entry:
+                st.session_state.pending_entry = None
+                st.session_state.last_processed_prompt = None
+                st.rerun()
 
-                else:
-                    st.session_state.messages.append({"role": "user", "content": final_prompt})
-                    with st.chat_message("user"): st.markdown(final_prompt)
+            else:
+                with st.spinner("Processing..."):
+                    try:
+                        client = Groq(api_key=GROQ_API_KEY)
+                        eng_now = format_english_datetime()
+                        system_instruction = (
+                            f"You are an English finance AI assistant. Current time (GST): {eng_now}. Available balance: ₹{bal:,.2f}. "
+                            f"Understand user speech or text in English, Malayalam, Arabic, or Hindi, but ALWAYS respond in English. "
+                            f"Translate any item or person name into clean English (for example 'ചായ' -> 'Tea', 'شاي' -> 'Tea', 'चाय' -> 'Tea') "
+                            f"and use English date format ({eng_now}). "
+                            f"When the user adds an expense or income, call 'add_new_entry' or 'add_multiple_entries'. "
+                            f"When money is lent or borrowed, call 'add_debt_entry'."
+                        )
 
-                    with st.spinner("AI ആലോചിക്കുന്നു..."):
-                        try:
-                            client = Groq(api_key=GROQ_API_KEY)
-                            gst_now = datetime.now(GST).strftime("%Y-%m-%d %H:%M:%S")
-                            system_instruction = f"നീ ഒരു ഫിനാൻസ് AI അസിസ്റ്റന്റാണ്. സമയം: {gst_now} (GST). ബാലൻസ്: {bal} Rs. പണം കൊടുത്തതോ വാങ്ങിയതോ ആണെങ്കിൽ 'add_debt_entry' ടൂൾ ഉപയോഗിക്കുക."
+                        messages_for_api = [
+                            {"role": "system", "content": system_instruction},
+                            {"role": "user", "content": final_prompt}
+                        ]
 
-                            messages_for_api = [{"role": "system", "content": system_instruction}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-4:]]
+                        response = client.chat.completions.create(
+                            model="openai/gpt-oss-120b",
+                            messages=messages_for_api,
+                            tools=tools,
+                            tool_choice="auto",
+                            max_tokens=1024
+                        )
 
-                            response = client.chat.completions.create(
-                                model="openai/gpt-oss-120b", messages=messages_for_api, tools=tools, tool_choice="auto", max_tokens=1024
-                            )
+                        response_message = response.choices[0].message
 
-                            response_message = response.choices[0].message
+                        if response_message.tool_calls:
+                            for tool_call in response_message.tool_calls:
+                                if tool_call.function.name == 'add_new_entry':
+                                    args = json.loads(tool_call.function.arguments)
+                                    eng_item = translate_to_english_label(args.get("item", "Expense"), "Expense")
+                                    eng_cat = translate_to_english_label(args.get("category", "Others"), "Others")
+                                    st.session_state.pending_entry = {
+                                        "item": eng_item,
+                                        "amount": args.get("amount", 0),
+                                        "category": eng_cat,
+                                        "type": args.get("type", "Debit"),
+                                        "date": format_english_datetime(args.get("date"))
+                                    }
+                                    st.rerun()
 
-                            if response_message.tool_calls:
-                                for tool_call in response_message.tool_calls:
-                                    if tool_call.function.name == 'add_new_entry':
-                                        args = json.loads(tool_call.function.arguments)
-                                        st.session_state.pending_entry = {
-                                            "item": args.get("item"), "amount": args.get("amount"),
-                                            "category": args.get("category", "Others"), "type": args.get("type", "Debit"),
-                                            "date": args.get("date") or datetime.now(GST).strftime("%Y-%m-%d %H:%M:%S")
-                                        }
-                                        ai_msg = f"ഞാൻ ഇത് എൻട്രി ചെയ്യാൻ പോകുന്നു: {st.session_state.pending_entry['item']} - ₹{st.session_state.pending_entry['amount']}. ശരിയാണോ? (Type 'yes' or 'no')"
-                                        st.session_state.messages.append({"role": "assistant", "content": ai_msg})
-                                        st.rerun()
+                                elif tool_call.function.name == 'add_multiple_entries':
+                                    args = json.loads(tool_call.function.arguments)
+                                    entries = args.get("entries_list", [])
+                                    add_multiple_entries(entries)
+                                    st.success(f"Added {len(entries)} entries.")
+                                    st.rerun()
 
-                                    elif tool_call.function.name == 'add_multiple_entries':
-                                        args = json.loads(tool_call.function.arguments)
-                                        entries = args.get("entries_list", [])
-                                        result = add_multiple_entries(entries)
-                                        ai_msg = f"✅ {len(entries)} എൻട്രികൾ ഒന്നിച്ച് സേവ് ചെയ്തിട്ടുണ്ട്!" if "Success" in result else f"❌ {result}"
-                                        st.session_state.messages.append({"role": "assistant", "content": ai_msg})
-                                        st.rerun()
+                                elif tool_call.function.name == 'add_debt_entry':
+                                    args = json.loads(tool_call.function.arguments)
+                                    d_name = translate_to_english_label(args.get("name", "Person"), "Person")
+                                    d_type = args.get("type", "Lent")
+                                    d_amount = args.get("amount", 0)
+                                    d_date = format_english_datetime(args.get("date"))
+                                    add_debt_via_ai(d_name, d_type, d_amount, d_date)
+                                    st.success(f"Saved {d_type}: {d_name} - ₹{d_amount}")
+                                    st.rerun()
 
-                                    elif tool_call.function.name == 'add_debt_entry':
-                                        args = json.loads(tool_call.function.arguments)
-                                        d_name = args.get("name")
-                                        d_type = args.get("type")
-                                        d_amount = args.get("amount")
-                                        d_date = args.get("date") or datetime.now(GST).strftime("%Y-%m-%d")
+                        elif response_message.content:
+                            st.info(response_message.content)
 
-                                        result = add_debt_via_ai(d_name, d_type, d_amount, d_date)
-                                        ai_msg = f"✅ **{d_name}**-ന് ₹{d_amount} ({d_type}) Debt Tracker-ൽ സേവ് ചെയ്തിട്ടുണ്ട്!" if "Success" in result else f"❌ {result}"
-                                        st.session_state.messages.append({"role": "assistant", "content": ai_msg})
-                                        st.session_state.last_processed_prompt = None
-                                        st.rerun()
-
-                            elif response_message.content:
-                                ai_msg = response_message.content
-                                st.session_state.messages.append({"role": "assistant", "content": ai_msg})
-                                st.rerun()
-
-                        except Exception as e:
-                            st.error(f"AI Error: {str(e)}")
+                    except Exception as e:
+                        st.error(f"AI Error: {str(e)}")
