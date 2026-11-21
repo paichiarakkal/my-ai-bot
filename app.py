@@ -262,6 +262,8 @@ if 'custom_alert_text' not in st.session_state: st.session_state.custom_alert_te
 if 'low_limit' not in st.session_state: st.session_state.low_limit = 6000
 if 'currency' not in st.session_state: st.session_state.currency = "AED"
 if "last_processed_prompt" not in st.session_state: st.session_state.last_processed_prompt = None
+if "ai_voice_counter" not in st.session_state: st.session_state.ai_voice_counter = 0
+if "entry_voice_counter" not in st.session_state: st.session_state.entry_voice_counter = 0
 if "pending_entry" not in st.session_state: st.session_state.pending_entry = None
 if "entry_saved_flag" not in st.session_state: st.session_state.entry_saved_flag = False
 if "user_sheet_url" not in st.session_state: st.session_state.user_sheet_url = ""
@@ -804,7 +806,7 @@ else:
     # --- ADD ENTRY ---
     elif page == "💰 Add Entry":
         st.title("Smart Voice Entry 🎙️")
-        v_raw = speech_to_text(language='ml', key='voice_v9')
+        v_raw = speech_to_text(language='ml', key=f'voice_entry_{st.session_state.entry_voice_counter}')
         v_cat, v_amt, v_desc, v_type = "Others", "", "", "Debit"
 
         if v_raw:
@@ -842,6 +844,7 @@ else:
                         send_whatsapp_auto(f"✅ *Expense Entry*\n📝 {it}\n💰 {sym}{am}")
 
                         st.session_state.entry_saved_flag = True
+                        st.session_state.entry_voice_counter += 1
                         st.success("Saved! ✅")
                         time.sleep(1)
                         st.session_state.entry_saved_flag = False
@@ -1128,127 +1131,134 @@ else:
                 )
                 ai_msg = f"✅ {entry_data['item']}-ന് {sym}{entry_data['amount']} എൻട്രി ഇട്ടിട്ടുണ്ട്!" if "Success" in result else f"❌ {result}"
                 st.session_state.messages.append({"role": "assistant", "content": ai_msg})
-                st.session_state.last_processed_prompt = None
                 st.rerun()
 
             if col2.button("❌ No, Cancel", key="cancel_entry_btn"):
                 st.session_state.pending_entry = None
                 st.session_state.messages.append({"role": "assistant", "content": "ശരി, ഞാൻ എൻട്രി ഇട്ടിട്ടില്ല."})
-                st.session_state.last_processed_prompt = None
                 st.rerun()
 
         for message in st.session_state.messages:
             with st.chat_message(message["role"]): st.markdown(message["content"])
 
-        v_raw = speech_to_text(language='ml', key='ai_voice_input')
+        voice_key_name = f"ai_voice_{st.session_state.ai_voice_counter}"
+        v_raw = speech_to_text(language='ml', key=voice_key_name)
         prompt = st.chat_input("Ask anything or add expense...", key="ai_chat_box")
-        final_prompt = v_raw if v_raw else prompt
 
-        if final_prompt:
-            if st.session_state.get("last_processed_prompt") != final_prompt:
-                st.session_state.last_processed_prompt = final_prompt
+        active_input = None
+        input_source = None
+        if prompt and prompt.strip():
+            active_input = prompt.strip()
+            input_source = "text"
+        elif v_raw and str(v_raw).strip():
+            voice_sig = f"{st.session_state.ai_voice_counter}:{str(v_raw).strip()}"
+            if st.session_state.get("last_processed_prompt") != voice_sig:
+                active_input = str(v_raw).strip()
+                input_source = "voice"
+                st.session_state.last_processed_prompt = voice_sig
 
-                if final_prompt.lower().strip() in ["yes", "y", "yep", "ya", "അതെ", "ശരി"] and st.session_state.pending_entry:
-                    entry_data = st.session_state.pending_entry
-                    st.session_state.messages.append({"role": "user", "content": final_prompt})
-                    st.session_state.pending_entry = None
+        if active_input:
+            final_prompt = active_input
+            if input_source == "voice":
+                st.session_state.ai_voice_counter += 1
 
-                    result = add_new_entry(
-                        item=entry_data['item'], amount=entry_data['amount'],
-                        category=entry_data['category'], type=entry_data['type'], entry_date=entry_data['date']
-                    )
-                    ai_msg = f"✅ {entry_data['item']}-ന് {sym}{entry_data['amount']} എൻട്രി ഇട്ടിട്ടുണ്ട്!" if "Success" in result else f"❌ {result}"
-                    st.session_state.messages.append({"role": "assistant", "content": ai_msg})
-                    st.session_state.last_processed_prompt = None
-                    st.rerun()
+            if final_prompt.lower().strip() in ["yes", "y", "yep", "ya", "അതെ", "ശരി"] and st.session_state.pending_entry:
+                entry_data = st.session_state.pending_entry
+                st.session_state.messages.append({"role": "user", "content": final_prompt})
+                st.session_state.pending_entry = None
 
-                elif final_prompt.lower().strip() in ["no", "n", "nope", "അല്ല", "വേണ്ട"] and st.session_state.pending_entry:
-                    st.session_state.messages.append({"role": "user", "content": final_prompt})
-                    st.session_state.pending_entry = None
-                    st.session_state.messages.append({"role": "assistant", "content": "ശരി, ഞാൻ എൻട്രി ഇട്ടിട്ടില്ല."})
-                    st.session_state.last_processed_prompt = None
-                    st.rerun()
+                result = add_new_entry(
+                    item=entry_data['item'], amount=entry_data['amount'],
+                    category=entry_data['category'], type=entry_data['type'], entry_date=entry_data['date']
+                )
+                ai_msg = f"✅ {entry_data['item']}-ന് {sym}{entry_data['amount']} എൻട്രി ഇട്ടിട്ടുണ്ട്!" if "Success" in result else f"❌ {result}"
+                st.session_state.messages.append({"role": "assistant", "content": ai_msg})
+                st.rerun()
 
-                else:
-                    st.session_state.messages.append({"role": "user", "content": final_prompt})
-                    with st.chat_message("user"): st.markdown(final_prompt)
+            elif final_prompt.lower().strip() in ["no", "n", "nope", "അല്ല", "വേണ്ട"] and st.session_state.pending_entry:
+                st.session_state.messages.append({"role": "user", "content": final_prompt})
+                st.session_state.pending_entry = None
+                st.session_state.messages.append({"role": "assistant", "content": "ശരി, ഞാൻ എൻട്രി ഇട്ടിട്ടില്ല."})
+                st.rerun()
 
-                    with st.spinner("AI ആലോചിക്കുന്നു..."):
-                        try:
-                            client = Groq(api_key=GROQ_API_KEY)
-                            gst_now = datetime.now(GST).strftime("%Y-%m-%d %H:%M:%S")
-                            system_instruction = (
-                                f"നീ ഒരു ഫിനാൻസ് AI ഏജന്റാണ്. സമയം: {gst_now} (GST). "
-                                f"ബാലൻസ്: {bal} ({st.session_state.currency}). "
-                                "ചെലവുകളോ ബാലൻസോ ചോദിച്ചാൽ 'query_finance_summary' ടൂൾ ഉപയോഗിക്കുക. "
-                                "പണം കൊടുത്തതോ വാങ്ങിയതോ ആണെങ്കിൽ 'add_debt_entry' ടൂൾ ഉപയോഗിക്കുക."
-                            )
+            else:
+                st.session_state.messages.append({"role": "user", "content": final_prompt})
+                with st.chat_message("user"): st.markdown(final_prompt)
 
-                            messages_for_api = [{"role": "system", "content": system_instruction}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-4:]]
+                with st.spinner("AI ആലോചിക്കുന്നു..."):
+                    try:
+                        client = Groq(api_key=GROQ_API_KEY)
+                        gst_now = datetime.now(GST).strftime("%Y-%m-%d %H:%M:%S")
+                        system_instruction = (
+                            f"നീ ഒരു ഫിനാൻസ് AI ഏജന്റാണ്. സമയം: {gst_now} (GST). "
+                            f"ബാലൻസ്: {bal} ({st.session_state.currency}). "
+                            "ചെലവുകളോ ബാലൻസോ ചോദിച്ചാൽ 'query_finance_summary' ടൂൾ ഉപയോഗിക്കുക. "
+                            "പണം കൊടുത്തതോ വാങ്ങിയതോ ആണെങ്കിൽ 'add_debt_entry' ടൂൾ ഉപയോഗിക്കുക."
+                        )
 
-                            response = client.chat.completions.create(
-                                model="openai/gpt-oss-120b", messages=messages_for_api, tools=tools, tool_choice="auto", max_tokens=1024
-                            )
+                        messages_for_api = [{"role": "system", "content": system_instruction}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-4:]]
 
-                            response_message = response.choices[0].message
+                        response = client.chat.completions.create(
+                            model="openai/gpt-oss-120b", messages=messages_for_api, tools=tools, tool_choice="auto", max_tokens=1024
+                        )
 
-                            if response_message.tool_calls:
-                                for tool_call in response_message.tool_calls:
-                                    if tool_call.function.name == 'add_new_entry':
-                                        args = json.loads(tool_call.function.arguments)
-                                        st.session_state.pending_entry = {
-                                            "item": args.get("item"), "amount": args.get("amount"),
-                                            "category": args.get("category", "Others"), "type": args.get("type", "Debit"),
-                                            "date": args.get("date") or datetime.now(GST).strftime("%Y-%m-%d %H:%M:%S")
-                                        }
-                                        ai_msg = f"ഞാൻ ഇത് എൻട്രി ചെയ്യാൻ പോകുന്നു: {st.session_state.pending_entry['item']} - {sym}{st.session_state.pending_entry['amount']}. ശരിയാണോ? (Type 'yes' or 'no')"
-                                        st.session_state.messages.append({"role": "assistant", "content": ai_msg})
-                                        st.rerun()
+                        response_message = response.choices[0].message
 
-                                    elif tool_call.function.name == 'add_multiple_entries':
-                                        args = json.loads(tool_call.function.arguments)
-                                        entries = args.get("entries_list", [])
-                                        result = add_multiple_entries(entries)
-                                        ai_msg = f"✅ {len(entries)} എൻട്രികൾ ഒന്നിച്ച് സേവ് ചെയ്തിട്ടുണ്ട്!" if "Success" in result else f"❌ {result}"
-                                        st.session_state.messages.append({"role": "assistant", "content": ai_msg})
-                                        st.rerun()
+                        if response_message.tool_calls:
+                            for tool_call in response_message.tool_calls:
+                                if tool_call.function.name == 'add_new_entry':
+                                    args = json.loads(tool_call.function.arguments)
+                                    st.session_state.pending_entry = {
+                                        "item": args.get("item"), "amount": args.get("amount"),
+                                        "category": args.get("category", "Others"), "type": args.get("type", "Debit"),
+                                        "date": args.get("date") or datetime.now(GST).strftime("%Y-%m-%d %H:%M:%S")
+                                    }
+                                    ai_msg = f"ഞാൻ ഇത് എൻട്രി ചെയ്യാൻ പോകുന്നു: {st.session_state.pending_entry['item']} - {sym}{st.session_state.pending_entry['amount']}. ശരിയാണോ? (Type 'yes' or 'no')"
+                                    st.session_state.messages.append({"role": "assistant", "content": ai_msg})
+                                    st.rerun()
 
-                                    elif tool_call.function.name == 'add_debt_entry':
-                                        args = json.loads(tool_call.function.arguments)
-                                        d_name = args.get("name")
-                                        d_type = args.get("type")
-                                        d_amount = args.get("amount")
-                                        d_date = args.get("date") or datetime.now(GST).strftime("%Y-%m-%d")
+                                elif tool_call.function.name == 'add_multiple_entries':
+                                    args = json.loads(tool_call.function.arguments)
+                                    entries = args.get("entries_list", [])
+                                    result = add_multiple_entries(entries)
+                                    ai_msg = f"✅ {len(entries)} എൻട്രികൾ ഒന്നിച്ച് സേവ് ചെയ്തിട്ടുണ്ട്!" if "Success" in result else f"❌ {result}"
+                                    st.session_state.messages.append({"role": "assistant", "content": ai_msg})
+                                    st.rerun()
 
-                                        result = add_debt_via_ai(d_name, d_type, d_amount, d_date)
-                                        ai_msg = f"✅ **{d_name}**-ന് {sym}{d_amount} ({d_type}) Debt Tracker-ൽ സേവ് ചെയ്തിട്ടുണ്ട്!" if "Success" in result else f"❌ {result}"
-                                        st.session_state.messages.append({"role": "assistant", "content": ai_msg})
-                                        st.session_state.last_processed_prompt = None
-                                        st.rerun()
+                                elif tool_call.function.name == 'add_debt_entry':
+                                    args = json.loads(tool_call.function.arguments)
+                                    d_name = args.get("name")
+                                    d_type = args.get("type")
+                                    d_amount = args.get("amount")
+                                    d_date = args.get("date") or datetime.now(GST).strftime("%Y-%m-%d")
 
-                                    elif tool_call.function.name == 'query_finance_summary':
-                                        args = json.loads(tool_call.function.arguments)
-                                        q_res = query_finance_summary(
-                                            period=args.get("period", "all"),
-                                            category=args.get("category", "all")
-                                        )
-                                        followup = client.chat.completions.create(
-                                            model="openai/gpt-oss-120b",
-                                            messages=messages_for_api + [
-                                                response_message,
-                                                {"role": "tool", "tool_call_id": tool_call.id, "content": q_res}
-                                            ],
-                                            max_tokens=1024
-                                        )
-                                        ai_msg = followup.choices[0].message.content
-                                        st.session_state.messages.append({"role": "assistant", "content": ai_msg})
-                                        st.session_state.last_processed_prompt = None
-                                        st.rerun()
+                                    result = add_debt_via_ai(d_name, d_type, d_amount, d_date)
+                                    ai_msg = f"✅ **{d_name}**-ന് {sym}{d_amount} ({d_type}) Debt Tracker-ൽ സേവ് ചെയ്തിട്ടുണ്ട്!" if "Success" in result else f"❌ {result}"
+                                    st.session_state.messages.append({"role": "assistant", "content": ai_msg})
+                                    st.rerun()
 
-                            elif response_message.content:
-                                ai_msg = response_message.content
-                                st.session_state.messages.append({"role": "assistant", "content": ai_msg})
-                                st.rerun()
+                                elif tool_call.function.name == 'query_finance_summary':
+                                    args = json.loads(tool_call.function.arguments)
+                                    q_res = query_finance_summary(
+                                        period=args.get("period", "all"),
+                                        category=args.get("category", "all")
+                                    )
+                                    followup = client.chat.completions.create(
+                                        model="openai/gpt-oss-120b",
+                                        messages=messages_for_api + [
+                                            response_message,
+                                            {"role": "tool", "tool_call_id": tool_call.id, "content": q_res}
+                                        ],
+                                        max_tokens=1024
+                                    )
+                                    ai_msg = followup.choices[0].message.content
+                                    st.session_state.messages.append({"role": "assistant", "content": ai_msg})
+                                    st.rerun()
 
-                        except Exception as e:
-                            st.error(f"AI Error: {str(e)}")
+                        elif response_message.content:
+                            ai_msg = response_message.content
+                            st.session_state.messages.append({"role": "assistant", "content": ai_msg})
+                            st.rerun()
+
+                    except Exception as e:
+                        st.error(f"AI Error: {str(e)}")
