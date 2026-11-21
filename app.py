@@ -746,7 +746,7 @@ tools = [
                     "amount": {"type": "number"},
                     "category": {"type": "string", "description": "Food, Shop, Fish, Travel, Rent, Others"},
                     "type": {"type": "string", "enum": ["Debit", "Credit"]},
-                    "date": {"type": "string", "description": "English date format e.g. 21 Nov 2026 20:56:00"}
+                    "date": {"type": "string", "description": "English date format e.g. 21 Nov 2026 21:01:00"}
                 },
                 "required": ["item", "amount"]
             }
@@ -1307,7 +1307,7 @@ else:
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-    # --- AI CHAT (Full App Context + Daily Math Advisor + Clear Voice + Single Confirmation Box) ---
+    # --- AI CHAT (Guaranteed Reply Rendering + Full App Context + Daily Math + Clear Voice + Single Confirmation) ---
     elif page == "🤖 AI Chat":
         st.title("🤖 AI Agent & Assistant")
 
@@ -1317,7 +1317,7 @@ else:
         if st.session_state.last_heard_text:
             st.caption(f"🎙️ Heard: {st.session_state.last_heard_text}")
 
-        for h_msg in st.session_state.ai_chat_history[-6:]:
+        for h_msg in st.session_state.ai_chat_history[-8:]:
             with st.chat_message(h_msg["role"]):
                 st.markdown(h_msg["content"])
 
@@ -1410,85 +1410,97 @@ else:
 
             else:
                 st.session_state.ai_action_notice = None
+                with st.chat_message("user"):
+                    st.markdown(final_prompt)
                 st.session_state.ai_chat_history.append({"role": "user", "content": final_prompt})
+
                 with st.spinner("Processing..."):
                     try:
-                        df_debts_ctx = load_debts_data(active_csv)
-                        full_ctx = build_full_financial_context(df, df_debts_ctx)
+                        if not GROQ_API_KEY:
+                            err_msg = "GROQ_API_KEY is missing in Secrets."
+                            st.error(err_msg)
+                            st.session_state.ai_chat_history.append({"role": "assistant", "content": err_msg})
+                        else:
+                            df_debts_ctx = load_debts_data(active_csv)
+                            full_ctx = build_full_financial_context(df, df_debts_ctx)
 
-                        client = Groq(api_key=GROQ_API_KEY)
-                        system_instruction = (
-                            "You are PAICHI AI, a sharp, accurate English finance & daily math advisor agent. "
-                            f"LIVE APP DATA & MATH CONTEXT: {full_ctx} "
-                            "Understand user questions or commands asked in ANY phrasing or order (forward or reverse, short or detailed) "
-                            "in Malayalam, English, Arabic, or Hindi, and ALWAYS reply clearly and accurately in English. "
-                            "Use exact numbers from LIVE APP DATA for every balance, credit, debit, today's total, monthly total, category spend, "
-                            "debt status, remaining days, suggested daily spend limit, or 'what-if' math calculation. "
-                            "Accurately interpret Malayalam/Arabic/Hindi/English expense words and numbers (for example 'ചായ മൂന്ന്' -> item 'Tea', amount 3; "
-                            "'ജയയ്ക്ക് 500 കൊടുത്തു' -> debt lent to 'Jaya', amount 500). "
-                            "Do NOT invent weird names or ask unnecessary follow-up questions when an expense item and amount are clear. "
-                            "When the user adds an expense or income, call 'add_new_entry' or 'add_multiple_entries'. "
-                            "When money is lent or borrowed, call 'add_debt_entry'."
-                        )
+                            client = Groq(api_key=GROQ_API_KEY)
+                            system_instruction = (
+                                "You are PAICHI AI, a sharp, accurate English finance & daily math advisor agent. "
+                                f"LIVE APP DATA & MATH CONTEXT: {full_ctx} "
+                                "Understand user questions or commands asked in ANY phrasing or order (forward or reverse, short or detailed) "
+                                "in Malayalam, English, Arabic, or Hindi, and ALWAYS reply clearly and accurately in English. "
+                                "Use exact numbers from LIVE APP DATA for every balance, credit, debit, today's total, monthly total, category spend, "
+                                "debt status, remaining days, suggested daily spend limit, or 'what-if' math calculation. "
+                                "Accurately interpret Malayalam/Arabic/Hindi/English expense words and numbers (for example 'ചായ മൂന്ന്' -> item 'Tea', amount 3; "
+                                "'ജയയ്ക്ക് 500 കൊടുത്തു' -> debt lent to 'Jaya', amount 500). "
+                                "Do NOT invent weird names or ask unnecessary follow-up questions when an expense item and amount are clear. "
+                                "When the user adds an expense or income, call 'add_new_entry' or 'add_multiple_entries'. "
+                                "When money is lent or borrowed, call 'add_debt_entry'."
+                            )
 
-                        recent_ctx = [
-                            {"role": m["role"], "content": m["content"]}
-                            for m in st.session_state.ai_chat_history[-5:-1]
-                        ]
-                        messages_for_api = [
-                            {"role": "system", "content": system_instruction},
-                            *recent_ctx,
-                            {"role": "user", "content": final_prompt}
-                        ]
+                            recent_ctx = [
+                                {"role": m["role"], "content": m["content"]}
+                                for m in st.session_state.ai_chat_history[-5:-1]
+                            ]
+                            messages_for_api = [
+                                {"role": "system", "content": system_instruction},
+                                *recent_ctx,
+                                {"role": "user", "content": final_prompt}
+                            ]
 
-                        response = client.chat.completions.create(
-                            model="openai/gpt-oss-120b",
-                            messages=messages_for_api,
-                            tools=tools,
-                            tool_choice="auto",
-                            max_tokens=1024
-                        )
+                            response = client.chat.completions.create(
+                                model="openai/gpt-oss-120b",
+                                messages=messages_for_api,
+                                tools=tools,
+                                tool_choice="auto",
+                                max_tokens=1024
+                            )
 
-                        response_message = response.choices[0].message
+                            response_message = response.choices[0].message
 
-                        if response_message.tool_calls:
-                            for tool_call in response_message.tool_calls:
-                                if tool_call.function.name == 'add_new_entry':
-                                    args = json.loads(tool_call.function.arguments)
-                                    eng_item = translate_to_english_label(args.get("item", "Expense"), "Expense")
-                                    eng_cat = translate_to_english_label(args.get("category", "Others"), "Others")
-                                    st.session_state.pending_entry = {
-                                        "item": eng_item,
-                                        "amount": args.get("amount", 0),
-                                        "category": eng_cat,
-                                        "type": args.get("type", "Debit"),
-                                        "date": format_english_datetime(args.get("date"))
-                                    }
-                                    st.rerun()
+                            if response_message.tool_calls:
+                                for tool_call in response_message.tool_calls:
+                                    if tool_call.function.name == 'add_new_entry':
+                                        args = json.loads(tool_call.function.arguments)
+                                        eng_item = translate_to_english_label(args.get("item", "Expense"), "Expense")
+                                        eng_cat = translate_to_english_label(args.get("category", "Others"), "Others")
+                                        st.session_state.pending_entry = {
+                                            "item": eng_item,
+                                            "amount": args.get("amount", 0),
+                                            "category": eng_cat,
+                                            "type": args.get("type", "Debit"),
+                                            "date": format_english_datetime(args.get("date"))
+                                        }
+                                        st.rerun()
 
-                                elif tool_call.function.name == 'add_multiple_entries':
-                                    args = json.loads(tool_call.function.arguments)
-                                    entries = args.get("entries_list", [])
-                                    ok, msg = add_multiple_entries(entries)
-                                    st.session_state.ai_action_notice = msg
-                                    st.session_state.ai_chat_history.append({"role": "assistant", "content": msg})
-                                    st.rerun()
+                                    elif tool_call.function.name == 'add_multiple_entries':
+                                        args = json.loads(tool_call.function.arguments)
+                                        entries = args.get("entries_list", [])
+                                        ok, msg = add_multiple_entries(entries)
+                                        st.session_state.ai_action_notice = msg
+                                        st.session_state.ai_chat_history.append({"role": "assistant", "content": msg})
+                                        st.rerun()
 
-                                elif tool_call.function.name == 'add_debt_entry':
-                                    args = json.loads(tool_call.function.arguments)
-                                    d_name = translate_to_english_label(args.get("name", "Person"), "Person")
-                                    d_type = args.get("type", "Lent")
-                                    d_amount = args.get("amount", 0)
-                                    d_date = format_english_datetime(args.get("date"))
-                                    ok, msg = add_debt_via_ai(d_name, d_type, d_amount, d_date)
-                                    st.session_state.ai_action_notice = msg
-                                    st.session_state.ai_chat_history.append({"role": "assistant", "content": msg})
-                                    st.rerun()
+                                    elif tool_call.function.name == 'add_debt_entry':
+                                        args = json.loads(tool_call.function.arguments)
+                                        d_name = translate_to_english_label(args.get("name", "Person"), "Person")
+                                        d_type = args.get("type", "Lent")
+                                        d_amount = args.get("amount", 0)
+                                        d_date = format_english_datetime(args.get("date"))
+                                        ok, msg = add_debt_via_ai(d_name, d_type, d_amount, d_date)
+                                        st.session_state.ai_action_notice = msg
+                                        st.session_state.ai_chat_history.append({"role": "assistant", "content": msg})
+                                        st.rerun()
 
-                        elif response_message.content:
-                            reply_txt = response_message.content
+                            reply_txt = (response_message.content or "").strip()
+                            if not reply_txt:
+                                reply_txt = f"Available Balance: ₹{bal:,.2f} (Total Credit: ₹{t_in:,.2f}, Total Debit: ₹{t_out:,.2f})."
+                            with st.chat_message("assistant"):
+                                st.markdown(reply_txt)
                             st.session_state.ai_chat_history.append({"role": "assistant", "content": reply_txt})
-                            st.rerun()
 
                     except Exception as e:
-                        st.error(f"AI Error: {str(e)}")
+                        err_text = f"AI Error: {str(e)}"
+                        st.error(err_text)
+                        st.session_state.ai_chat_history.append({"role": "assistant", "content": err_text})
