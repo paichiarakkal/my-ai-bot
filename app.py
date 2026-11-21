@@ -115,9 +115,12 @@ def send_otp_email(to_email: str, otp_code: str, purpose: str = "Verification") 
     )
 
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
-            server.login(sender, app_pwd)
-            server.send_message(msg)
+            with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        server.login(SMTP_EMAIL, SMTP_APP_PASSWORD.replace(" ", ""))
+        server.send_message(msg)
         return True
     except Exception as ssl_err:
         try:
