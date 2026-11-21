@@ -268,6 +268,7 @@ if "pending_entry" not in st.session_state: st.session_state.pending_entry = Non
 if "entry_saved_flag" not in st.session_state: st.session_state.entry_saved_flag = False
 if "user_sheet_url" not in st.session_state: st.session_state.user_sheet_url = ""
 if "user_sheet_csv_url" not in st.session_state: st.session_state.user_sheet_csv_url = ""
+if "selected_cal_date" not in st.session_state: st.session_state.selected_cal_date = None
 
 # OTP states (Sign Up)
 if "signup_otp" not in st.session_state: st.session_state.signup_otp = None
@@ -858,60 +859,60 @@ else:
 
         st.markdown("""
             <style>
+            .fc, .fc-view-harness, .fc-scrollgrid, .fc-scrollgrid-section, .fc-scrollgrid-section > td {
+                background: linear-gradient(155deg, #3b1764 0%, #581c87 55%, #4a154b 100%) !important;
+                color: #fdf4ff !important;
+                border-color: rgba(245, 208, 254, 0.25) !important;
+            }
             .fc {
-                background: linear-gradient(145deg, rgba(22, 24, 42, 0.96), rgba(14, 16, 30, 0.98)) !important;
-                color: #f8fafc !important;
-                padding: 16px;
-                border-radius: 18px;
-                border: 1px solid rgba(255, 215, 0, 0.28) !important;
-                box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55) !important;
+                padding: 16px !important;
+                border-radius: 20px !important;
+                border: 1.5px solid rgba(232, 121, 249, 0.5) !important;
+                box-shadow: 0 14px 34px rgba(88, 28, 135, 0.55) !important;
             }
             .fc a, .fc-col-header-cell-cushion, .fc-daygrid-day-number {
-                color: #f1f5f9 !important;
+                color: #fae8ff !important;
                 text-decoration: none !important;
                 font-weight: 700 !important;
             }
             .fc-col-header-cell {
-                background: rgba(255, 215, 0, 0.12) !important;
-                border-color: rgba(255, 255, 255, 0.08) !important;
+                background: rgba(192, 132, 252, 0.25) !important;
+                border-color: rgba(245, 208, 254, 0.22) !important;
             }
             .fc-daygrid-day {
-                background: rgba(255, 255, 255, 0.02) !important;
-                border-color: rgba(255, 255, 255, 0.08) !important;
+                background: rgba(126, 34, 206, 0.22) !important;
+                border-color: rgba(245, 208, 254, 0.2) !important;
                 cursor: pointer !important;
-                transition: background 0.15s ease;
             }
-            .fc-daygrid-day:hover {
-                background: rgba(56, 189, 248, 0.12) !important;
+            .fc-daygrid-day-frame {
+                background: transparent !important;
             }
-            .fc-day-today {
-                background: rgba(255, 215, 0, 0.14) !important;
+            .fc-daygrid-day:hover, .fc-daygrid-day:hover .fc-daygrid-day-frame {
+                background: rgba(217, 70, 239, 0.28) !important;
+            }
+            .fc-day-today, .fc-day-today .fc-daygrid-day-frame {
+                background: rgba(240, 171, 252, 0.26) !important;
             }
             .fc-toolbar-title {
-                color: #ffd700 !important;
+                color: #fef08a !important;
                 font-weight: 800 !important;
                 letter-spacing: 0.5px;
             }
             .fc-button-primary {
-                background: linear-gradient(135deg, #0ea5e9, #2563eb) !important;
-                border: none !important;
+                background: linear-gradient(135deg, #d946ef, #9333ea) !important;
+                border: 1px solid rgba(250, 232, 255, 0.35) !important;
                 color: #ffffff !important;
                 font-weight: 700 !important;
-                border-radius: 8px !important;
-                box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35) !important;
-            }
-            .fc-button-primary:hover {
-                filter: brightness(1.12);
+                border-radius: 9px !important;
             }
             .fc-event {
                 border: none !important;
-                border-radius: 8px !important;
+                border-radius: 7px !important;
                 font-size: 11px !important;
                 font-weight: 800 !important;
-                padding: 3px 6px !important;
-                margin-top: 3px !important;
+                padding: 2px 5px !important;
+                margin-top: 2px !important;
                 cursor: pointer !important;
-                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35) !important;
             }
             </style>
         """, unsafe_allow_html=True)
@@ -929,31 +930,20 @@ else:
 
             events = []
             for _, row in summary.iterrows():
-                has_deb = row['Debit'] > 0
-                has_crd = row['Credit'] > 0
-                if has_deb or has_crd:
-                    parts = []
-                    if has_crd:
-                        parts.append(f"+{sym}{row['Credit']:,.0f}")
-                    if has_deb:
-                        parts.append(f"-{sym}{row['Debit']:,.0f}")
-                    combined_title = " | ".join(parts)
-
-                    if has_crd and has_deb:
-                        bg_color = "#7c3aed"
-                        border_color = "#a78bfa"
-                    elif has_crd:
-                        bg_color = "#059669"
-                        border_color = "#34d399"
-                    else:
-                        bg_color = "#e11d48"
-                        border_color = "#fb7185"
-
+                if row['Credit'] > 0:
                     events.append({
-                        "title": combined_title,
+                        "title": f"+{sym}{row['Credit']:,.0f}",
                         "start": row['DayKey'],
-                        "backgroundColor": bg_color,
-                        "borderColor": border_color,
+                        "backgroundColor": "#16a34a",
+                        "borderColor": "#4ade80",
+                        "textColor": "#ffffff"
+                    })
+                if row['Debit'] > 0:
+                    events.append({
+                        "title": f"-{sym}{row['Debit']:,.0f}",
+                        "start": row['DayKey'],
+                        "backgroundColor": "#dc2626",
+                        "borderColor": "#f87171",
                         "textColor": "#ffffff"
                     })
 
@@ -965,7 +955,7 @@ else:
                 },
                 "initialView": "dayGridMonth",
                 "height": "auto",
-                "dayMaxEvents": 1
+                "dayMaxEvents": False
             }
 
             cal_data = calendar(
@@ -974,15 +964,19 @@ else:
                 key="pnl_calendar_view"
             )
 
-            selected_date = None
             if cal_data:
                 if cal_data.get("callback") == "eventClick":
                     ev = cal_data.get("eventClick", {}).get("event", {})
-                    selected_date = ev.get("start", "").split("T")[0]
+                    clicked_dt = ev.get("start", "").split("T")[0]
+                    if clicked_dt:
+                        st.session_state.selected_cal_date = clicked_dt
                 elif cal_data.get("callback") == "dateClick":
                     dt_obj = cal_data.get("dateClick", {}).get("date", "")
-                    selected_date = dt_obj.split("T")[0]
+                    clicked_dt = dt_obj.split("T")[0]
+                    if clicked_dt:
+                        st.session_state.selected_cal_date = clicked_dt
 
+            selected_date = st.session_state.get("selected_cal_date")
             if selected_date:
                 st.markdown("---")
                 try:
@@ -996,9 +990,9 @@ else:
 
                 st.subheader(f"📋 Details for {pretty_dt}")
                 m1, m2, m3 = st.columns(3)
-                m1.markdown(f'<div class="category-box"><span style="color:#34d399;">Total Credit</span><br><span style="font-size:22px; color:#34d399;">+{sym}{day_crd:,.2f}</span></div>', unsafe_allow_html=True)
-                m2.markdown(f'<div class="category-box"><span style="color:#fb7185;">Total Debit</span><br><span style="font-size:22px; color:#fb7185;">-{sym}{day_deb:,.2f}</span></div>', unsafe_allow_html=True)
-                m3.markdown(f'<div class="category-box"><span style="color:#ffd700;">Net Day</span><br><span style="font-size:22px; color:#ffd700;">{sym}{day_crd - day_deb:,.2f}</span></div>', unsafe_allow_html=True)
+                m1.markdown(f'<div class="category-box" style="border-bottom-color:#22c55e;"><span style="color:#4ade80;">Total Credit</span><br><span style="font-size:22px; color:#4ade80;">+{sym}{day_crd:,.2f}</span></div>', unsafe_allow_html=True)
+                m2.markdown(f'<div class="category-box" style="border-bottom-color:#ef4444;"><span style="color:#f87171;">Total Debit</span><br><span style="font-size:22px; color:#f87171;">-{sym}{day_deb:,.2f}</span></div>', unsafe_allow_html=True)
+                m3.markdown(f'<div class="category-box" style="border-bottom-color:#e879f9;"><span style="color:#f0abfc;">Net Day</span><br><span style="font-size:22px; color:#f0abfc;">{sym}{day_crd - day_deb:,.2f}</span></div>', unsafe_allow_html=True)
 
                 if not day_df.empty:
                     day_df['Date'] = day_df['Date'].dt.strftime('%d/%m/%Y')
