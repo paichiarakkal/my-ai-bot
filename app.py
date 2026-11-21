@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import requests
 from datetime import datetime, timezone, timedelta
+import calendar as py_calendar
 import random
 import plotly.express as px
 from streamlit_mic_recorder import speech_to_text
@@ -472,6 +473,103 @@ def translate_to_english_label(text: str, default_label: str = "Expense") -> str
     cleaned = re.sub(r"[^\x00-\x7F]+", "", raw).strip()
     return cleaned if cleaned else default_label
 
+def categorize_item_label(item_str: str) -> str:
+    low = str(item_str or "").lower()
+    if any(w in low for w in ["food", "tea", "coffee", "biryani", "meal", "lunch", "dinner", "breakfast", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി"]):
+        return "Food"
+    elif any(w in low for w in ["shop", "store", "supermarket", "grocery", "കട", "സാധനങ്ങൾ", "സൂപ്പർമാർക്കറ്റ്"]):
+        return "Shop"
+    elif any(w in low for w in ["fish", "meat", "chicken", "mutton", "മീൻ", "ഇറച്ചി", "ചിക്കൻ"]):
+        return "Fish"
+    elif any(w in low for w in ["travel", "petrol", "fuel", "taxi", "bus", "metro", "യാത്ര", "പെട്രോൾ", "വണ്ടി", "ടാക്സി"]):
+        return "Travel"
+    elif any(w in low for w in ["rent", "room", "വാടക", "റൂം"]):
+        return "Rent"
+    return "Others"
+
+def build_full_financial_context(df_exp: pd.DataFrame, df_d: pd.DataFrame) -> str:
+    now_gst = datetime.now(GST)
+    eng_now = now_gst.strftime("%d %b %Y %H:%M:%S")
+    today_str = now_gst.strftime("%Y-%m-%d")
+    month_key = now_gst.strftime("%Y-%m")
+    days_in_month = py_calendar.monthrange(now_gst.year, now_gst.month)[1]
+    remaining_days = max(1, days_in_month - now_gst.day + 1)
+
+    t_in = float(df_exp["Credit"].sum()) if not df_exp.empty else 0.0
+    t_out = float(df_exp["Debit"].sum()) if not df_exp.empty else 0.0
+    bal = t_in - t_out
+
+    today_crd = 0.0
+    today_deb = 0.0
+    month_crd = 0.0
+    month_deb = 0.0
+    cat_summary_str = "No expense categories yet."
+    recent_str = "No recent transactions."
+
+    if not df_exp.empty and "Date" in df_exp.columns:
+        valid_df = df_exp.dropna(subset=["Date"]).copy()
+        if not valid_df.empty:
+            valid_df["DayKey"] = valid_df["Date"].dt.strftime("%Y-%m-%d")
+            valid_df["MonthKey"] = valid_df["Date"].dt.strftime("%Y-%m")
+            valid_df["Cat"] = valid_df["Item"].apply(categorize_item_label)
+
+            t_rows = valid_df[valid_df["DayKey"] == today_str]
+            today_crd = float(t_rows["Credit"].sum()) if not t_rows.empty else 0.0
+            today_deb = float(t_rows["Debit"].sum()) if not t_rows.empty else 0.0
+
+            m_rows = valid_df[valid_df["MonthKey"] == month_key]
+            month_crd = float(m_rows["Credit"].sum()) if not m_rows.empty else 0.0
+            month_deb = float(m_rows["Debit"].sum()) if not m_rows.empty else 0.0
+
+            cat_totals = valid_df.groupby("Cat")["Debit"].sum().to_dict()
+            cat_parts = [f"{k}: ₹{v:,.2f}" for k, v in cat_totals.items() if v > 0]
+            if cat_parts:
+                cat_summary_str = ", ".join(cat_parts)
+
+            tail_df = valid_df.sort_values(by="Date", ascending=False).head(8)
+            rec_list = []
+            for _, r in tail_df.iterrows():
+                dt_lbl = r["Date"].strftime("%d %b %Y")
+                if float(r["Debit"]) > 0:
+                    rec_list.append(f"[{dt_lbl}] {r['Item']} - Debit ₹{float(r['Debit']):,.2f}")
+                if float(r["Credit"]) > 0:
+                    rec_list.append(f"[{dt_lbl}] {r['Item']} - Credit ₹{float(r['Credit']):,.2f}")
+            if rec_list:
+                recent_str = " | ".join(rec_list)
+
+    safe_daily_spend = max(0.0, bal / remaining_days) if bal > 0 else 0.0
+    month_net = month_crd - month_deb
+    today_net = today_crd - today_deb
+
+    lent_pending = 0.0
+    borrowed_pending = 0.0
+    debt_lines = []
+    if df_d is not None and not df_d.empty:
+        pend = df_d[df_d["Status"] == "Pending"] if "Status" in df_d.columns else df_d
+        if not pend.empty:
+            lent_pending = float(pend[pend["Type"].astype(str).str.contains("Lent", case=False, na=False)]["Amount"].sum())
+            borrowed_pending = float(pend[pend["Type"].astype(str).str.contains("Borrowed", case=False, na=False)]["Amount"].sum())
+            for _, dr in pend.head(8).iterrows():
+                debt_lines.append(f"{dr['Name']} ({dr['Type']}: ₹{float(dr['Amount']):,.2f})")
+
+    debt_summary_str = (
+        f"Pending Lent (Receivable): ₹{lent_pending:,.2f}, Pending Borrowed (Payable): ₹{borrowed_pending:,.2f}, "
+        f"Net Debt Position (Lent - Borrowed): ₹{lent_pending - borrowed_pending:,.2f}."
+    )
+    if debt_lines:
+        debt_summary_str += " Items: " + ", ".join(debt_lines)
+
+    return (
+        f"Current Date/Time (GST): {eng_now}. "
+        f"Overall Totals -> Available Balance: ₹{bal:,.2f}, Total Credit: ₹{t_in:,.2f}, Total Debit: ₹{t_out:,.2f}. "
+        f"Today ({now_gst.strftime('%d %b %Y')}) -> Today Credit: ₹{today_crd:,.2f}, Today Debit: ₹{today_deb:,.2f}, Today Net: ₹{today_net:,.2f}. "
+        f"Current Month ({now_gst.strftime('%B %Y')}) -> Month Credit: ₹{month_crd:,.2f}, Month Debit: ₹{month_deb:,.2f}, Month Net: ₹{month_net:,.2f}. "
+        f"Daily Math & Budget -> Remaining days in month (including today): {remaining_days}, Suggested Safe Daily Spend (Available Balance / Remaining Days): ₹{safe_daily_spend:,.2f}/day. "
+        f"Category Debit Totals -> {cat_summary_str}. "
+        f"Debts -> {debt_summary_str} "
+        f"Recent Transactions -> {recent_str}."
+    )
+
 def get_active_web_app_url() -> str:
     prof = db_get_user(st.session_state.get("user", ""))
     if prof and prof.get("sheet_url"):
@@ -648,7 +746,7 @@ tools = [
                     "amount": {"type": "number"},
                     "category": {"type": "string", "description": "Food, Shop, Fish, Travel, Rent, Others"},
                     "type": {"type": "string", "enum": ["Debit", "Credit"]},
-                    "date": {"type": "string", "description": "English date format e.g. 21 Nov 2026 20:47:00"}
+                    "date": {"type": "string", "description": "English date format e.g. 21 Nov 2026 20:56:00"}
                 },
                 "required": ["item", "amount"]
             }
@@ -885,15 +983,7 @@ else:
         st.markdown(f'<div class="glass-card"><h2 style="color:#00FF00;">Credit: ₹{t_in:,.2f}</h2><h2 style="color:#FF3131;">Debit: ₹{t_out:,.2f}</h2></div>', unsafe_allow_html=True)
 
         if not df.empty and 'Item' in df.columns:
-            def extract_cat(x):
-                item_text = str(x).lower()
-                if any(w in item_text for w in ["food", "tea", "coffee", "biryani", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി"]): return "Food"
-                elif any(w in item_text for w in ["shop", "store", "supermarket", "കട", "സാധനങ്ങൾ", "സൂപ്പർമാർക്കറ്റ്"]): return "Shop"
-                elif any(w in item_text for w in ["fish", "meat", "chicken", "മീൻ", "ഇറച്ചി", "ചിക്കൻ"]): return "Fish"
-                elif any(w in item_text for w in ["travel", "petrol", "fuel", "taxi", "യാത്ര", "പെട്രോൾ", "വണ്ടി", "ടാക്സി"]): return "Travel"
-                elif any(w in item_text for w in ["rent", "room", "വാടക", "റൂം"]): return "Rent"
-                return "Others"
-            df['Cat'] = df['Item'].apply(extract_cat)
+            df['Cat'] = df['Item'].apply(categorize_item_label)
             cats = df.groupby('Cat')['Debit'].sum().to_dict()
             cols = st.columns(3)
             for idx, (c_name, c_amt) in enumerate(cats.items()):
@@ -1217,7 +1307,7 @@ else:
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-    # --- AI CHAT (Clear Malayalam/Multilingual Voice + Transcript + Context + Single Confirmation Box) ---
+    # --- AI CHAT (Full App Context + Daily Math Advisor + Clear Voice + Single Confirmation Box) ---
     elif page == "🤖 AI Chat":
         st.title("🤖 AI Agent & Assistant")
 
@@ -1323,30 +1413,22 @@ else:
                 st.session_state.ai_chat_history.append({"role": "user", "content": final_prompt})
                 with st.spinner("Processing..."):
                     try:
-                        today_str = datetime.now(GST).strftime('%Y-%m-%d')
-                        today_deb = 0.0
-                        today_crd = 0.0
-                        if not df.empty and 'Date' in df.columns:
-                            d_valid = df.dropna(subset=['Date'])
-                            t_rows = d_valid[d_valid['Date'].dt.strftime('%Y-%m-%d') == today_str]
-                            if not t_rows.empty:
-                                today_deb = float(t_rows['Debit'].sum())
-                                today_crd = float(t_rows['Credit'].sum())
+                        df_debts_ctx = load_debts_data(active_csv)
+                        full_ctx = build_full_financial_context(df, df_debts_ctx)
 
                         client = Groq(api_key=GROQ_API_KEY)
-                        eng_now = format_english_datetime()
                         system_instruction = (
-                            f"You are a sharp, accurate English finance AI assistant. Current time (GST): {eng_now}. "
-                            f"Available balance: ₹{bal:,.2f}. Total Credit: ₹{t_in:,.2f}, Total Debit: ₹{t_out:,.2f}. "
-                            f"Today's Credit: ₹{today_crd:,.2f}, Today's Debit: ₹{today_deb:,.2f}. "
-                            f"Understand short or casual speech/text in Malayalam, English, Arabic, or Hindi, even if voice transcription has minor typos, "
-                            f"and ALWAYS respond clearly and concisely in English. "
-                            f"When the user asks for balance or today's balance, clearly state the Available Balance (₹{bal:,.2f}) and today's summary. "
-                            f"Accurately interpret Malayalam/Arabic/Hindi/English expense words and numbers (for example 'ചായ മൂന്ന്' -> item 'Tea', amount 3; "
-                            f"'ജയയ്ക്ക് 500 കൊടുത്തു' -> debt lent to 'Jaya', amount 500). "
-                            f"Do NOT invent weird names or ask unnecessary follow-up questions when an expense item and amount are clear. "
-                            f"When the user adds an expense or income, call 'add_new_entry' or 'add_multiple_entries'. "
-                            f"When money is lent or borrowed, call 'add_debt_entry'."
+                            "You are PAICHI AI, a sharp, accurate English finance & daily math advisor agent. "
+                            f"LIVE APP DATA & MATH CONTEXT: {full_ctx} "
+                            "Understand user questions or commands asked in ANY phrasing or order (forward or reverse, short or detailed) "
+                            "in Malayalam, English, Arabic, or Hindi, and ALWAYS reply clearly and accurately in English. "
+                            "Use exact numbers from LIVE APP DATA for every balance, credit, debit, today's total, monthly total, category spend, "
+                            "debt status, remaining days, suggested daily spend limit, or 'what-if' math calculation. "
+                            "Accurately interpret Malayalam/Arabic/Hindi/English expense words and numbers (for example 'ചായ മൂന്ന്' -> item 'Tea', amount 3; "
+                            "'ജയയ്ക്ക് 500 കൊടുത്തു' -> debt lent to 'Jaya', amount 500). "
+                            "Do NOT invent weird names or ask unnecessary follow-up questions when an expense item and amount are clear. "
+                            "When the user adds an expense or income, call 'add_new_entry' or 'add_multiple_entries'. "
+                            "When money is lent or borrowed, call 'add_debt_entry'."
                         )
 
                         recent_ctx = [
