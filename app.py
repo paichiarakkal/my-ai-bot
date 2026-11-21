@@ -1361,4 +1361,8 @@ else:
                                     st.session_state.ai_action_notice = msg
                                     st.rerun()
 
-                        elif response_mes
+                        elif response_message.content:
+                            st.info(response_message.content)
+
+                    except Exception as e:
+                        st.error(f"AI Error: {str(e)}")
