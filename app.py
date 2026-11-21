@@ -42,7 +42,7 @@ GST = timezone(timedelta(hours=4))
 st_autorefresh(interval=60000, key="auto_refresh")
 
 # ============================================
-# 🗄️ DATABASE SETUP (SQLite for Multi-User)
+# 🗄️ DATABASE + ST.SECRETS USER STORE
 # ============================================
 def init_db():
     conn = sqlite3.connect(DB_FILE)
@@ -63,10 +63,55 @@ init_db()
 def hash_password(pwd: str) -> str:
     return hashlib.sha256(pwd.encode("utf-8")).hexdigest()
 
+def load_secrets_users() -> dict:
+    raw_users = st.secrets.get("USERS_DATA", {})
+    if isinstance(raw_users, str):
+        try:
+            parsed = json.loads(raw_users)
+            return parsed if isinstance(parsed, dict) else {}
+        except Exception:
+            return {}
+    if isinstance(raw_users, dict):
+        return dict(raw_users)
+    return {}
+
 def db_get_user(username: str):
+    u = (username or "").strip().lower()
+    if not u:
+        return None
+
+    secrets_users = load_secrets_users()
+    s_rec = secrets_users.get(u)
+    if isinstance(s_rec, dict) and s_rec.get("password_hash"):
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("SELECT sheet_url, csv_url FROM users WHERE username = ?", (u,))
+        local_row = c.fetchone()
+        sheet_val = local_row[0] if (local_row and local_row[0]) else s_rec.get("sheet_url", "")
+        csv_val = local_row[1] if (local_row and local_row[1]) else s_rec.get("csv_url", "")
+        c.execute(
+            """
+            INSERT INTO users (username, password_hash, sheet_url, csv_url)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(username) DO UPDATE SET
+                password_hash = excluded.password_hash,
+                sheet_url = CASE WHEN excluded.sheet_url != '' THEN excluded.sheet_url ELSE users.sheet_url END,
+                csv_url = CASE WHEN excluded.csv_url != '' THEN excluded.csv_url ELSE users.csv_url END
+            """,
+            (u, s_rec.get("password_hash", ""), sheet_val.strip(), csv_val.strip())
+        )
+        conn.commit()
+        conn.close()
+        return {
+            "username": u,
+            "password_hash": s_rec.get("password_hash", ""),
+            "sheet_url": sheet_val.strip(),
+            "csv_url": csv_val.strip()
+        }
+
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("SELECT username, password_hash, sheet_url, csv_url FROM users WHERE username = ?", (username.strip().lower(),))
+    c.execute("SELECT username, password_hash, sheet_url, csv_url FROM users WHERE username = ?", (u,))
     row = c.fetchone()
     conn.close()
     if row:
@@ -74,26 +119,39 @@ def db_get_user(username: str):
     return None
 
 def db_create_user(username: str, password: str, sheet_url: str = "", csv_url: str = ""):
+    u = username.strip().lower()
+    pwd_hash = hash_password(password)
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute(
         "INSERT INTO users (username, password_hash, sheet_url, csv_url) VALUES (?, ?, ?, ?)",
-        (username.strip().lower(), hash_password(password), sheet_url.strip(), csv_url.strip())
+        (u, pwd_hash, sheet_url.strip(), csv_url.strip())
     )
     conn.commit()
     conn.close()
+    return {
+        u: {
+            "password_hash": pwd_hash,
+            "sheet_url": sheet_url.strip(),
+            "csv_url": csv_url.strip()
+        }
+    }
 
 def db_update_password(username: str, new_password: str):
+    u = username.strip().lower()
+    pwd_hash = hash_password(new_password)
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("UPDATE users SET password_hash = ? WHERE username = ?", (hash_password(new_password), username.strip().lower()))
+    c.execute("UPDATE users SET password_hash = ? WHERE username = ?", (pwd_hash, u))
     conn.commit()
     conn.close()
+    return pwd_hash
 
 def db_update_links(username: str, sheet_url: str, csv_url: str):
+    u = username.strip().lower()
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("UPDATE users SET sheet_url = ?, csv_url = ? WHERE username = ?", (sheet_url.strip(), csv_url.strip(), username.strip().lower()))
+    c.execute("UPDATE users SET sheet_url = ?, csv_url = ? WHERE username = ?", (sheet_url.strip(), csv_url.strip(), u))
     conn.commit()
     conn.close()
 
@@ -245,6 +303,7 @@ st.markdown(f"""
     .glass-card {{ background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 25px; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); margin-bottom: 25px; text-align: center; }}
     .balance-banner {{ background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02)); backdrop-filter: blur(10px); padding: 30px; border-radius: 20px; border-left: 8px solid #FFD700; text-align: center; margin-bottom: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }}
     .category-box {{ background: rgba(0, 0, 0, 0.5); padding: 20px; border-radius: 15px; text-align: center; border-bottom: 4px solid #FFD700; margin-bottom: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }}
+    .category-box:hover {{ transform: scale(1.03); }}
     .alert-banner {{ background: linear-gradient(90deg, #ff4d4d, #cc0000); color: white; padding: 15px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(255, 77, 77, 0.4); }}
     .login-card {{ background: rgba(20, 20, 35, 0.8); backdrop-filter: blur(20px); padding: 40px; border-radius: 20px; max-width: 450px; margin: auto; margin-top: 80px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 15px 35px rgba(0,0,0,0.6); }}
     h1, h2, h3, p, label {{ color: #FFFFFF !important; font-weight: bold !important; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }}
@@ -265,20 +324,23 @@ if "entry_saved_flag" not in st.session_state: st.session_state.entry_saved_flag
 if "user_sheet_url" not in st.session_state: st.session_state.user_sheet_url = ""
 if "user_sheet_csv_url" not in st.session_state: st.session_state.user_sheet_csv_url = ""
 
-# OTP states (Sign Up)
 if "signup_otp" not in st.session_state: st.session_state.signup_otp = None
 if "signup_otp_email" not in st.session_state: st.session_state.signup_otp_email = ""
 if "signup_otp_verified" not in st.session_state: st.session_state.signup_otp_verified = False
 
-# OTP states (Reset Password)
 if "reset_otp" not in st.session_state: st.session_state.reset_otp = None
 if "reset_otp_email" not in st.session_state: st.session_state.reset_otp_email = ""
 if "reset_otp_verified" not in st.session_state: st.session_state.reset_otp_verified = False
 
-# Restore login session automatically if URL token is valid
 restore_session_from_url()
 
 # --- HELPER FUNCTIONS ---
+def format_display_name(username: str) -> str:
+    u = (username or "").strip()
+    if "@" in u:
+        return u.split("@", 1)[0]
+    return u
+
 def sync_active_user_profile(username: str):
     prof = db_get_user(username)
     if prof:
@@ -516,7 +578,6 @@ if not st.session_state.auth:
 
         mode_tab1, mode_tab2 = st.tabs(["🔑 Login", "📝 Sign Up (OTP)"])
 
-        # --- TAB 1: LOGIN + OTP PASSWORD RESET ---
         with mode_tab1:
             l_user = st.text_input("👤 Username / Email", key="login_user", placeholder="Enter your username or email").strip().lower()
             l_pass = st.text_input("🔑 Password", type="password", key="login_pass", placeholder="Enter your password")
@@ -594,13 +655,13 @@ if not st.session_state.auth:
                         elif r_new_pass != r_confirm_pass:
                             st.error("❌ രണ്ട് പാസ്‌വേഡുകളും ഒരുപോലെയല്ല!")
                         else:
-                            db_update_password(r_user, r_new_pass)
+                            new_hash = db_update_password(r_user, r_new_pass)
                             st.session_state.reset_otp = None
                             st.session_state.reset_otp_email = ""
                             st.session_state.reset_otp_verified = False
-                            st.success("✅ പാസ്‌വേഡ് വിജയകരമായി മാറ്റി! ഇനി ലോഗിൻ ചെയ്യാം.")
+                            st.success("✅ പാസ്‌വേഡ് മാറ്റി! റീബൂട്ടിന് ശേഷവും നിലനിൽക്കാൻ Secrets-ലെ ഈ യൂസറിന്റെ `password_hash` അപ്ഡേറ്റ് ചെയ്യുക:")
+                            st.code(f'"{r_user}": {{"password_hash": "{new_hash}"}}', language="json")
 
-        # --- TAB 2: SIGN UP (WITH FREE EMAIL OTP) ---
         with mode_tab2:
             s_user = st.text_input("📧 Email / Username", key="signup_user", placeholder="example@gmail.com").strip().lower()
 
@@ -655,11 +716,13 @@ if not st.session_state.auth:
                     elif s_pass != s_confirm:
                         st.error("❌ രണ്ട് പാസ്‌വേഡുകളും ഒരുപോലെയല്ല!")
                     else:
-                        db_create_user(s_user, s_pass, s_web, s_csv)
+                        created_entry = db_create_user(s_user, s_pass, s_web, s_csv)
                         st.session_state.signup_otp = None
                         st.session_state.signup_otp_email = ""
                         st.session_state.signup_otp_verified = False
                         refresh_user_sheet_cache()
+                        st.info("📌 റീബൂട്ടിന് ശേഷവും അക്കൗണ്ട് നിലനിൽക്കാൻ Secrets-ലെ `USERS_DATA` JSON-ൽ ഈ എൻട്രി ചേർക്കുക:")
+                        st.code(json.dumps(created_entry, indent=2), language="json")
                         set_persistent_login(s_user)
                         st.rerun()
 
@@ -673,20 +736,27 @@ else:
     t_in, t_out = (df['Credit'].sum(), df['Debit'].sum()) if not df.empty else (0.0, 0.0)
     bal = t_in - t_out
 
+    st.sidebar.caption(f"👤 {format_display_name(st.session_state.user)}")
+
     with st.sidebar.expander("⚙️ Settings"):
         updated_web = st.text_input(
             "📄 Target Sheet Web App URL",
             value=active_web,
+            key="settings_web_url",
             placeholder="https://script.google.com/macros/s/.../exec"
         ).strip()
         updated_csv = st.text_input(
             "📊 Target Sheet CSV URL",
             value=active_csv,
+            key="settings_csv_url",
             placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv"
         ).strip()
-        if updated_web != active_web or updated_csv != active_csv:
+
+        if st.button("💾 Save Sheet Links"):
             db_update_links(st.session_state.user, updated_web, updated_csv)
+            sync_active_user_profile(st.session_state.user)
             refresh_user_sheet_cache()
+            st.success("Links saved! ✅")
             st.rerun()
 
         if st.button("🔄 Sync From My Sheet"):
@@ -705,7 +775,7 @@ else:
     # --- DASHBOARD ---
     if page == "🏠 Dashboard":
         if not active_csv:
-            st.info("ℹ️ നിങ്ങളുടെ Google Sheet CSV URL ഇതുവരെ നൽകിയിട്ടില്ല. ഇടതുവശത്തെ **Settings**-ൽ Sheet CSV URL നൽകുമ്പോൾ നിങ്ങളുടെ ഷീറ്റിലെ ഡാറ്റ ഇവിടെ വരും.")
+            st.info("ℹ️ നിങ്ങളുടെ Google Sheet CSV URL ഇതുവരെ നൽകിയിട്ടില്ല. ഇടതുവശത്തെ **Settings**-ൽ Sheet CSV URL നൽകി **Save Sheet Links** ക്ലിക്ക് ചെയ്യുക.")
         if bal < st.session_state.low_limit:
             st.markdown(f'<div class="alert-banner">⚠️ ബാലൻസ് കുറവാണ്: {st.session_state.custom_alert_text} (₹{bal:,.2f})!</div>', unsafe_allow_html=True)
 
