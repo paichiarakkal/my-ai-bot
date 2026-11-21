@@ -859,33 +859,59 @@ else:
         st.markdown("""
             <style>
             .fc {
-                background-color: #ffffff !important;
-                color: #111111 !important;
-                padding: 12px;
-                border-radius: 14px;
+                background: linear-gradient(145deg, rgba(22, 24, 42, 0.96), rgba(14, 16, 30, 0.98)) !important;
+                color: #f8fafc !important;
+                padding: 16px;
+                border-radius: 18px;
+                border: 1px solid rgba(255, 215, 0, 0.28) !important;
+                box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55) !important;
             }
             .fc a, .fc-col-header-cell-cushion, .fc-daygrid-day-number {
-                color: #111111 !important;
+                color: #f1f5f9 !important;
                 text-decoration: none !important;
-                font-weight: 600 !important;
+                font-weight: 700 !important;
+            }
+            .fc-col-header-cell {
+                background: rgba(255, 215, 0, 0.12) !important;
+                border-color: rgba(255, 255, 255, 0.08) !important;
+            }
+            .fc-daygrid-day {
+                background: rgba(255, 255, 255, 0.02) !important;
+                border-color: rgba(255, 255, 255, 0.08) !important;
+                cursor: pointer !important;
+                transition: background 0.15s ease;
+            }
+            .fc-daygrid-day:hover {
+                background: rgba(56, 189, 248, 0.12) !important;
+            }
+            .fc-day-today {
+                background: rgba(255, 215, 0, 0.14) !important;
             }
             .fc-toolbar-title {
-                color: #111111 !important;
-                font-weight: 700 !important;
+                color: #ffd700 !important;
+                font-weight: 800 !important;
+                letter-spacing: 0.5px;
             }
             .fc-button-primary {
-                background-color: #e55353 !important;
-                border-color: #e55353 !important;
+                background: linear-gradient(135deg, #0ea5e9, #2563eb) !important;
+                border: none !important;
                 color: #ffffff !important;
                 font-weight: 700 !important;
+                border-radius: 8px !important;
+                box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35) !important;
+            }
+            .fc-button-primary:hover {
+                filter: brightness(1.12);
             }
             .fc-event {
                 border: none !important;
-                border-radius: 3px !important;
+                border-radius: 8px !important;
                 font-size: 11px !important;
-                font-weight: 700 !important;
-                padding: 1px 3px !important;
-                margin-top: 2px !important;
+                font-weight: 800 !important;
+                padding: 3px 6px !important;
+                margin-top: 3px !important;
+                cursor: pointer !important;
+                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35) !important;
             }
             </style>
         """, unsafe_allow_html=True)
@@ -903,20 +929,31 @@ else:
 
             events = []
             for _, row in summary.iterrows():
-                if row['Debit'] > 0:
+                has_deb = row['Debit'] > 0
+                has_crd = row['Credit'] > 0
+                if has_deb or has_crd:
+                    parts = []
+                    if has_crd:
+                        parts.append(f"+{sym}{row['Credit']:,.0f}")
+                    if has_deb:
+                        parts.append(f"-{sym}{row['Debit']:,.0f}")
+                    combined_title = " | ".join(parts)
+
+                    if has_crd and has_deb:
+                        bg_color = "#7c3aed"
+                        border_color = "#a78bfa"
+                    elif has_crd:
+                        bg_color = "#059669"
+                        border_color = "#34d399"
+                    else:
+                        bg_color = "#e11d48"
+                        border_color = "#fb7185"
+
                     events.append({
-                        "title": f"-{sym}{row['Debit']:,.0f}",
+                        "title": combined_title,
                         "start": row['DayKey'],
-                        "backgroundColor": "#d9383a",
-                        "borderColor": "#d9383a",
-                        "textColor": "#ffffff"
-                    })
-                if row['Credit'] > 0:
-                    events.append({
-                        "title": f"+{sym}{row['Credit']:,.0f}",
-                        "start": row['DayKey'],
-                        "backgroundColor": "#2e8b57",
-                        "borderColor": "#2e8b57",
+                        "backgroundColor": bg_color,
+                        "borderColor": border_color,
                         "textColor": "#ffffff"
                     })
 
@@ -928,7 +965,7 @@ else:
                 },
                 "initialView": "dayGridMonth",
                 "height": "auto",
-                "dayMaxEvents": True
+                "dayMaxEvents": 1
             }
 
             cal_data = calendar(
@@ -953,8 +990,16 @@ else:
                 except Exception:
                     pretty_dt = selected_date
 
-                st.subheader(f"📋 Details for {pretty_dt}")
                 day_df = df_cal[df_cal['DayKey'] == selected_date].copy()
+                day_crd = day_df['Credit'].sum() if not day_df.empty else 0.0
+                day_deb = day_df['Debit'].sum() if not day_df.empty else 0.0
+
+                st.subheader(f"📋 Details for {pretty_dt}")
+                m1, m2, m3 = st.columns(3)
+                m1.markdown(f'<div class="category-box"><span style="color:#34d399;">Total Credit</span><br><span style="font-size:22px; color:#34d399;">+{sym}{day_crd:,.2f}</span></div>', unsafe_allow_html=True)
+                m2.markdown(f'<div class="category-box"><span style="color:#fb7185;">Total Debit</span><br><span style="font-size:22px; color:#fb7185;">-{sym}{day_deb:,.2f}</span></div>', unsafe_allow_html=True)
+                m3.markdown(f'<div class="category-box"><span style="color:#ffd700;">Net Day</span><br><span style="font-size:22px; color:#ffd700;">{sym}{day_crd - day_deb:,.2f}</span></div>', unsafe_allow_html=True)
+
                 if not day_df.empty:
                     day_df['Date'] = day_df['Date'].dt.strftime('%d/%m/%Y')
                     st.dataframe(day_df[['Date', 'Item', 'Debit', 'Credit']], use_container_width=True)
