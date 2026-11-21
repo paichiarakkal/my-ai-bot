@@ -94,15 +94,18 @@ def db_update_links(username: str, sheet_url: str, csv_url: str):
     conn.close()
 
 # ============================================
-# 📧 EMAIL OTP HELPER
+# 📧 EMAIL OTP HELPER (SSL 465 + TLS 587 FALLBACK)
 # ============================================
 def send_otp_email(to_email: str, otp_code: str, purpose: str = "Verification") -> bool:
-    if not SMTP_EMAIL or not SMTP_APP_PASSWORD:
-        return False
+    sender = (SMTP_EMAIL or "").strip()
+    app_pwd = (SMTP_APP_PASSWORD or "").replace(" ", "").strip()
+
+    if not sender or not app_pwd:
+        raise ValueError("SMTP_EMAIL അല്ലെങ്കിൽ SMTP_APP_PASSWORD Secrets-ൽ സെറ്റ് ചെയ്തിട്ടില്ല!")
 
     msg = EmailMessage()
     msg["Subject"] = f"PAICHI EXPENSES - {purpose} OTP"
-    msg["From"] = SMTP_EMAIL
+    msg["From"] = sender
     msg["To"] = to_email
     msg.set_content(
         f"നമസ്കാരം,\n\n"
@@ -111,10 +114,22 @@ def send_otp_email(to_email: str, otp_code: str, purpose: str = "Verification") 
         f"ഈ കോഡ് മറ്റാരുമായും പങ്കുവെക്കരുത്."
     )
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(SMTP_EMAIL, SMTP_APP_PASSWORD)
-        server.send_message(msg)
-    return True
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
+            server.login(sender, app_pwd)
+            server.send_message(msg)
+        return True
+    except Exception as ssl_err:
+        try:
+            with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
+                server.login(sender, app_pwd)
+                server.send_message(msg)
+            return True
+        except Exception as tls_err:
+            raise RuntimeError(f"SSL (465) Error: {ssl_err} | TLS (587) Error: {tls_err}")
 
 # ============================================
 # 🔐 SIGNED TOKEN SESSION (Query Params)
@@ -563,7 +578,7 @@ if not st.session_state.auth:
                         try:
                             sent = send_otp_email(r_user, code, purpose="Forgot Password")
                             if sent:
-                                st.success("✅ നിങ്ങളുടെ ഇമെയിലിലേക്ക് 6-അക്ക OTP അയച്ചിട്ടുണ്ട്!")
+                                st.success("✅ നിങ്ങളുടെ ഇമെയിലിലേക്ക് 6-അക്ക OTP അയച്ചിട്ടുണ്ട്! (Inbox അല്ലെങ്കിൽ Spam നോക്കുക)")
                             else:
                                 st.info(f"ℹ️ SMTP സെറ്റ് ചെയ്തിട്ടില്ല. ടെസ്റ്റിംഗ് OTP: **{code}**")
                         except Exception as e:
@@ -611,7 +626,7 @@ if not st.session_state.auth:
                     try:
                         sent = send_otp_email(s_user, code, purpose="Sign Up")
                         if sent:
-                            st.success("✅ നിങ്ങളുടെ ജിമെയിലിലേക്ക് OTP അയച്ചിട്ടുണ്ട്!")
+                            st.success("✅ നിങ്ങളുടെ ജിമെയിലിലേക്ക് OTP അയച്ചിട്ടുണ്ട്! (Inbox അല്ലെങ്കിൽ Spam നോക്കുക)")
                         else:
                             st.info(f"ℹ️ SMTP സെറ്റ് ചെയ്തിട്ടില്ല. ടെസ്റ്റിംഗ് OTP: **{code}**")
                     except Exception as e:
