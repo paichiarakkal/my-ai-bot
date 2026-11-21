@@ -382,7 +382,7 @@ st.markdown(f"""
     h1, h2, h3, p, label {{ color: #FFFFFF !important; font-weight: bold !important; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }}
     [data-testid="stChatMessage"] {{ background: rgba(32, 44, 51, 0.9) !important; border-radius: 15px !important; padding: 15px !important; margin-bottom: 10px !important; border: 1px solid rgba(255,255,255,0.05) !important; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }}
     [data-testid="stChatInput"] {{ background-color: rgba(42, 57, 66, 0.92) !important; border-radius: 28px !important; border: 1px solid rgba(255,255,255,0.18) !important; padding: 4px 8px !important; }}
-    [data-testid="stChatInput"] textarea {{ color: white !important; padding-right: 48px !important; }}
+    [data-testid="stChatInput"] textarea {{ color: white !important; }}
     input, textarea, select {{ color: #FFFFFF !important; -webkit-text-fill-color: #FFFFFF !important; background-color: rgba(0, 0, 0, 0.5) !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; border-radius: 8px !important; }}
     ::placeholder {{ color: #AAAAAA !important; }}
     </style>
@@ -646,7 +646,7 @@ tools = [
                     "amount": {"type": "number"},
                     "category": {"type": "string", "description": "Food, Shop, Fish, Travel, Rent, Others"},
                     "type": {"type": "string", "enum": ["Debit", "Credit"]},
-                    "date": {"type": "string", "description": "English date format e.g. 21 Nov 2026 20:32:00"}
+                    "date": {"type": "string", "description": "English date format e.g. 21 Nov 2026 20:36:00"}
                 },
                 "required": ["item", "amount"]
             }
@@ -1215,35 +1215,9 @@ else:
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-    # --- AI CHAT (Inline Mic Inside Chat Bar, Single Confirmation Box, Save/Cancel Status Message, English Output, No Loop) ---
+    # --- AI CHAT (Clean Voice Button, Single Confirmation Box, Save/Cancel Status Message, English Output, No Loop) ---
     elif page == "🤖 AI Chat":
         st.title("🤖 AI Agent & Assistant")
-
-        st.markdown("""
-            <style>
-            [data-testid="stChatInput"] {
-                position: relative !important;
-                z-index: 10 !important;
-            }
-            [data-testid="stChatInput"] textarea {
-                padding-right: 78px !important;
-            }
-            div[data-testid="stIFrame"] iframe[title*="speech_to_text"],
-            div[data-testid="stIFrame"]:has(iframe[src*="speech_to_text"]) {
-                position: fixed !important;
-                bottom: 24px !important;
-                right: 68px !important;
-                width: 38px !important;
-                height: 38px !important;
-                min-height: 38px !important;
-                z-index: 999 !important;
-                border-radius: 50% !important;
-                overflow: hidden !important;
-                background: rgba(255, 215, 0, 0.92) !important;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35) !important;
-            }
-            </style>
-        """, unsafe_allow_html=True)
 
         if st.session_state.ai_action_notice:
             st.success(st.session_state.ai_action_notice)
@@ -1280,14 +1254,17 @@ else:
                 st.session_state.ai_action_notice = f"Not saved to sheet: {cancelled_item} - ₹{cancelled_amt} (Cancelled)."
                 st.rerun()
 
-        v_raw = speech_to_text(
-            language='en',
-            start_prompt="🎙️",
-            stop_prompt="⏹️",
-            just_once=True,
-            key=f'ai_voice_input_{st.session_state.ai_chat_key_id}'
-        )
-        prompt = st.chat_input("Type or speak in English, Malayalam, Arabic, or Hindi...", key="ai_chat_box")
+        v_col, _ = st.columns([1.3, 2.7])
+        with v_col:
+            v_raw = speech_to_text(
+                language='en',
+                start_prompt="🎙️ Speak",
+                stop_prompt="⏹️ Stop",
+                just_once=True,
+                key=f'ai_voice_input_{st.session_state.ai_chat_key_id}'
+            )
+
+        prompt = st.chat_input("Type in English, Malayalam, Arabic, or Hindi...", key="ai_chat_box")
 
         final_prompt = None
         if v_raw and v_raw.strip() and v_raw.strip() != st.session_state.last_voice_text:
