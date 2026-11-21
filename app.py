@@ -36,7 +36,7 @@ BREVO_API_KEY = st.secrets.get("BREVO_API_KEY", "")
 BREVO_SENDER_EMAIL = st.secrets.get("BREVO_SENDER_EMAIL", "")
 DEFAULT_WEB_APP_URL = st.secrets.get("SHEET_WEB_APP_URL", st.secrets.get("GOOGLE_SHEET_WEB_APP_URL", ""))
 DEFAULT_CSV_URL = st.secrets.get("SHEET_CSV_URL", st.secrets.get("GOOGLE_SHEET_CSV_URL", ""))
-DB_FILE = "paichi_users.db"
+DB_FILE = "paichi_users_v2.db"
 
 # --- TIMEZONE SETUP (GST - Dubai Time) ---
 GST = timezone(timedelta(hours=4))
@@ -58,6 +58,14 @@ def init_db():
             links_locked INTEGER DEFAULT 1
         )
     """)
+    c.execute("PRAGMA table_info(users)")
+    existing_cols = [col[1] for col in c.fetchall()]
+    if "sheet_url" not in existing_cols:
+        c.execute("ALTER TABLE users ADD COLUMN sheet_url TEXT DEFAULT ''")
+    if "csv_url" not in existing_cols:
+        c.execute("ALTER TABLE users ADD COLUMN csv_url TEXT DEFAULT ''")
+    if "links_locked" not in existing_cols:
+        c.execute("ALTER TABLE users ADD COLUMN links_locked INTEGER DEFAULT 1")
     conn.commit()
     conn.close()
 
@@ -79,6 +87,7 @@ def load_secrets_users() -> dict:
     return {}
 
 def db_get_user(username: str):
+    init_db()
     u = (username or "").strip().lower()
     if not u:
         return None
@@ -131,6 +140,7 @@ def db_get_user(username: str):
     return None
 
 def db_create_user(username: str, password: str, sheet_url: str = "", csv_url: str = ""):
+    init_db()
     u = username.strip().lower()
     pwd_hash = hash_password(password)
     s_url = (sheet_url or "").strip()
@@ -153,6 +163,7 @@ def db_create_user(username: str, password: str, sheet_url: str = "", csv_url: s
     }
 
 def db_update_password(username: str, new_password: str):
+    init_db()
     u = username.strip().lower()
     pwd_hash = hash_password(new_password)
     conn = sqlite3.connect(DB_FILE)
@@ -579,7 +590,7 @@ tools = [
                     "amount": {"type": "number"},
                     "category": {"type": "string", "description": "Food, Shop, Fish, Travel, Rent, Others"},
                     "type": {"type": "string", "enum": ["Debit", "Credit"]},
-                    "date": {"type": "string", "description": "English date format e.g. 21 Nov 2026 19:51:00"}
+                    "date": {"type": "string", "description": "English date format e.g. 21 Nov 2026 19:55:00"}
                 },
                 "required": ["item", "amount"]
             }
