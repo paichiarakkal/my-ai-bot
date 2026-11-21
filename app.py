@@ -28,6 +28,7 @@ WA_PHONE = st.secrets.get("DEFAULT_WA_PHONE", "")
 BG_IMAGE_URL = "https://raw.githubusercontent.com/paichiarakkal/paichiarakkal/main/profile.jpg"
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
 SECRET_KEY = st.secrets.get("SESSION_SECRET_KEY", "paichi_expenses_secure_key_2026")
+AUTH_SHEET_WEB_APP_URL = st.secrets.get("AUTH_SHEET_WEB_APP_URL", "")
 SMTP_EMAIL = st.secrets.get("SMTP_EMAIL", "")
 SMTP_APP_PASSWORD = st.secrets.get("SMTP_APP_PASSWORD", "")
 RESEND_API_KEY = st.secrets.get("RESEND_API_KEY", "")
@@ -42,7 +43,7 @@ GST = timezone(timedelta(hours=4))
 st_autorefresh(interval=60000, key="auto_refresh")
 
 # ============================================
-# 🗄️ DATABASE SETUP (SQLite for Multi-User)
+# 🗄️ LOCAL CACHE DB + GOOGLE SHEET USERS SYNC
 # ============================================
 def init_db():
     conn = sqlite3.connect(DB_FILE)
@@ -63,7 +64,18 @@ init_db()
 def hash_password(pwd: str) -> str:
     return hashlib.sha256(pwd.encode("utf-8")).hexdigest()
 
-def db_get_user(username: str):
+def get_auth_endpoint(fallback_url: str = "") -> str:
+    sec_url = (st.secrets.get("AUTH_SHEET_WEB_APP_URL", AUTH_SHEET_WEB_APP_URL) or "").strip()
+    if sec_url:
+        return sec_url
+    if fallback_url and fallback_url.strip():
+        return fallback_url.strip()
+    active_web = (st.session_state.get("user_sheet_url", "") or "").strip()
+    if active_web:
+        return active_web
+    return (st.session_state.get("auth_web_url_input", "") or "").strip()
+
+def _local_get_user(username: str):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("SELECT username, password_hash, sheet_url, csv_url FROM users WHERE username = ?", (username.strip().lower(),))
@@ -73,29 +85,131 @@ def db_get_user(username: str):
         return {"username": row[0], "password_hash": row[1], "sheet_url": row[2], "csv_url": row[3]}
     return None
 
-def db_create_user(username: str, password: str, sheet_url: str = "", csv_url: str = ""):
+def _local_upsert_user(username: str, password_hash: str, sheet_url: str = "", csv_url: str = ""):
+    u = username.strip().lower()
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute(
-        "INSERT INTO users (username, password_hash, sheet_url, csv_url) VALUES (?, ?, ?, ?)",
-        (username.strip().lower(), hash_password(password), sheet_url.strip(), csv_url.strip())
-    )
+    c.execute("""
+        INSERT INTO users (username, password_hash, sheet_url, csv_url)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(username) DO UPDATE SET
+            password_hash = excluded.password_hash,
+            sheet_url = excluded.sheet_url,
+            csv_url = excluded.csv_url
+    """, (u, password_hash, sheet_url.strip(), csv_url.strip()))
     conn.commit()
     conn.close()
 
-def db_update_password(username: str, new_password: str):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("UPDATE users SET password_hash = ? WHERE username = ?", (hash_password(new_password), username.strip().lower()))
-    conn.commit()
-    conn.close()
+def db_get_user(username: str, endpoint_url: str = ""):
+    u = (username or "").strip().lower()
+    if not u:
+        return None
+
+    endpoint = get_auth_endpoint(endpoint_url)
+    if endpoint:
+        try:
+            resp = requests.get(
+                endpoint,
+                params={"action": "get_user", "username": u, "t": random.randint(1, 999999)},
+                timeout=12
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("found") and isinstance(data.get("user"), dict):
+                    usr = data["user"]
+                    user_obj = {
+                        "username": str(usr.get("username", u)).strip().lower(),
+                        "password_hash": str(usr.get("password_hash", "")).strip(),
+                        "sheet_url": str(usr.get("sheet_url", "")).strip(),
+                        "csv_url": str(usr.get("csv_url", "")).strip(),
+                    }
+                    _local_upsert_user(
+                        user_obj["username"],
+                        user_obj["password_hash"],
+                        user_obj["sheet_url"],
+                        user_obj["csv_url"]
+                    )
+                    return user_obj
+                elif data.get("found") is False:
+                    return None
+        except Exception:
+            pass
+
+    return _local_get_user(u)
+
+def db_create_user(username: str, password: str, sheet_url: str = "", csv_url: str = ""):
+    u = username.strip().lower()
+    pwd_hash = hash_password(password)
+    s_url = sheet_url.strip()
+    c_url = csv_url.strip()
+
+    endpoint = get_auth_endpoint(s_url)
+    if endpoint:
+        resp = requests.post(
+            endpoint,
+            json={
+                "action": "create_user",
+                "username": u,
+                "password_hash": pwd_hash,
+                "sheet_url": s_url,
+                "csv_url": c_url
+            },
+            timeout=12
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(f"Google Sheet error ({resp.status_code}): {resp.text}")
+
+    _local_upsert_user(u, pwd_hash, s_url, c_url)
+
+def db_update_password(username: str, new_password: str, endpoint_url: str = ""):
+    u = username.strip().lower()
+    pwd_hash = hash_password(new_password)
+    existing = db_get_user(u, endpoint_url)
+
+    endpoint = get_auth_endpoint(endpoint_url or (existing.get("sheet_url", "") if existing else ""))
+    if endpoint:
+        resp = requests.post(
+            endpoint,
+            json={
+                "action": "update_password",
+                "username": u,
+                "password_hash": pwd_hash
+            },
+            timeout=12
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(f"Google Sheet password update failed ({resp.status_code}): {resp.text}")
+
+    if existing:
+        _local_upsert_user(u, pwd_hash, existing.get("sheet_url", ""), existing.get("csv_url", ""))
+    else:
+        _local_upsert_user(u, pwd_hash, "", "")
 
 def db_update_links(username: str, sheet_url: str, csv_url: str):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("UPDATE users SET sheet_url = ?, csv_url = ? WHERE username = ?", (sheet_url.strip(), csv_url.strip(), username.strip().lower()))
-    conn.commit()
-    conn.close()
+    u = username.strip().lower()
+    s_url = sheet_url.strip()
+    c_url = csv_url.strip()
+    existing = _local_get_user(u) or {}
+    pwd_hash = existing.get("password_hash", "")
+
+    endpoint = get_auth_endpoint(s_url)
+    if endpoint:
+        try:
+            requests.post(
+                endpoint,
+                json={
+                    "action": "update_links",
+                    "username": u,
+                    "sheet_url": s_url,
+                    "csv_url": c_url
+                },
+                timeout=12
+            )
+        except Exception:
+            pass
+
+    if pwd_hash:
+        _local_upsert_user(u, pwd_hash, s_url, c_url)
 
 # ============================================
 # 📧 EMAIL OTP HELPER (BREVO -> RESEND -> SMTP)
@@ -268,6 +382,8 @@ if "pending_entry" not in st.session_state: st.session_state.pending_entry = Non
 if "entry_saved_flag" not in st.session_state: st.session_state.entry_saved_flag = False
 if "user_sheet_url" not in st.session_state: st.session_state.user_sheet_url = ""
 if "user_sheet_csv_url" not in st.session_state: st.session_state.user_sheet_csv_url = ""
+if "selected_cal_date" not in st.session_state: st.session_state.selected_cal_date = None
+if "confirm_box_seq" not in st.session_state: st.session_state.confirm_box_seq = 0
 
 # OTP states (Sign Up)
 if "signup_otp" not in st.session_state: st.session_state.signup_otp = None
@@ -385,14 +501,18 @@ def create_pdf(df):
 def add_new_entry(item, amount, category="Others", type="Debit", entry_date=None):
     try:
         target_url = get_active_web_app_url()
-        if not entry_date:
-            entry_date = datetime.now(GST).strftime("%Y-%m-%d %H:%M:%S")
+        safe_date = datetime.now(GST).strftime("%Y-%m-%d %H:%M:%S")
+        if entry_date and str(entry_date).strip():
+            parsed_d = pd.to_datetime(str(entry_date).strip(), errors='coerce')
+            if not pd.isna(parsed_d):
+                safe_date = parsed_d.strftime("%Y-%m-%d %H:%M:%S")
+
         payload = {
             "item": item,
-            "amount": amount,
-            "category": category,
-            "type": type,
-            "date": entry_date
+            "amount": float(amount),
+            "category": category or "Others",
+            "type": type if type in ["Debit", "Credit"] else "Debit",
+            "date": safe_date
         }
         if target_url:
             requests.post(target_url, json=payload, timeout=10)
@@ -406,18 +526,18 @@ def add_multiple_entries(entries_list):
     results = []
     try:
         target_url = get_active_web_app_url()
+        now_str = datetime.now(GST).strftime('%Y-%m-%d %H:%M:%S')
         for entry in entries_list:
             item = entry.get('item', 'Unknown')
             amount = entry.get('amount', 0)
             category = entry.get('category', 'Others')
             entry_type = entry.get('type', 'Debit')
-            entry_date = entry.get('date', datetime.now(GST).strftime('%Y-%m-%d %H:%M:%S'))
             payload = {
                 "item": item,
-                "amount": amount,
+                "amount": float(amount),
                 "category": category,
-                "type": entry_type,
-                "date": entry_date
+                "type": entry_type if entry_type in ["Debit", "Credit"] else "Debit",
+                "date": now_str
             }
             if target_url:
                 requests.post(target_url, json=payload, timeout=10)
@@ -439,7 +559,7 @@ def add_debt_via_ai(name, type, amount, date=None):
             "action": "add_debt",
             "name": name,
             "type": type,
-            "amount": amount,
+            "amount": float(amount),
             "date": date
         }
         if target_url:
@@ -490,7 +610,7 @@ tools = [
         "type": "function",
         "function": {
             "name": "add_new_entry",
-            "description": "Add a single expense or income",
+            "description": "Add a single expense or income immediately using current GST date/time without asking the user for date or time.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -498,7 +618,7 @@ tools = [
                     "amount": {"type": "number"},
                     "category": {"type": "string", "description": "Food, Shop, Fish, Travel, Rent, Others"},
                     "type": {"type": "string", "enum": ["Debit", "Credit"]},
-                    "date": {"type": "string", "description": "YYYY-MM-DD HH:MM:SS"}
+                    "date": {"type": "string", "description": "Optional YYYY-MM-DD HH:MM:SS; defaults to current GST time"}
                 },
                 "required": ["item", "amount"]
             }
@@ -508,7 +628,7 @@ tools = [
         "type": "function",
         "function": {
             "name": "add_multiple_entries",
-            "description": "Add multiple expenses",
+            "description": "Add multiple expenses or incomes",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -580,24 +700,23 @@ if not st.session_state.auth:
         with mode_tab1:
             l_user = st.text_input("📧 Email / Username", key="login_user", placeholder="Enter your email or username").strip().lower()
             l_pass = st.text_input("🔑 Password", type="password", key="login_pass", placeholder="Enter your password")
-            existing_prof = db_get_user(l_user) if l_user else None
 
             with st.expander("📄 My Google Sheet Links (Optional)"):
                 l_web = st.text_input(
                     "Sheet Web App URL",
-                    value=(existing_prof.get("sheet_url", "") if existing_prof else ""),
+                    value="",
                     key="login_web_url",
                     placeholder="https://script.google.com/macros/s/.../exec"
                 )
                 l_csv = st.text_input(
                     "Sheet CSV URL",
-                    value=(existing_prof.get("csv_url", "") if existing_prof else ""),
+                    value="",
                     key="login_csv_url",
                     placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv"
                 )
 
             if st.button("SIGN IN 🔓", key="btn_login"):
-                user_rec = db_get_user(l_user)
+                user_rec = db_get_user(l_user, l_web)
                 if not l_user:
                     st.error("❌ ദയവായി നിങ്ങളുടെ ഇമെയിൽ / യൂസർനെയിം നൽകുക!")
                 elif not l_pass:
@@ -607,7 +726,8 @@ if not st.session_state.auth:
                 elif user_rec["password_hash"] == hash_password(l_pass):
                     final_web = l_web.strip() if l_web.strip() else user_rec.get("sheet_url", "")
                     final_csv = l_csv.strip() if l_csv.strip() else user_rec.get("csv_url", "")
-                    db_update_links(l_user, final_web, final_csv)
+                    if l_web.strip() or l_csv.strip():
+                        db_update_links(l_user, final_web, final_csv)
                     refresh_user_sheet_cache()
                     set_persistent_login(l_user)
                     st.rerun()
@@ -620,7 +740,7 @@ if not st.session_state.auth:
                 if st.button("📩 Send Reset OTP", key="btn_send_reset_otp"):
                     if not r_user:
                         st.error("❌ ദയവായി രജിസ്റ്റർ ചെയ്ത ഇമെയിൽ നൽകുക!")
-                    elif not db_get_user(r_user):
+                    elif not db_get_user(r_user, l_web):
                         st.error("❌ ഈ ഇമെയിലിൽ അക്കൗണ്ട് നിലവിലില്ല!")
                     else:
                         code = f"{random.randint(100000, 999999)}"
@@ -655,20 +775,37 @@ if not st.session_state.auth:
                         elif r_new_pass != r_confirm_pass:
                             st.error("❌ രണ്ട് പാസ്‌വേഡുകളും ഒരുപോലെയല്ല!")
                         else:
-                            db_update_password(r_user, r_new_pass)
-                            st.session_state.reset_otp = None
-                            st.session_state.reset_otp_email = ""
-                            st.session_state.reset_otp_verified = False
-                            st.success("✅ പാസ്‌വേഡ് വിജയകരമായി മാറ്റി! ഇനി Sign In ചെയ്യാം.")
+                            try:
+                                db_update_password(r_user, r_new_pass, l_web)
+                                st.session_state.reset_otp = None
+                                st.session_state.reset_otp_email = ""
+                                st.session_state.reset_otp_verified = False
+                                st.success("✅ പാസ്‌വേഡ് Google Sheet-ൽ വിജയകരമായി മാറ്റി! ഇനി Sign In ചെയ്യാം.")
+                            except Exception as e:
+                                st.error(f"❌ പാസ്‌വേഡ് അപ്ഡേറ്റ് ചെയ്യാൻ കഴിഞ്ഞില്ല: {e}")
 
         # --- TAB 2: SIGN UP (WITH EMAIL OTP VERIFICATION) ---
         with mode_tab2:
             s_user = st.text_input("📧 Gmail / Email", key="signup_user", placeholder="example@gmail.com").strip().lower()
 
+            with st.expander("📄 My Google Sheet Links (Optional)"):
+                s_web = st.text_input(
+                    "Sheet Web App URL",
+                    value="",
+                    key="signup_web_url",
+                    placeholder="https://script.google.com/macros/s/.../exec"
+                )
+                s_csv = st.text_input(
+                    "Sheet CSV URL",
+                    value="",
+                    key="signup_csv_url",
+                    placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv"
+                )
+
             if st.button("📩 Send Sign Up OTP", key="btn_send_signup_otp"):
                 if not s_user or "@" not in s_user:
                     st.error("❌ ദയവായി സാധുവായ ഒരു ഇമെയിൽ വിലാസം നൽകുക!")
-                elif db_get_user(s_user):
+                elif db_get_user(s_user, s_web):
                     st.error("❌ ഈ ഇമെയിലിൽ അക്കൗണ്ട് നിലവിലുണ്ട്! Sign In ടാബ് ഉപയോഗിക്കുക.")
                 else:
                     code = f"{random.randint(100000, 999999)}"
@@ -697,35 +834,24 @@ if not st.session_state.auth:
                 s_pass = st.text_input("🔑 Create Password", type="password", key="signup_pass", placeholder="Create your password")
                 s_confirm = st.text_input("🔒 Confirm Password", type="password", key="signup_confirm", placeholder="Re-enter your password")
 
-                with st.expander("📄 My Google Sheet Links (Optional)"):
-                    s_web = st.text_input(
-                        "Sheet Web App URL",
-                        value="",
-                        key="signup_web_url",
-                        placeholder="https://script.google.com/macros/s/.../exec"
-                    )
-                    s_csv = st.text_input(
-                        "Sheet CSV URL",
-                        value="",
-                        key="signup_csv_url",
-                        placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv"
-                    )
-
                 if st.button("CREATE ACCOUNT ✨", key="btn_signup"):
-                    if db_get_user(s_user):
+                    if db_get_user(s_user, s_web):
                         st.error("❌ ഈ ഇമെയിലിൽ അക്കൗണ്ട് നിലവിലുണ്ട്!")
                     elif not s_pass:
                         st.error("❌ ദയവായി പാസ്‌വേഡ് നൽകുക!")
                     elif s_pass != s_confirm:
                         st.error("❌ രണ്ട് പാസ്‌വേഡുകളും ഒരുപോലെയല്ല!")
                     else:
-                        db_create_user(s_user, s_pass, s_web, s_csv)
-                        st.session_state.signup_otp = None
-                        st.session_state.signup_otp_email = ""
-                        st.session_state.signup_otp_verified = False
-                        refresh_user_sheet_cache()
-                        set_persistent_login(s_user)
-                        st.rerun()
+                        try:
+                            db_create_user(s_user, s_pass, s_web, s_csv)
+                            st.session_state.signup_otp = None
+                            st.session_state.signup_otp_email = ""
+                            st.session_state.signup_otp_verified = False
+                            refresh_user_sheet_cache()
+                            set_persistent_login(s_user)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ അക്കൗണ്ട് Google Sheet-ൽ സേവ് ചെയ്യാൻ കഴിഞ്ഞില്ല: {e}")
 
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -856,38 +982,87 @@ else:
     elif page == "📅 Calendar":
         st.title("P&L Calendar View 📅")
 
-        st.markdown("""
-            <style>
-            .fc {
-                background-color: #ffffff !important;
-                color: #111111 !important;
-                padding: 12px;
-                border-radius: 14px;
+        custom_calendar_css = """
+            .fc, .fc-view-harness, .fc-scrollgrid, .fc-scrollgrid-section, .fc-scrollgrid-section > td, .fc-scrollgrid-section > th {
+                background: #4c1d95 !important;
+                color: #fdf4ff !important;
+                border-color: rgba(245, 208, 254, 0.28) !important;
             }
-            .fc a, .fc-col-header-cell-cushion, .fc-daygrid-day-number {
-                color: #111111 !important;
+            .fc-theme-standard td, .fc-theme-standard th, .fc-scrollgrid {
+                border-color: rgba(245, 208, 254, 0.28) !important;
+            }
+            .fc-col-header-cell {
+                background: #6b21a8 !important;
+            }
+            .fc-col-header-cell-cushion, .fc-daygrid-day-number, .fc a {
+                color: #fae8ff !important;
                 text-decoration: none !important;
-                font-weight: 600 !important;
+                font-weight: 700 !important;
+            }
+            .fc-daygrid-day {
+                background: #581c87 !important;
+                cursor: pointer !important;
+            }
+            .fc-daygrid-day-frame {
+                background: #581c87 !important;
+            }
+            .fc-daygrid-day:hover, .fc-daygrid-day:hover .fc-daygrid-day-frame {
+                background: #7e22ce !important;
+            }
+            .fc-day-today, .fc-day-today .fc-daygrid-day-frame {
+                background: #86198f !important;
             }
             .fc-toolbar-title {
-                color: #111111 !important;
-                font-weight: 700 !important;
+                color: #fef08a !important;
+                font-weight: 800 !important;
             }
             .fc-button-primary {
-                background-color: #e55353 !important;
-                border-color: #e55353 !important;
+                background: #a855f7 !important;
+                border-color: #e9d5ff !important;
                 color: #ffffff !important;
                 font-weight: 700 !important;
+                border-radius: 8px !important;
             }
             .fc-event {
                 border: none !important;
-                border-radius: 3px !important;
+                border-radius: 7px !important;
                 font-size: 11px !important;
-                font-weight: 700 !important;
-                padding: 1px 3px !important;
+                font-weight: 800 !important;
+                padding: 2px 5px !important;
                 margin-top: 2px !important;
+                cursor: pointer !important;
             }
+        """
+
+        st.markdown(f"""
+            <style>
+            iframe[title="streamlit_calendar.calendar"] {{
+                background: #4c1d95 !important;
+                border-radius: 20px !important;
+                border: 2px solid #c084fc !important;
+                box-shadow: 0 12px 30px rgba(88, 28, 135, 0.55) !important;
+            }}
             </style>
+            <script>
+            (function() {{
+                function applyPurpleStyle() {{
+                    const frames = window.parent.document.querySelectorAll('iframe[title="streamlit_calendar.calendar"]');
+                    frames.forEach((frame) => {{
+                        try {{
+                            const doc = frame.contentDocument || frame.contentWindow.document;
+                            if (doc && doc.head && !doc.getElementById('paichi-purple-cal-style')) {{
+                                const style = doc.createElement('style');
+                                style.id = 'paichi-purple-cal-style';
+                                style.textContent = `{custom_calendar_css}`;
+                                doc.head.appendChild(style);
+                            }}
+                        }} catch (e) {{}}
+                    }});
+                }}
+                applyPurpleStyle();
+                setInterval(applyPurpleStyle, 300);
+            }})();
+            </script>
         """, unsafe_allow_html=True)
 
         if df.empty:
@@ -903,20 +1078,20 @@ else:
 
             events = []
             for _, row in summary.iterrows():
-                if row['Debit'] > 0:
-                    events.append({
-                        "title": f"-{sym}{row['Debit']:,.0f}",
-                        "start": row['DayKey'],
-                        "backgroundColor": "#d9383a",
-                        "borderColor": "#d9383a",
-                        "textColor": "#ffffff"
-                    })
                 if row['Credit'] > 0:
                     events.append({
                         "title": f"+{sym}{row['Credit']:,.0f}",
                         "start": row['DayKey'],
-                        "backgroundColor": "#2e8b57",
-                        "borderColor": "#2e8b57",
+                        "backgroundColor": "#16a34a",
+                        "borderColor": "#4ade80",
+                        "textColor": "#ffffff"
+                    })
+                if row['Debit'] > 0:
+                    events.append({
+                        "title": f"-{sym}{row['Debit']:,.0f}",
+                        "start": row['DayKey'],
+                        "backgroundColor": "#dc2626",
+                        "borderColor": "#f87171",
                         "textColor": "#ffffff"
                     })
 
@@ -928,24 +1103,29 @@ else:
                 },
                 "initialView": "dayGridMonth",
                 "height": "auto",
-                "dayMaxEvents": True
+                "dayMaxEvents": False
             }
 
             cal_data = calendar(
                 events=events,
                 options=calendar_options,
+                custom_css=custom_calendar_css,
                 key="pnl_calendar_view"
             )
 
-            selected_date = None
             if cal_data:
                 if cal_data.get("callback") == "eventClick":
                     ev = cal_data.get("eventClick", {}).get("event", {})
-                    selected_date = ev.get("start", "").split("T")[0]
+                    clicked_dt = ev.get("start", "").split("T")[0]
+                    if clicked_dt:
+                        st.session_state.selected_cal_date = clicked_dt
                 elif cal_data.get("callback") == "dateClick":
                     dt_obj = cal_data.get("dateClick", {}).get("date", "")
-                    selected_date = dt_obj.split("T")[0]
+                    clicked_dt = dt_obj.split("T")[0]
+                    if clicked_dt:
+                        st.session_state.selected_cal_date = clicked_dt
 
+            selected_date = st.session_state.get("selected_cal_date")
             if selected_date:
                 st.markdown("---")
                 try:
@@ -953,8 +1133,16 @@ else:
                 except Exception:
                     pretty_dt = selected_date
 
-                st.subheader(f"📋 Details for {pretty_dt}")
                 day_df = df_cal[df_cal['DayKey'] == selected_date].copy()
+                day_crd = day_df['Credit'].sum() if not day_df.empty else 0.0
+                day_deb = day_df['Debit'].sum() if not day_df.empty else 0.0
+
+                st.subheader(f"📋 Details for {pretty_dt}")
+                m1, m2, m3 = st.columns(3)
+                m1.markdown(f'<div class="category-box" style="border-bottom-color:#22c55e;"><span style="color:#4ade80;">Total Credit</span><br><span style="font-size:22px; color:#4ade80;">+{sym}{day_crd:,.2f}</span></div>', unsafe_allow_html=True)
+                m2.markdown(f'<div class="category-box" style="border-bottom-color:#ef4444;"><span style="color:#f87171;">Total Debit</span><br><span style="font-size:22px; color:#f87171;">-{sym}{day_deb:,.2f}</span></div>', unsafe_allow_html=True)
+                m3.markdown(f'<div class="category-box" style="border-bottom-color:#e879f9;"><span style="color:#f0abfc;">Net Day</span><br><span style="font-size:22px; color:#f0abfc;">{sym}{day_crd - day_deb:,.2f}</span></div>', unsafe_allow_html=True)
+
                 if not day_df.empty:
                     day_df['Date'] = day_df['Date'].dt.strftime('%d/%m/%Y')
                     st.dataframe(day_df[['Date', 'Item', 'Debit', 'Credit']], use_container_width=True)
@@ -1112,34 +1300,11 @@ else:
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-    # --- AI CHAT (AI Agent with Query + Entry + Debt + Confirmation) ---
+    # --- AI CHAT (AI Agent with Query + Entry + Debt + Bottom Confirmation) ---
     elif page == "🤖 AI Chat":
         st.title("🤖 AI Agent & Assistant")
 
         if "messages" not in st.session_state: st.session_state.messages = []
-
-        if st.session_state.pending_entry:
-            st.warning(f"⏳ നിങ്ങൾ പറഞ്ഞത്: **{st.session_state.pending_entry['item']} - {sym}{st.session_state.pending_entry['amount']}**. ഇത് എൻട്രി ചെയ്യണോ?")
-            col1, col2 = st.columns(2)
-            if col1.button("✅ Yes, Save it", key="save_entry_btn"):
-                entry_data = st.session_state.pending_entry
-                st.session_state.pending_entry = None
-
-                result = add_new_entry(
-                    item=entry_data['item'], amount=entry_data['amount'],
-                    category=entry_data['category'], type=entry_data['type'], entry_date=entry_data['date']
-                )
-                ai_msg = f"✅ {entry_data['item']}-ന് {sym}{entry_data['amount']} എൻട്രി ഇട്ടിട്ടുണ്ട്!" if "Success" in result else f"❌ {result}"
-                st.session_state.messages.append({"role": "assistant", "content": ai_msg})
-                st.rerun()
-
-            if col2.button("❌ No, Cancel", key="cancel_entry_btn"):
-                st.session_state.pending_entry = None
-                st.session_state.messages.append({"role": "assistant", "content": "ശരി, ഞാൻ എൻട്രി ഇട്ടിട്ടില്ല."})
-                st.rerun()
-
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]): st.markdown(message["content"])
 
         voice_key_name = f"ai_voice_{st.session_state.ai_voice_counter}"
         v_raw = speech_to_text(language='ml', key=voice_key_name)
@@ -1183,20 +1348,26 @@ else:
 
             else:
                 st.session_state.messages.append({"role": "user", "content": final_prompt})
-                with st.chat_message("user"): st.markdown(final_prompt)
 
                 with st.spinner("AI ആലോചിക്കുന്നു..."):
                     try:
                         client = Groq(api_key=GROQ_API_KEY)
                         gst_now = datetime.now(GST).strftime("%Y-%m-%d %H:%M:%S")
                         system_instruction = (
-                            f"നീ ഒരു ഫിനാൻസ് AI ഏജന്റാണ്. സമയം: {gst_now} (GST). "
+                            f"നീ ഒരു ഫിനാൻസ് AI ഏജന്റാണ്. ഇപ്പോഴത്തെ സമയം: {gst_now} (GST). "
                             f"ബാലൻസ്: {bal} ({st.session_state.currency}). "
+                            "ഒരു പുതിയ ചെലവോ വരവോ പറയുമ്പോൾ (ഉദാ: 'ചായ 3', 'കഫെ 15', 'കട 20') ഒരിക്കലും ഡേറ്റോ സമയമോ യൂസറോട് ചോദിക്കരുത്; "
+                            "ഇപ്പോഴത്തെ GST സമയവും യൂസർ പറഞ്ഞ ഐറ്റവും തുകയും ഉപയോഗിച്ച് 'add_new_entry' ടൂൾ വിളിക്കുക. "
                             "ചെലവുകളോ ബാലൻസോ ചോദിച്ചാൽ 'query_finance_summary' ടൂൾ ഉപയോഗിക്കുക. "
                             "പണം കൊടുത്തതോ വാങ്ങിയതോ ആണെങ്കിൽ 'add_debt_entry' ടൂൾ ഉപയോഗിക്കുക."
                         )
 
-                        messages_for_api = [{"role": "system", "content": system_instruction}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-4:]]
+                        # ഏറ്റവും പുതിയ യൂസർ ഇൻപുട്ടും സമീപകാല ചാറ്റും മാത്രമെടുത്ത് പഴയ എൻട്രികൾ ആവർത്തിക്കുന്നത് ഒഴിവാക്കുന്നു
+                        recent_msgs = [
+                            {"role": m["role"], "content": m["content"]}
+                            for m in st.session_state.messages[-3:]
+                        ]
+                        messages_for_api = [{"role": "system", "content": system_instruction}] + recent_msgs
 
                         response = client.chat.completions.create(
                             model="openai/gpt-oss-120b", messages=messages_for_api, tools=tools, tool_choice="auto", max_tokens=1024
@@ -1209,11 +1380,14 @@ else:
                                 if tool_call.function.name == 'add_new_entry':
                                     args = json.loads(tool_call.function.arguments)
                                     st.session_state.pending_entry = {
-                                        "item": args.get("item"), "amount": args.get("amount"),
-                                        "category": args.get("category", "Others"), "type": args.get("type", "Debit"),
-                                        "date": args.get("date") or datetime.now(GST).strftime("%Y-%m-%d %H:%M:%S")
+                                        "item": args.get("item") or final_prompt,
+                                        "amount": args.get("amount"),
+                                        "category": args.get("category", "Others"),
+                                        "type": args.get("type", "Debit"),
+                                        "date": datetime.now(GST).strftime("%Y-%m-%d %H:%M:%S")
                                     }
-                                    ai_msg = f"ഞാൻ ഇത് എൻട്രി ചെയ്യാൻ പോകുന്നു: {st.session_state.pending_entry['item']} - {sym}{st.session_state.pending_entry['amount']}. ശരിയാണോ? (Type 'yes' or 'no')"
+                                    st.session_state.confirm_box_seq += 1
+                                    ai_msg = f"ഞാൻ ഇത് എൻട്രി ചെയ്യാൻ പോകുന്നു: **{st.session_state.pending_entry['item']} - {sym}{st.session_state.pending_entry['amount']}**. ശരിയാണോ?"
                                     st.session_state.messages.append({"role": "assistant", "content": ai_msg})
                                     st.rerun()
 
@@ -1262,3 +1436,28 @@ else:
 
                     except Exception as e:
                         st.error(f"AI Error: {str(e)}")
+
+        # എല്ലാ ചാറ്റ് മെസ്സേജുകൾക്കും താഴെ ഏറ്റവും അവസാനമായി Yes / No ബോക്സ് കാണിക്കുന്നു
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]): st.markdown(message["content"])
+
+        if st.session_state.pending_entry:
+            seq = st.session_state.confirm_box_seq
+            st.warning(f"⏳ നിങ്ങൾ പറഞ്ഞത്: **{st.session_state.pending_entry['item']} - {sym}{st.session_state.pending_entry['amount']}**. ഇത് എൻട്രി ചെയ്യണോ?")
+            col1, col2 = st.columns(2)
+            if col1.button("✅ Yes, Save it", key=f"save_entry_btn_{seq}"):
+                entry_data = st.session_state.pending_entry
+                st.session_state.pending_entry = None
+
+                result = add_new_entry(
+                    item=entry_data['item'], amount=entry_data['amount'],
+                    category=entry_data['category'], type=entry_data['type'], entry_date=entry_data['date']
+                )
+                ai_msg = f"✅ {entry_data['item']}-ന് {sym}{entry_data['amount']} എൻട്രി ഇട്ടിട്ടുണ്ട്!" if "Success" in result else f"❌ {result}"
+                st.session_state.messages.append({"role": "assistant", "content": ai_msg})
+                st.rerun()
+
+            if col2.button("❌ No, Cancel", key=f"cancel_entry_btn_{seq}"):
+                st.session_state.pending_entry = None
+                st.session_state.messages.append({"role": "assistant", "content": "ശരി, ഞാൻ എൻട്രി ഇട്ടിട്ടില്ല."})
+                st.rerun()
