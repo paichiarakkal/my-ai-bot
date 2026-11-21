@@ -268,7 +268,6 @@ if "pending_entry" not in st.session_state: st.session_state.pending_entry = Non
 if "entry_saved_flag" not in st.session_state: st.session_state.entry_saved_flag = False
 if "user_sheet_url" not in st.session_state: st.session_state.user_sheet_url = ""
 if "user_sheet_csv_url" not in st.session_state: st.session_state.user_sheet_csv_url = ""
-if "selected_cal_date" not in st.session_state: st.session_state.selected_cal_date = None
 
 # OTP states (Sign Up)
 if "signup_otp" not in st.session_state: st.session_state.signup_otp = None
@@ -857,88 +856,38 @@ else:
     elif page == "📅 Calendar":
         st.title("P&L Calendar View 📅")
 
-        # FullCalendar iframe-നുള്ളിൽ പ്രവർത്തിക്കുന്ന കസ്റ്റം CSS inject ചെയ്യുന്നു
-        custom_calendar_css = """
-            .fc, .fc-view-harness, .fc-scrollgrid, .fc-scrollgrid-section, .fc-scrollgrid-section > td, .fc-scrollgrid-section > th {
-                background: #4c1d95 !important;
-                color: #fdf4ff !important;
-                border-color: rgba(245, 208, 254, 0.28) !important;
+        st.markdown("""
+            <style>
+            .fc {
+                background-color: #ffffff !important;
+                color: #111111 !important;
+                padding: 12px;
+                border-radius: 14px;
             }
-            .fc-theme-standard td, .fc-theme-standard th, .fc-scrollgrid {
-                border-color: rgba(245, 208, 254, 0.28) !important;
-            }
-            .fc-col-header-cell {
-                background: #6b21a8 !important;
-            }
-            .fc-col-header-cell-cushion, .fc-daygrid-day-number, .fc a {
-                color: #fae8ff !important;
+            .fc a, .fc-col-header-cell-cushion, .fc-daygrid-day-number {
+                color: #111111 !important;
                 text-decoration: none !important;
-                font-weight: 700 !important;
-            }
-            .fc-daygrid-day {
-                background: #581c87 !important;
-                cursor: pointer !important;
-            }
-            .fc-daygrid-day-frame {
-                background: #581c87 !important;
-            }
-            .fc-daygrid-day:hover, .fc-daygrid-day:hover .fc-daygrid-day-frame {
-                background: #7e22ce !important;
-            }
-            .fc-day-today, .fc-day-today .fc-daygrid-day-frame {
-                background: #86198f !important;
+                font-weight: 600 !important;
             }
             .fc-toolbar-title {
-                color: #fef08a !important;
-                font-weight: 800 !important;
+                color: #111111 !important;
+                font-weight: 700 !important;
             }
             .fc-button-primary {
-                background: #a855f7 !important;
-                border-color: #e9d5ff !important;
+                background-color: #e55353 !important;
+                border-color: #e55353 !important;
                 color: #ffffff !important;
                 font-weight: 700 !important;
-                border-radius: 8px !important;
             }
             .fc-event {
                 border: none !important;
-                border-radius: 7px !important;
+                border-radius: 3px !important;
                 font-size: 11px !important;
-                font-weight: 800 !important;
-                padding: 2px 5px !important;
+                font-weight: 700 !important;
+                padding: 1px 3px !important;
                 margin-top: 2px !important;
-                cursor: pointer !important;
             }
-        """
-
-        st.markdown(f"""
-            <style>
-            iframe[title="streamlit_calendar.calendar"] {{
-                background: #4c1d95 !important;
-                border-radius: 20px !important;
-                border: 2px solid #c084fc !important;
-                box-shadow: 0 12px 30px rgba(88, 28, 135, 0.55) !important;
-            }}
             </style>
-            <script>
-            (function() {{
-                function applyPurpleStyle() {{
-                    const frames = window.parent.document.querySelectorAll('iframe[title="streamlit_calendar.calendar"]');
-                    frames.forEach((frame) => {{
-                        try {{
-                            const doc = frame.contentDocument || frame.contentWindow.document;
-                            if (doc && doc.head && !doc.getElementById('paichi-purple-cal-style')) {{
-                                const style = doc.createElement('style');
-                                style.id = 'paichi-purple-cal-style';
-                                style.textContent = `{custom_calendar_css}`;
-                                doc.head.appendChild(style);
-                            }}
-                        }} catch (e) {{}}
-                    }});
-                }}
-                applyPurpleStyle();
-                setInterval(applyPurpleStyle, 300);
-            }})();
-            </script>
         """, unsafe_allow_html=True)
 
         if df.empty:
@@ -954,20 +903,20 @@ else:
 
             events = []
             for _, row in summary.iterrows():
-                if row['Credit'] > 0:
-                    events.append({
-                        "title": f"+{sym}{row['Credit']:,.0f}",
-                        "start": row['DayKey'],
-                        "backgroundColor": "#16a34a",
-                        "borderColor": "#4ade80",
-                        "textColor": "#ffffff"
-                    })
                 if row['Debit'] > 0:
                     events.append({
                         "title": f"-{sym}{row['Debit']:,.0f}",
                         "start": row['DayKey'],
-                        "backgroundColor": "#dc2626",
-                        "borderColor": "#f87171",
+                        "backgroundColor": "#d9383a",
+                        "borderColor": "#d9383a",
+                        "textColor": "#ffffff"
+                    })
+                if row['Credit'] > 0:
+                    events.append({
+                        "title": f"+{sym}{row['Credit']:,.0f}",
+                        "start": row['DayKey'],
+                        "backgroundColor": "#2e8b57",
+                        "borderColor": "#2e8b57",
                         "textColor": "#ffffff"
                     })
 
@@ -979,29 +928,24 @@ else:
                 },
                 "initialView": "dayGridMonth",
                 "height": "auto",
-                "dayMaxEvents": False
+                "dayMaxEvents": True
             }
 
             cal_data = calendar(
                 events=events,
                 options=calendar_options,
-                custom_css=custom_calendar_css,
                 key="pnl_calendar_view"
             )
 
+            selected_date = None
             if cal_data:
                 if cal_data.get("callback") == "eventClick":
                     ev = cal_data.get("eventClick", {}).get("event", {})
-                    clicked_dt = ev.get("start", "").split("T")[0]
-                    if clicked_dt:
-                        st.session_state.selected_cal_date = clicked_dt
+                    selected_date = ev.get("start", "").split("T")[0]
                 elif cal_data.get("callback") == "dateClick":
                     dt_obj = cal_data.get("dateClick", {}).get("date", "")
-                    clicked_dt = dt_obj.split("T")[0]
-                    if clicked_dt:
-                        st.session_state.selected_cal_date = clicked_dt
+                    selected_date = dt_obj.split("T")[0]
 
-            selected_date = st.session_state.get("selected_cal_date")
             if selected_date:
                 st.markdown("---")
                 try:
@@ -1009,16 +953,8 @@ else:
                 except Exception:
                     pretty_dt = selected_date
 
-                day_df = df_cal[df_cal['DayKey'] == selected_date].copy()
-                day_crd = day_df['Credit'].sum() if not day_df.empty else 0.0
-                day_deb = day_df['Debit'].sum() if not day_df.empty else 0.0
-
                 st.subheader(f"📋 Details for {pretty_dt}")
-                m1, m2, m3 = st.columns(3)
-                m1.markdown(f'<div class="category-box" style="border-bottom-color:#22c55e;"><span style="color:#4ade80;">Total Credit</span><br><span style="font-size:22px; color:#4ade80;">+{sym}{day_crd:,.2f}</span></div>', unsafe_allow_html=True)
-                m2.markdown(f'<div class="category-box" style="border-bottom-color:#ef4444;"><span style="color:#f87171;">Total Debit</span><br><span style="font-size:22px; color:#f87171;">-{sym}{day_deb:,.2f}</span></div>', unsafe_allow_html=True)
-                m3.markdown(f'<div class="category-box" style="border-bottom-color:#e879f9;"><span style="color:#f0abfc;">Net Day</span><br><span style="font-size:22px; color:#f0abfc;">{sym}{day_crd - day_deb:,.2f}</span></div>', unsafe_allow_html=True)
-
+                day_df = df_cal[df_cal['DayKey'] == selected_date].copy()
                 if not day_df.empty:
                     day_df['Date'] = day_df['Date'].dt.strftime('%d/%m/%Y')
                     st.dataframe(day_df[['Date', 'Item', 'Debit', 'Credit']], use_container_width=True)
