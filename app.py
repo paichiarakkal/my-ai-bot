@@ -857,53 +857,47 @@ else:
     elif page == "📅 Calendar":
         st.title("P&L Calendar View 📅")
 
-        st.markdown("""
-            <style>
-            .fc, .fc-view-harness, .fc-scrollgrid, .fc-scrollgrid-section, .fc-scrollgrid-section > td {
-                background: linear-gradient(155deg, #3b1764 0%, #581c87 55%, #4a154b 100%) !important;
+        # FullCalendar iframe-നുള്ളിൽ പ്രവർത്തിക്കുന്ന കസ്റ്റം CSS inject ചെയ്യുന്നു
+        custom_calendar_css = """
+            .fc, .fc-view-harness, .fc-scrollgrid, .fc-scrollgrid-section, .fc-scrollgrid-section > td, .fc-scrollgrid-section > th {
+                background: #4c1d95 !important;
                 color: #fdf4ff !important;
-                border-color: rgba(245, 208, 254, 0.25) !important;
+                border-color: rgba(245, 208, 254, 0.28) !important;
             }
-            .fc {
-                padding: 16px !important;
-                border-radius: 20px !important;
-                border: 1.5px solid rgba(232, 121, 249, 0.5) !important;
-                box-shadow: 0 14px 34px rgba(88, 28, 135, 0.55) !important;
+            .fc-theme-standard td, .fc-theme-standard th, .fc-scrollgrid {
+                border-color: rgba(245, 208, 254, 0.28) !important;
             }
-            .fc a, .fc-col-header-cell-cushion, .fc-daygrid-day-number {
+            .fc-col-header-cell {
+                background: #6b21a8 !important;
+            }
+            .fc-col-header-cell-cushion, .fc-daygrid-day-number, .fc a {
                 color: #fae8ff !important;
                 text-decoration: none !important;
                 font-weight: 700 !important;
             }
-            .fc-col-header-cell {
-                background: rgba(192, 132, 252, 0.25) !important;
-                border-color: rgba(245, 208, 254, 0.22) !important;
-            }
             .fc-daygrid-day {
-                background: rgba(126, 34, 206, 0.22) !important;
-                border-color: rgba(245, 208, 254, 0.2) !important;
+                background: #581c87 !important;
                 cursor: pointer !important;
             }
             .fc-daygrid-day-frame {
-                background: transparent !important;
+                background: #581c87 !important;
             }
             .fc-daygrid-day:hover, .fc-daygrid-day:hover .fc-daygrid-day-frame {
-                background: rgba(217, 70, 239, 0.28) !important;
+                background: #7e22ce !important;
             }
             .fc-day-today, .fc-day-today .fc-daygrid-day-frame {
-                background: rgba(240, 171, 252, 0.26) !important;
+                background: #86198f !important;
             }
             .fc-toolbar-title {
                 color: #fef08a !important;
                 font-weight: 800 !important;
-                letter-spacing: 0.5px;
             }
             .fc-button-primary {
-                background: linear-gradient(135deg, #d946ef, #9333ea) !important;
-                border: 1px solid rgba(250, 232, 255, 0.35) !important;
+                background: #a855f7 !important;
+                border-color: #e9d5ff !important;
                 color: #ffffff !important;
                 font-weight: 700 !important;
-                border-radius: 9px !important;
+                border-radius: 8px !important;
             }
             .fc-event {
                 border: none !important;
@@ -914,7 +908,37 @@ else:
                 margin-top: 2px !important;
                 cursor: pointer !important;
             }
+        """
+
+        st.markdown(f"""
+            <style>
+            iframe[title="streamlit_calendar.calendar"] {{
+                background: #4c1d95 !important;
+                border-radius: 20px !important;
+                border: 2px solid #c084fc !important;
+                box-shadow: 0 12px 30px rgba(88, 28, 135, 0.55) !important;
+            }}
             </style>
+            <script>
+            (function() {{
+                function applyPurpleStyle() {{
+                    const frames = window.parent.document.querySelectorAll('iframe[title="streamlit_calendar.calendar"]');
+                    frames.forEach((frame) => {{
+                        try {{
+                            const doc = frame.contentDocument || frame.contentWindow.document;
+                            if (doc && doc.head && !doc.getElementById('paichi-purple-cal-style')) {{
+                                const style = doc.createElement('style');
+                                style.id = 'paichi-purple-cal-style';
+                                style.textContent = `{custom_calendar_css}`;
+                                doc.head.appendChild(style);
+                            }}
+                        }} catch (e) {{}}
+                    }});
+                }}
+                applyPurpleStyle();
+                setInterval(applyPurpleStyle, 300);
+            }})();
+            </script>
         """, unsafe_allow_html=True)
 
         if df.empty:
@@ -961,6 +985,7 @@ else:
             cal_data = calendar(
                 events=events,
                 options=calendar_options,
+                custom_css=custom_calendar_css,
                 key="pnl_calendar_view"
             )
 
