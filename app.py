@@ -25,6 +25,7 @@ st.set_page_config(page_title="PAICHI EXPENSES", layout="wide")
 
 # --- CONFIG & SETTINGS ---
 WA_PHONE = st.secrets.get("DEFAULT_WA_PHONE", "")
+BG_IMAGE_URL = "https://raw.githubusercontent.com/paichiarakkal/paichiarakkal/main/profile.jpg"
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
 SECRET_KEY = st.secrets.get("SESSION_SECRET_KEY", "paichi_expenses_secure_key_2026")
 SMTP_EMAIL = st.secrets.get("SMTP_EMAIL", "")
@@ -33,6 +34,8 @@ RESEND_API_KEY = st.secrets.get("RESEND_API_KEY", "")
 OTP_FROM_EMAIL = st.secrets.get("OTP_FROM_EMAIL", "onboarding@resend.dev")
 BREVO_API_KEY = st.secrets.get("BREVO_API_KEY", "")
 BREVO_SENDER_EMAIL = st.secrets.get("BREVO_SENDER_EMAIL", "")
+DEFAULT_WEB_APP_URL = st.secrets.get("SHEET_WEB_APP_URL", st.secrets.get("GOOGLE_SHEET_WEB_APP_URL", ""))
+DEFAULT_CSV_URL = st.secrets.get("SHEET_CSV_URL", st.secrets.get("GOOGLE_SHEET_CSV_URL", ""))
 DB_FILE = "paichi_users_v2.db"
 
 # --- TIMEZONE SETUP (GST - Dubai Time) ---
@@ -351,119 +354,37 @@ def clear_persistent_login():
         del st.query_params["session"]
 
 # ============================================
-# 🎨 NATIVE APP DESIGN (CLEAN & MODERN)
+# 🎨 3D GLASSMORPHISM CSS
 # ============================================
-st.markdown("""
+st.markdown(f"""
     <style>
-    /* --- APP BACKGROUND & COLORS --- */
-    [data-testid="stAppViewContainer"] { 
-        background-color: #0F172A !important; /* Modern Deep Navy Background */
-        background-image: none !important; 
-    }
-    [data-testid="stSidebar"] { 
-        background-color: #1E293B !important; 
-        border-right: 1px solid #334155 !important;
-    }
-    
-    /* --- TYPOGRAPHY --- */
-    h1, h2, h3, p, label, span { 
-        color: #F8FAFC !important; 
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
-    }
-
-    /* --- BUTTONS --- */
-    .stButton>button { 
-        background: #10B981 !important; /* Emerald Green */
-        color: #FFFFFF !important; 
-        border-radius: 12px !important; 
-        font-weight: 600 !important; 
-        width: 100%; 
-        border: none; 
-        padding: 10px 20px !important;
+    [data-testid="stAppViewContainer"] {{ 
+        background-image: linear-gradient(rgba(10, 10, 25, 0.85), rgba(10, 10, 25, 0.95)), url("{BG_IMAGE_URL}"); 
+        background-size: cover; background-attachment: fixed; background-position: center;
+    }}
+    [data-testid="stSidebar"] {{ 
+        background: rgba(20, 20, 35, 0.6) !important; backdrop-filter: blur(15px);
+        border-right: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 5px 0 15px rgba(0,0,0,0.5);
+    }}
+    .stButton>button {{ 
+        background: linear-gradient(135deg, #FFD700, #FFA500); color: #000; border-radius: 12px; 
+        font-weight: bold; width: 100%; border: none; padding: 10px;
+        box-shadow: 0 4px 15px rgba(255, 215, 0, 0.4), inset 0 -3px 0 rgba(0,0,0,0.2);
         transition: all 0.2s ease;
-    }
-    .stButton>button:hover { 
-        background: #059669 !important; 
-        transform: translateY(-2px); 
-    }
-
-    /* --- CARDS & BANNERS --- */
-    .balance-banner { 
-        background: linear-gradient(135deg, #1E293B, #0F172A) !important; 
-        padding: 30px; 
-        border-radius: 20px; 
-        border: 1px solid #334155 !important;
-        border-left: 8px solid #10B981 !important; 
-        text-align: center; 
-        margin-bottom: 25px; 
-        box-shadow: 0 10px 25px rgba(0,0,0,0.2); 
-    }
-    .glass-card { 
-        background: #1E293B !important; 
-        border: 1px solid #334155 !important;
-        border-radius: 16px; 
-        padding: 20px; 
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
-        margin-bottom: 20px; 
-        text-align: center; 
-    }
-    .category-box { 
-        background: #1E293B !important; 
-        padding: 20px; 
-        border-radius: 16px; 
-        text-align: center; 
-        border: 1px solid #334155 !important;
-        margin-bottom: 15px; 
-    }
-    .alert-banner { 
-        background: #7F1D1D !important; 
-        color: #FECACA !important; 
-        padding: 15px; 
-        border-radius: 12px; 
-        text-align: center; 
-        font-weight: bold; 
-        margin-bottom: 20px; 
-        border: 1px solid #B91C1C !important;
-    }
-    .login-card { 
-        background: #1E293B !important; 
-        padding: 40px; 
-        border-radius: 24px; 
-        max-width: 450px; 
-        margin: auto; 
-        margin-top: 60px; 
-        border: 1px solid #334155 !important;
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3); 
-    }
-
-    /* --- INPUTS --- */
-    input, textarea, select { 
-        color: #F8FAFC !important; 
-        background-color: #0F172A !important; 
-        border: 1px solid #334155 !important; 
-        border-radius: 10px !important; 
-        padding: 10px !important;
-    }
-    ::placeholder { color: #64748B !important; }
-    
-    /* --- CHAT --- */
-    [data-testid="stChatMessage"] { 
-        background: #1E293B !important; 
-        border-radius: 12px !important; 
-        padding: 15px !important; 
-        margin-bottom: 10px !important; 
-        border: 1px solid #334155 !important;
-    }
-    [data-testid="stChatInput"] { 
-        background-color: #1E293B !important; 
-        border-radius: 25px !important; 
-        border: 1px solid #334155 !important; 
-    }
-    
-    /* --- CALENDAR UI FIX --- */
-    .fc { background-color: #1E293B !important; color: #F8FAFC !important; }
-    .fc-toolbar-title { color: #F8FAFC !important; }
-    .fc-col-header-cell-cushion { color: #F8FAFC !important; }
+    }}
+    .stButton>button:hover {{ transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255, 215, 0, 0.6); }}
+    .glass-card {{ background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 25px; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); margin-bottom: 25px; text-align: center; }}
+    .balance-banner {{ background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02)); backdrop-filter: blur(10px); padding: 30px; border-radius: 20px; border-left: 8px solid #FFD700; text-align: center; margin-bottom: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }}
+    .category-box {{ background: rgba(0, 0, 0, 0.5); padding: 20px; border-radius: 15px; text-align: center; border-bottom: 4px solid #FFD700; margin-bottom: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }}
+    .category-box:hover {{ transform: scale(1.03); }}
+    .alert-banner {{ background: linear-gradient(90deg, #ff4d4d, #cc0000); color: white; padding: 15px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(255, 77, 77, 0.4); }}
+    .login-card {{ background: rgba(20, 20, 35, 0.8); backdrop-filter: blur(20px); padding: 40px; border-radius: 20px; max-width: 450px; margin: auto; margin-top: 80px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 15px 35px rgba(0,0,0,0.6); }}
+    h1, h2, h3, p, label {{ color: #FFFFFF !important; font-weight: bold !important; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }}
+    [data-testid="stChatMessage"] {{ background: rgba(32, 44, 51, 0.9) !important; border-radius: 15px !important; padding: 15px !important; margin-bottom: 10px !important; border: 1px solid rgba(255,255,255,0.05) !important; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }}
+    [data-testid="stChatInput"] {{ background-color: rgba(42, 57, 66, 0.92) !important; border-radius: 28px !important; border: 1px solid rgba(255,255,255,0.18) !important; padding: 4px 8px !important; }}
+    [data-testid="stChatInput"] textarea {{ color: white !important; }}
+    input, textarea, select {{ color: #FFFFFF !important; -webkit-text-fill-color: #FFFFFF !important; background-color: rgba(0, 0, 0, 0.5) !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; border-radius: 8px !important; }}
+    ::placeholder {{ color: #AAAAAA !important; }}
     </style>
 """, unsafe_allow_html=True)
 
@@ -512,10 +433,22 @@ def translate_to_english_label(text: str, default_label: str = "Expense") -> str
         return default_label
     low = raw.lower()
     mapping = {
-        "ചായ": "Tea", "കാപ്പി": "Coffee", "ഭക്ഷണം": "Food", "ചിക്കൻ": "Chicken",
-        "മീൻ": "Fish", "ബിരിയാണി": "Biryani", "കട": "Shop", "യാത്ര": "Travel",
-        "പെട്രോൾ": "Petrol", "വാടക": "Rent", "ജയ": "Jaya", "شاي": "Tea",
-        "قهوة": "Coffee", "طعام": "Food", "चाय": "Tea", "खाना": "Food"
+        "ചായ": "Tea",
+        "കാപ്പി": "Coffee",
+        "ഭക്ഷണം": "Food",
+        "ചിക്കൻ": "Chicken",
+        "മീൻ": "Fish",
+        "ബിരിയാണി": "Biryani",
+        "കട": "Shop",
+        "യാത്ര": "Travel",
+        "പെട്രോൾ": "Petrol",
+        "വാടക": "Rent",
+        "ജയ": "Jaya",
+        "شاي": "Tea",
+        "قهوة": "Coffee",
+        "طعام": "Food",
+        "चाय": "Tea",
+        "खाना": "Food"
     }
     for k, v in mapping.items():
         if k in low:
@@ -526,7 +459,7 @@ def translate_to_english_label(text: str, default_label: str = "Expense") -> str
             resp = client.chat.completions.create(
                 model="openai/gpt-oss-120b",
                 messages=[
-                    {"role": "system", "content": "Translate the given expense/item/name text into clean concise English (1 to 2 words). Return ONLY the English text."},
+                    {"role": "system", "content": "Translate the given expense/item/name text into clean concise English (1 to 2 words). Fix voice transcription mistakes. Return ONLY the English text."},
                     {"role": "user", "content": raw}
                 ],
                 max_tokens=30
@@ -639,8 +572,11 @@ def add_new_entry(item, amount, category="Others", type="Debit", entry_date=None
         eng_cat = translate_to_english_label(category, "Others")
         eng_date = format_english_datetime(entry_date)
         payload = {
-            "item": eng_item, "amount": amount, "category": eng_cat,
-            "type": type, "date": eng_date
+            "item": eng_item,
+            "amount": amount,
+            "category": eng_cat,
+            "type": type,
+            "date": eng_date
         }
         if target_url:
             requests.post(target_url, json=payload, timeout=10)
@@ -661,8 +597,11 @@ def add_multiple_entries(entries_list):
             entry_type = entry.get('type', 'Debit')
             entry_date = format_english_datetime(entry.get('date'))
             payload = {
-                "item": item, "amount": amount, "category": category,
-                "type": entry_type, "date": entry_date
+                "item": item,
+                "amount": amount,
+                "category": category,
+                "type": entry_type,
+                "date": entry_date
             }
             if target_url:
                 requests.post(target_url, json=payload, timeout=10)
@@ -682,8 +621,11 @@ def add_debt_via_ai(name, type, amount, date=None):
         eng_type = "Lent" if "Lent" in str(type) or "കൊടുത്ത" in str(type) else "Borrowed"
         eng_date_str = " ".join(format_english_datetime(date).split(" ")[0:3])
         payload = {
-            "action": "add_debt", "name": eng_name, "type": eng_type,
-            "amount": amount, "date": eng_date_str
+            "action": "add_debt",
+            "name": eng_name,
+            "type": eng_type,
+            "amount": amount,
+            "date": eng_date_str
         }
         if target_url:
             requests.post(target_url, json=payload, timeout=10)
@@ -758,7 +700,7 @@ tools = [
     }
 ]
 
-# --- 🔒 LOGIN, SIGN UP & FORGOT PASSWORD ---
+# --- 🔒 LOGIN, PERMANENT SINGLE-REGISTRATION SIGN UP & FORGOT PASSWORD (OTP) ---
 if not st.session_state.auth:
     _, mid, _ = st.columns([1, 2, 1])
     with mid:
@@ -938,9 +880,9 @@ else:
         if bal < st.session_state.low_limit:
             st.markdown(f'<div class="alert-banner">⚠️ Low Balance Alert: {st.session_state.custom_alert_text} (₹{bal:,.2f})!</div>', unsafe_allow_html=True)
 
-        st.markdown(f'<div class="balance-banner"><span style="font-size:22px; color:#94A3B8; letter-spacing: 2px;">AVAILABLE BALANCE</span><br><span style="font-size:50px; color:#10B981; font-family: monospace;">₹{bal:,.2f}</span></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="balance-banner"><span style="font-size:22px; color:#E0B0FF; letter-spacing: 2px;">AVAILABLE BALANCE</span><br><span style="font-size:50px; color:#FFD700; font-family: monospace;">₹{bal:,.2f}</span></div>', unsafe_allow_html=True)
         st.title("Financial Overview")
-        st.markdown(f'<div class="glass-card"><h2 style="color:#10B981;">Credit: ₹{t_in:,.2f}</h2><h2 style="color:#EF4444;">Debit: ₹{t_out:,.2f}</h2></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="glass-card"><h2 style="color:#00FF00;">Credit: ₹{t_in:,.2f}</h2><h2 style="color:#FF3131;">Debit: ₹{t_out:,.2f}</h2></div>', unsafe_allow_html=True)
 
         if not df.empty and 'Item' in df.columns:
             def extract_cat(x):
@@ -957,7 +899,7 @@ else:
             for idx, (c_name, c_amt) in enumerate(cats.items()):
                 if c_amt > 0:
                     with cols[idx % 3]:
-                        st.markdown(f'<div class="category-box"><span style="color:#94A3B8;">Total {c_name}</span><br><span style="font-size:24px; color:#F8FAFC;">₹{c_amt:,.2f}</span></div>', unsafe_allow_html=True)
+                        st.markdown(f'<div class="category-box"><span style="color:#aaa;">Total {c_name}</span><br><span style="font-size:24px; color:#FFF;">₹{c_amt:,.2f}</span></div>', unsafe_allow_html=True)
 
     # --- ADD ENTRY ---
     elif page == "💰 Add Entry":
@@ -991,8 +933,11 @@ else:
                         eng_dt = format_english_datetime()
                         target_url = get_active_web_app_url()
                         payload = {
-                            "item": eng_it, "amount": am, "category": cat,
-                            "type": ty, "date": eng_dt
+                            "item": eng_it,
+                            "amount": am,
+                            "category": cat,
+                            "type": ty,
+                            "date": eng_dt
                         }
                         if target_url:
                             requests.post(target_url, json=payload, timeout=10)
@@ -1010,28 +955,96 @@ else:
     # --- CALENDAR ---
     elif page == "📅 Calendar":
         st.title("P&L Calendar View 📅")
+
+        st.markdown("""
+            <style>
+            .fc {
+                background-color: #ffffff !important;
+                color: #111111 !important;
+                padding: 12px;
+                border-radius: 14px;
+            }
+            .fc a, .fc-col-header-cell-cushion, .fc-daygrid-day-number {
+                color: #111111 !important;
+                text-decoration: none !important;
+                font-weight: 600 !important;
+            }
+            .fc-toolbar-title {
+                color: #111111 !important;
+                font-weight: 700 !important;
+            }
+            .fc-button-primary {
+                background-color: #e55353 !important;
+                border-color: #e55353 !important;
+                color: #ffffff !important;
+                font-weight: 700 !important;
+            }
+            .fc-event {
+                border: none !important;
+                border-radius: 3px !important;
+                font-size: 11px !important;
+                font-weight: 700 !important;
+                padding: 1px 3px !important;
+                margin-top: 2px !important;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+
         if df.empty:
             st.info("No data available yet.")
         else:
             df_cal = df.dropna(subset=['Date']).copy()
             df_cal['DayKey'] = df_cal['Date'].dt.strftime('%Y-%m-%d')
-            summary = df_cal.groupby('DayKey', as_index=False).agg({'Debit': 'sum', 'Credit': 'sum'})
+
+            summary = (
+                df_cal.groupby('DayKey', as_index=False)
+                .agg({'Debit': 'sum', 'Credit': 'sum'})
+            )
+
             events = []
             for _, row in summary.iterrows():
                 if row['Debit'] > 0:
-                    events.append({"title": f"-₹{row['Debit']:,.0f}", "start": row['DayKey'], "backgroundColor": "#EF4444", "borderColor": "#EF4444", "textColor": "#ffffff"})
+                    events.append({
+                        "title": f"-₹{row['Debit']:,.0f}",
+                        "start": row['DayKey'],
+                        "backgroundColor": "#d9383a",
+                        "borderColor": "#d9383a",
+                        "textColor": "#ffffff"
+                    })
                 if row['Credit'] > 0:
-                    events.append({"title": f"+₹{row['Credit']:,.0f}", "start": row['DayKey'], "backgroundColor": "#10B981", "borderColor": "#10B981", "textColor": "#ffffff"})
+                    events.append({
+                        "title": f"+₹{row['Credit']:,.0f}",
+                        "start": row['DayKey'],
+                        "backgroundColor": "#2e8b57",
+                        "borderColor": "#2e8b57",
+                        "textColor": "#ffffff"
+                    })
 
-            calendar_options = {"headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth"}, "initialView": "dayGridMonth", "height": "auto", "dayMaxEvents": True}
-            cal_data = calendar(events=events, options=calendar_options, key="pnl_calendar_view")
+            calendar_options = {
+                "headerToolbar": {
+                    "left": "prev,next today",
+                    "center": "title",
+                    "right": "dayGridMonth"
+                },
+                "initialView": "dayGridMonth",
+                "height": "auto",
+                "dayMaxEvents": True
+            }
+
+            cal_data = calendar(
+                events=events,
+                options=calendar_options,
+                key="pnl_calendar_view"
+            )
 
             selected_date = None
             if cal_data:
                 if cal_data.get("callback") == "eventClick":
-                    selected_date = cal_data.get("eventClick", {}).get("event", {}).get("start", "").split("T")[0]
+                    ev = cal_data.get("eventClick", {}).get("event", {})
+                    selected_date = ev.get("start", "").split("T")[0]
                 elif cal_data.get("callback") == "dateClick":
-                    selected_date = cal_data.get("dateClick", {}).get("date", "").split("T")[0]
+                    dt_obj = cal_data.get("dateClick", {}).get("date", "")
+                    selected_date = dt_obj.split("T")[0]
 
             if selected_date:
                 st.markdown("---")
@@ -1039,6 +1052,7 @@ else:
                     pretty_dt = pd.to_datetime(selected_date).strftime('%d %b %Y')
                 except Exception:
                     pretty_dt = selected_date
+
                 st.subheader(f"📋 Details for {pretty_dt}")
                 day_df = df_cal[df_cal['DayKey'] == selected_date].copy()
                 if not day_df.empty:
@@ -1066,9 +1080,9 @@ else:
                 if page == "📊 Report":
                     st.title("Monthly Expense Analysis")
                     c1, c2, c3 = st.columns(3)
-                    c1.markdown(f'<div class="glass-card"><h3 style="color:#10B981;">Credit</h3><h1 style="color:#10B981;">₹{m_crd:,.2f}</h1></div>', unsafe_allow_html=True)
-                    c2.markdown(f'<div class="glass-card"><h3 style="color:#EF4444;">Expense</h3><h1 style="color:#EF4444;">₹{m_deb:,.2f}</h1></div>', unsafe_allow_html=True)
-                    c3.markdown(f'<div class="glass-card"><h3 style="color:#F59E0B;">Savings</h3><h1 style="color:#F59E0B;">₹{m_crd - m_deb:,.2f}</h1></div>', unsafe_allow_html=True)
+                    c1.markdown(f'<div class="glass-card"><h3 style="color:#00FF00;">Credit</h3><h1 style="color:#00FF00;">₹{m_crd:,.2f}</h1></div>', unsafe_allow_html=True)
+                    c2.markdown(f'<div class="glass-card"><h3 style="color:#FF3131;">Expense</h3><h1 style="color:#FF3131;">₹{m_deb:,.2f}</h1></div>', unsafe_allow_html=True)
+                    c3.markdown(f'<div class="glass-card"><h3 style="color:#FFD700;">Savings</h3><h1 style="color:#FFD700;">₹{m_crd - m_deb:,.2f}</h1></div>', unsafe_allow_html=True)
 
                     m_df['Cat'] = m_df['Item'].apply(lambda x: x.split(':')[0] if ':' in str(x) else 'Others')
                     st.plotly_chart(px.pie(m_df[m_df['Debit'] > 0], values='Debit', names='Cat', hole=0.4), use_container_width=True)
@@ -1080,12 +1094,18 @@ else:
                 if page == "📊 Report":
                     pdf_bytes = create_pdf(clean_df)
                     if pdf_bytes:
-                        st.download_button(label="📄 Download PDF Report", data=pdf_bytes, file_name=f"Expense_Report_{sel_m}.pdf", mime="application/pdf")
+                        st.download_button(
+                            label="📄 Download PDF Report",
+                            data=pdf_bytes,
+                            file_name=f"Expense_Report_{sel_m}.pdf",
+                            mime="application/pdf"
+                        )
 
     # --- DEBT TRACKER ---
     elif page == "🤝 Debt Tracker":
         st.title("🤝 Debt Tracker")
         df_debts = load_debts_data(active_csv)
+
         tab1, tab2, tab3 = st.tabs(["📋 View All Debts", "➕ Add New Debt", "⚙️ Settlement History"])
 
         with tab1:
@@ -1098,10 +1118,11 @@ else:
                 total_lent, total_borrowed = 0.0, 0.0
 
             col_a, col_b = st.columns(2)
-            col_a.markdown(f'<div class="glass-card"><h4 style="color:#10B981;">Total Lent (Receivable)</h4><h2 style="color:#10B981;">₹{total_lent:,.2f}</h2></div>', unsafe_allow_html=True)
-            col_b.markdown(f'<div class="glass-card"><h4 style="color:#EF4444;">Total Borrowed (Payable)</h4><h2 style="color:#EF4444;">₹{total_borrowed:,.2f}</h2></div>', unsafe_allow_html=True)
+            col_a.markdown(f'<div class="glass-card"><h4 style="color:#00FF00;">Total Lent (Receivable)</h4><h2 style="color:#00FF00;">₹{total_lent:,.2f}</h2></div>', unsafe_allow_html=True)
+            col_b.markdown(f'<div class="glass-card"><h4 style="color:#FF3131;">Total Borrowed (Payable)</h4><h2 style="color:#FF3131;">₹{total_borrowed:,.2f}</h2></div>', unsafe_allow_html=True)
 
             st.markdown("---")
+
             if df_debts.empty or len(df_debts[df_debts['Status'] == "Pending"]) == 0:
                 st.info("No pending debts available.")
             else:
@@ -1113,6 +1134,7 @@ else:
                         c2.write(f"{debt['Type']}")
                         c3.write(f"**₹{debt['Amount']:,.2f}**")
                         c4.write(f"{str(debt['Date']).split(' ')[0]}")
+
                         if c5.button("✅ Settle", key=f"settle_cloud_{debt['ID']}"):
                             try:
                                 target_url = get_active_web_app_url()
@@ -1125,7 +1147,7 @@ else:
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Error: {e}")
-                        st.markdown("<hr style='margin: 5px 0; border-color: #334155;'>", unsafe_allow_html=True)
+                        st.markdown("<hr style='margin: 5px 0; border-color: rgba(255,255,255,0.1);'>", unsafe_allow_html=True)
 
         with tab2:
             st.subheader("Add New Debt Entry")
@@ -1143,11 +1165,18 @@ else:
                             eng_d_name = translate_to_english_label(d_name.strip(), "Person")
                             eng_d_date = d_date.strftime("%d %b %Y")
                             target_url = get_active_web_app_url()
-                            payload = {"action": "add_debt", "name": eng_d_name, "type": d_type, "amount": d_amount, "date": eng_d_date}
+                            payload = {
+                                "action": "add_debt",
+                                "name": eng_d_name,
+                                "type": d_type,
+                                "amount": d_amount,
+                                "date": eng_d_date
+                            }
                             if target_url:
                                 requests.post(target_url, json=payload, timeout=10)
                                 refresh_user_sheet_cache()
                             send_whatsapp_auto(f"🤝 *New Debt Saved*\n👤 Person: {eng_d_name}\n📌 Type: {d_type}\n💰 Amt: ₹{d_amount}")
+
                             st.success("Debt saved successfully! ✅")
                             time.sleep(1)
                             st.rerun()
@@ -1176,7 +1205,10 @@ else:
             with st.spinner("Thinking..."):
                 try:
                     client = Groq(api_key=GROQ_API_KEY)
-                    system_prompt = "You are a helpful personal AI assistant. Understand user messages in English, Malayalam, Arabic, or Hindi, but ALWAYS reply clearly and politely in English."
+                    system_prompt = (
+                        "You are a helpful personal AI assistant. Understand user messages in English, Malayalam, Arabic, or Hindi, "
+                        "but ALWAYS reply clearly and politely in English."
+                    )
                     messages = [{"role": "system", "content": system_prompt}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.buddy_messages[-4:]]
                     response = client.chat.completions.create(model="openai/gpt-oss-120b", messages=messages, max_tokens=1024)
                     ai_reply = response.choices[0].message.content
@@ -1185,7 +1217,7 @@ else:
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-    # --- AI CHAT (AI Agent) ---
+    # --- AI CHAT (Clear Malayalam/Multilingual Voice + Transcript + Context + Single Confirmation Box) ---
     elif page == "🤖 AI Chat":
         st.title("🤖 AI Agent & Assistant")
 
@@ -1213,8 +1245,11 @@ else:
                 st.session_state.last_processed_prompt = None
                 st.session_state.last_voice_text = ""
                 ok, status_msg = add_new_entry(
-                    item=entry_data['item'], amount=entry_data['amount'],
-                    category=entry_data['category'], type=entry_data['type'], entry_date=entry_data['date']
+                    item=entry_data['item'],
+                    amount=entry_data['amount'],
+                    category=entry_data['category'],
+                    type=entry_data['type'],
+                    entry_date=entry_data['date']
                 )
                 st.session_state.ai_action_notice = status_msg if ok else f"Not saved: {status_msg}"
                 st.session_state.ai_chat_history.append({"role": "assistant", "content": st.session_state.ai_action_notice})
@@ -1233,7 +1268,11 @@ else:
         v_col, _ = st.columns([1.4, 2.6])
         with v_col:
             v_raw = speech_to_text(
-                language='ml-IN', start_prompt="🎙️ Speak (ML / EN)", stop_prompt="⏹️ Stop", just_once=True, key=f'ai_voice_input_{st.session_state.ai_chat_key_id}'
+                language='ml-IN',
+                start_prompt="🎙️ Speak (ML / EN)",
+                stop_prompt="⏹️ Stop",
+                just_once=True,
+                key=f'ai_voice_input_{st.session_state.ai_chat_key_id}'
             )
 
         prompt = st.chat_input("Type or speak in Malayalam, English, Arabic, or Hindi...", key="ai_chat_box")
@@ -1257,8 +1296,11 @@ else:
                 st.session_state.last_processed_prompt = None
                 st.session_state.last_voice_text = ""
                 ok, status_msg = add_new_entry(
-                    item=entry_data['item'], amount=entry_data['amount'],
-                    category=entry_data['category'], type=entry_data['type'], entry_date=entry_data['date']
+                    item=entry_data['item'],
+                    amount=entry_data['amount'],
+                    category=entry_data['category'],
+                    type=entry_data['type'],
+                    entry_date=entry_data['date']
                 )
                 st.session_state.ai_action_notice = status_msg if ok else f"Not saved: {status_msg}"
                 st.session_state.ai_chat_history.append({"role": "user", "content": final_prompt})
@@ -1300,56 +1342,18 @@ else:
                             f"Understand short or casual speech/text in Malayalam, English, Arabic, or Hindi, even if voice transcription has minor typos, "
                             f"and ALWAYS respond clearly and concisely in English. "
                             f"When the user asks for balance or today's balance, clearly state the Available Balance (₹{bal:,.2f}) and today's summary. "
-                            f"Accurately interpret Malayalam/Arabic/Hindi/English expense words and numbers. "
+                            f"Accurately interpret Malayalam/Arabic/Hindi/English expense words and numbers (for example 'ചായ മൂന്ന്' -> item 'Tea', amount 3; "
+                            f"'ജയയ്ക്ക് 500 കൊടുത്തു' -> debt lent to 'Jaya', amount 500). "
                             f"Do NOT invent weird names or ask unnecessary follow-up questions when an expense item and amount are clear. "
                             f"When the user adds an expense or income, call 'add_new_entry' or 'add_multiple_entries'. "
                             f"When money is lent or borrowed, call 'add_debt_entry'."
                         )
 
-                        recent_ctx = [{"role": m["role"], "content": m["content"]} for m in st.session_state.ai_chat_history[-5:-1]]
-                        messages_for_api = [{"role": "system", "content": system_instruction}, *recent_ctx, {"role": "user", "content": final_prompt}]
-
-                        response = client.chat.completions.create(
-                            model="openai/gpt-oss-120b", messages=messages_for_api, tools=tools, tool_choice="auto", max_tokens=1024
-                        )
-
-                        response_message = response.choices[0].message
-
-                        if response_message.tool_calls:
-                            for tool_call in response_message.tool_calls:
-                                if tool_call.function.name == 'add_new_entry':
-                                    args = json.loads(tool_call.function.arguments)
-                                    eng_item = translate_to_english_label(args.get("item", "Expense"), "Expense")
-                                    eng_cat = translate_to_english_label(args.get("category", "Others"), "Others")
-                                    st.session_state.pending_entry = {
-                                        "item": eng_item, "amount": args.get("amount", 0), "category": eng_cat,
-                                        "type": args.get("type", "Debit"), "date": format_english_datetime(args.get("date"))
-                                    }
-                                    st.rerun()
-
-                                elif tool_call.function.name == 'add_multiple_entries':
-                                    args = json.loads(tool_call.function.arguments)
-                                    entries = args.get("entries_list", [])
-                                    ok, msg = add_multiple_entries(entries)
-                                    st.session_state.ai_action_notice = msg
-                                    st.session_state.ai_chat_history.append({"role": "assistant", "content": msg})
-                                    st.rerun()
-
-                                elif tool_call.function.name == 'add_debt_entry':
-                                    args = json.loads(tool_call.function.arguments)
-                                    d_name = translate_to_english_label(args.get("name", "Person"), "Person")
-                                    d_type = args.get("type", "Lent")
-                                    d_amount = args.get("amount", 0)
-                                    d_date = format_english_datetime(args.get("date"))
-                                    ok, msg = add_debt_via_ai(d_name, d_type, d_amount, d_date)
-                                    st.session_state.ai_action_notice = msg
-                                    st.session_state.ai_chat_history.append({"role": "assistant", "content": msg})
-                                    st.rerun()
-
-                        elif response_message.content:
-                            reply_txt = response_message.content
-                            st.session_state.ai_chat_history.append({"role": "assistant", "content": reply_txt})
-                            st.rerun()
-
-                    except Exception as e:
-                        st.error(f"AI Error: {str(e)}")
+                        recent_ctx = [
+                            {"role": m["role"], "content": m["content"]}
+                            for m in st.session_state.ai_chat_history[-5:-1]
+                        ]
+                        messages_for_api = [
+                            {"role": "system", "content": system_instruction},
+                            *recent_ctx,
+  
