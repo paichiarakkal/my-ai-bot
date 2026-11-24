@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import requests
 from datetime import datetime, timezone, timedelta
+import calendar as py_calendar
 import random
 import plotly.express as px
 from streamlit_mic_recorder import speech_to_text
@@ -435,6 +436,7 @@ def translate_to_english_label(text: str, default_label: str = "Expense") -> str
     mapping = {
         "ചായ": "Tea",
         "കാപ്പി": "Coffee",
+        "കോഫി": "Coffee",
         "ഭക്ഷണം": "Food",
         "ചിക്കൻ": "Chicken",
         "മീൻ": "Fish",
@@ -471,6 +473,103 @@ def translate_to_english_label(text: str, default_label: str = "Expense") -> str
             pass
     cleaned = re.sub(r"[^\x00-\x7F]+", "", raw).strip()
     return cleaned if cleaned else default_label
+
+def categorize_item_label(item_str: str) -> str:
+    low = str(item_str or "").lower()
+    if any(w in low for w in ["food", "tea", "coffee", "biryani", "meal", "lunch", "dinner", "breakfast", "ഭക്ഷണം", "ചായ", "കോഫി", "ഹോട്ടൽ", "ബിരിയാണി"]):
+        return "Food"
+    elif any(w in low for w in ["shop", "store", "supermarket", "grocery", "കട", "സാധനങ്ങൾ", "സൂപ്പർമാർക്കറ്റ്"]):
+        return "Shop"
+    elif any(w in low for w in ["fish", "meat", "chicken", "mutton", "മീൻ", "ഇറച്ചി", "ചിക്കൻ"]):
+        return "Fish"
+    elif any(w in low for w in ["travel", "petrol", "fuel", "taxi", "bus", "metro", "യാത്ര", "പെട്രോൾ", "വണ്ടി", "ടാക്സി"]):
+        return "Travel"
+    elif any(w in low for w in ["rent", "room", "വാടക", "റൂം"]):
+        return "Rent"
+    return "Others"
+
+def build_full_financial_context(df_exp: pd.DataFrame, df_d: pd.DataFrame) -> str:
+    now_gst = datetime.now(GST)
+    eng_now = now_gst.strftime("%d %b %Y %H:%M:%S")
+    today_str = now_gst.strftime("%Y-%m-%d")
+    month_key = now_gst.strftime("%Y-%m")
+    days_in_month = py_calendar.monthrange(now_gst.year, now_gst.month)[1]
+    remaining_days = max(1, days_in_month - now_gst.day + 1)
+
+    t_in = float(df_exp["Credit"].sum()) if not df_exp.empty else 0.0
+    t_out = float(df_exp["Debit"].sum()) if not df_exp.empty else 0.0
+    bal = t_in - t_out
+
+    today_crd = 0.0
+    today_deb = 0.0
+    month_crd = 0.0
+    month_deb = 0.0
+    cat_summary_str = "No expense categories yet."
+    recent_str = "No recent transactions."
+
+    if not df_exp.empty and "Date" in df_exp.columns:
+        valid_df = df_exp.dropna(subset=["Date"]).copy()
+        if not valid_df.empty:
+            valid_df["DayKey"] = valid_df["Date"].dt.strftime("%Y-%m-%d")
+            valid_df["MonthKey"] = valid_df["Date"].dt.strftime("%Y-%m")
+            valid_df["Cat"] = valid_df["Item"].apply(categorize_item_label)
+
+            t_rows = valid_df[valid_df["DayKey"] == today_str]
+            today_crd = float(t_rows["Credit"].sum()) if not t_rows.empty else 0.0
+            today_deb = float(t_rows["Debit"].sum()) if not t_rows.empty else 0.0
+
+            m_rows = valid_df[valid_df["MonthKey"] == month_key]
+            month_crd = float(m_rows["Credit"].sum()) if not m_rows.empty else 0.0
+            month_deb = float(m_rows["Debit"].sum()) if not m_rows.empty else 0.0
+
+            cat_totals = valid_df.groupby("Cat")["Debit"].sum().to_dict()
+            cat_parts = [f"{k}: ₹{v:,.2f}" for k, v in cat_totals.items() if v > 0]
+            if cat_parts:
+                cat_summary_str = ", ".join(cat_parts)
+
+            tail_df = valid_df.sort_values(by="Date", ascending=False).head(8)
+            rec_list = []
+            for _, r in tail_df.iterrows():
+                dt_lbl = r["Date"].strftime("%d %b %Y")
+                if float(r["Debit"]) > 0:
+                    rec_list.append(f"[{dt_lbl}] {r['Item']} - Debit ₹{float(r['Debit']):,.2f}")
+                if float(r["Credit"]) > 0:
+                    rec_list.append(f"[{dt_lbl}] {r['Item']} - Credit ₹{float(r['Credit']):,.2f}")
+            if rec_list:
+                recent_str = " | ".join(rec_list)
+
+    safe_daily_spend = max(0.0, bal / remaining_days) if bal > 0 else 0.0
+    month_net = month_crd - month_deb
+    today_net = today_crd - today_deb
+
+    lent_pending = 0.0
+    borrowed_pending = 0.0
+    debt_lines = []
+    if df_d is not None and not df_d.empty:
+        pend = df_d[df_d["Status"] == "Pending"] if "Status" in df_d.columns else df_d
+        if not pend.empty:
+            lent_pending = float(pend[pend["Type"].astype(str).str.contains("Lent", case=False, na=False)]["Amount"].sum())
+            borrowed_pending = float(pend[pend["Type"].astype(str).str.contains("Borrowed", case=False, na=False)]["Amount"].sum())
+            for _, dr in pend.head(8).iterrows():
+                debt_lines.append(f"{dr['Name']} ({dr['Type']}: ₹{float(dr['Amount']):,.2f})")
+
+    debt_summary_str = (
+        f"Pending Lent (Receivable): ₹{lent_pending:,.2f}, Pending Borrowed (Payable): ₹{borrowed_pending:,.2f}, "
+        f"Net Debt Position (Lent - Borrowed): ₹{lent_pending - borrowed_pending:,.2f}."
+    )
+    if debt_lines:
+        debt_summary_str += " Items: " + ", ".join(debt_lines)
+
+    return (
+        f"Current Date/Time (GST): {eng_now}. "
+        f"Overall Totals -> Available Balance: ₹{bal:,.2f}, Total Credit: ₹{t_in:,.2f}, Total Debit: ₹{t_out:,.2f}. "
+        f"Today ({now_gst.strftime('%d %b %Y')}) -> Today Credit: ₹{today_crd:,.2f}, Today Debit: ₹{today_deb:,.2f}, Today Net: ₹{today_net:,.2f}. "
+        f"Current Month ({now_gst.strftime('%B %Y')}) -> Month Credit: ₹{month_crd:,.2f}, Month Debit: ₹{month_deb:,.2f}, Month Net: ₹{month_net:,.2f}. "
+        f"Daily Math & Budget -> Remaining days in month (including today): {remaining_days}, Suggested Safe Daily Spend (Available Balance / Remaining Days): ₹{safe_daily_spend:,.2f}/day. "
+        f"Category Debit Totals -> {cat_summary_str}. "
+        f"Debts -> {debt_summary_str} "
+        f"Recent Transactions -> {recent_str}."
+    )
 
 def get_active_web_app_url() -> str:
     prof = db_get_user(st.session_state.get("user", ""))
@@ -586,34 +685,6 @@ def add_new_entry(item, amount, category="Others", type="Debit", entry_date=None
     except Exception as e:
         return False, f"Failed to save to sheet: {str(e)}"
 
-def add_multiple_entries(entries_list):
-    results = []
-    try:
-        target_url = get_active_web_app_url()
-        for entry in entries_list:
-            item = translate_to_english_label(entry.get('item', 'Expense'), 'Expense')
-            amount = entry.get('amount', 0)
-            category = translate_to_english_label(entry.get('category', 'Others'), 'Others')
-            entry_type = entry.get('type', 'Debit')
-            entry_date = format_english_datetime(entry.get('date'))
-            payload = {
-                "item": item,
-                "amount": amount,
-                "category": category,
-                "type": entry_type,
-                "date": entry_date
-            }
-            if target_url:
-                requests.post(target_url, json=payload, timeout=10)
-            results.append(f'{item} - ₹{amount}')
-        if target_url:
-            refresh_user_sheet_cache()
-        summary_text = '\n'.join([f'• {r}' for r in results])
-        send_whatsapp_auto(f'✅ *AI Multi-Entries Added*\n{summary_text}')
-        return True, f"Saved {len(results)} entries to sheet: " + ", ".join(results)
-    except Exception as e:
-        return False, f"Failed to save entries: {str(e)}"
-
 def add_debt_via_ai(name, type, amount, date=None):
     try:
         target_url = get_active_web_app_url()
@@ -634,71 +705,6 @@ def add_debt_via_ai(name, type, amount, date=None):
         return True, f"Debt saved to sheet: {eng_type} - {eng_name} - ₹{amount}"
     except Exception as e:
         return False, f"Failed to save debt: {str(e)}"
-
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "add_new_entry",
-            "description": "Add a single expense or income in English when item and amount are clear",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "item": {"type": "string", "description": "Item name translated to clean English"},
-                    "amount": {"type": "number"},
-                    "category": {"type": "string", "description": "Food, Shop, Fish, Travel, Rent, Others"},
-                    "type": {"type": "string", "enum": ["Debit", "Credit"]},
-                    "date": {"type": "string", "description": "English date format e.g. 21 Nov 2026 20:47:00"}
-                },
-                "required": ["item", "amount"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "add_multiple_entries",
-            "description": "Add multiple expenses in English",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "entries_list": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "item": {"type": "string"},
-                                "amount": {"type": "number"},
-                                "category": {"type": "string"},
-                                "type": {"type": "string", "enum": ["Debit", "Credit"]},
-                                "date": {"type": "string"}
-                            },
-                            "required": ["item", "amount"]
-                        }
-                    }
-                },
-                "required": ["entries_list"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "add_debt_entry",
-            "description": "Add money lent or borrowed to Debt Tracker in English",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string", "description": "Person name in English"},
-                    "type": {"type": "string", "enum": ["Lent", "Borrowed"]},
-                    "amount": {"type": "number"},
-                    "date": {"type": "string"}
-                },
-                "required": ["name", "type", "amount"]
-            }
-        }
-    }
-]
 
 # --- 🔒 LOGIN, PERMANENT SINGLE-REGISTRATION SIGN UP & FORGOT PASSWORD (OTP) ---
 if not st.session_state.auth:
@@ -885,15 +891,7 @@ else:
         st.markdown(f'<div class="glass-card"><h2 style="color:#00FF00;">Credit: ₹{t_in:,.2f}</h2><h2 style="color:#FF3131;">Debit: ₹{t_out:,.2f}</h2></div>', unsafe_allow_html=True)
 
         if not df.empty and 'Item' in df.columns:
-            def extract_cat(x):
-                item_text = str(x).lower()
-                if any(w in item_text for w in ["food", "tea", "coffee", "biryani", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി"]): return "Food"
-                elif any(w in item_text for w in ["shop", "store", "supermarket", "കട", "സാധനങ്ങൾ", "സൂപ്പർമാർക്കറ്റ്"]): return "Shop"
-                elif any(w in item_text for w in ["fish", "meat", "chicken", "മീൻ", "ഇറച്ചി", "ചിക്കൻ"]): return "Fish"
-                elif any(w in item_text for w in ["travel", "petrol", "fuel", "taxi", "യാത്ര", "പെട്രോൾ", "വണ്ടി", "ടാക്സി"]): return "Travel"
-                elif any(w in item_text for w in ["rent", "room", "വാടക", "റൂം"]): return "Rent"
-                return "Others"
-            df['Cat'] = df['Item'].apply(extract_cat)
+            df['Cat'] = df['Item'].apply(categorize_item_label)
             cats = df.groupby('Cat')['Debit'].sum().to_dict()
             cols = st.columns(3)
             for idx, (c_name, c_amt) in enumerate(cats.items()):
@@ -913,7 +911,7 @@ else:
             v_amt = nums[0] if nums else ""
             raw_desc = re.sub(r'\d+', '', raw).strip()
             v_desc = translate_to_english_label(raw_desc, "Expense")
-            if any(x in raw for x in ["food", "tea", "coffee", "biryani", "ഭക്ഷണം", "ചായ", "ഹോട്ടൽ", "ബിരിയാണി"]): v_cat = "Food"
+            if any(x in raw for x in ["food", "tea", "coffee", "biryani", "ഭക്ഷണം", "ചായ", "കോഫി", "ഹോട്ടൽ", "ബിരിയാണി"]): v_cat = "Food"
             elif any(x in raw for x in ["shop", "കട"]): v_cat = "Shop"
             elif any(x in raw for x in ["fish", "chicken", "മീൻ", "ചിക്കൻ"]): v_cat = "Fish"
             elif any(x in raw for x in ["travel", "petrol", "പെട്രോൾ", "വണ്ടി"]): v_cat = "Travel"
@@ -1217,7 +1215,7 @@ else:
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-    # --- AI CHAT (Clear Malayalam/Multilingual Voice + Transcript + Context + Single Confirmation Box) ---
+    # --- AI CHAT (Zero 'Type' KeyError + Full App Context + Daily Math + Clear Voice + Single Confirmation) ---
     elif page == "🤖 AI Chat":
         st.title("🤖 AI Agent & Assistant")
 
@@ -1227,7 +1225,7 @@ else:
         if st.session_state.last_heard_text:
             st.caption(f"🎙️ Heard: {st.session_state.last_heard_text}")
 
-        for h_msg in st.session_state.ai_chat_history[-6:]:
+        for h_msg in st.session_state.ai_chat_history[-8:]:
             with st.chat_message(h_msg["role"]):
                 st.markdown(h_msg["content"])
 
@@ -1320,93 +1318,90 @@ else:
 
             else:
                 st.session_state.ai_action_notice = None
+                with st.chat_message("user"):
+                    st.markdown(final_prompt)
                 st.session_state.ai_chat_history.append({"role": "user", "content": final_prompt})
+
                 with st.spinner("Processing..."):
                     try:
-                        today_str = datetime.now(GST).strftime('%Y-%m-%d')
-                        today_deb = 0.0
-                        today_crd = 0.0
-                        if not df.empty and 'Date' in df.columns:
-                            d_valid = df.dropna(subset=['Date'])
-                            t_rows = d_valid[d_valid['Date'].dt.strftime('%Y-%m-%d') == today_str]
-                            if not t_rows.empty:
-                                today_deb = float(t_rows['Debit'].sum())
-                                today_crd = float(t_rows['Credit'].sum())
+                        if not GROQ_API_KEY:
+                            err_msg = "GROQ_API_KEY is missing in Secrets."
+                            st.error(err_msg)
+                            st.session_state.ai_chat_history.append({"role": "assistant", "content": err_msg})
+                        else:
+                            df_debts_ctx = load_debts_data(active_csv)
+                            full_ctx = build_full_financial_context(df, df_debts_ctx)
+                            client = Groq(api_key=GROQ_API_KEY)
 
-                        client = Groq(api_key=GROQ_API_KEY)
-                        eng_now = format_english_datetime()
-                        system_instruction = (
-                            f"You are a sharp, accurate English finance AI assistant. Current time (GST): {eng_now}. "
-                            f"Available balance: ₹{bal:,.2f}. Total Credit: ₹{t_in:,.2f}, Total Debit: ₹{t_out:,.2f}. "
-                            f"Today's Credit: ₹{today_crd:,.2f}, Today's Debit: ₹{today_deb:,.2f}. "
-                            f"Understand short or casual speech/text in Malayalam, English, Arabic, or Hindi, even if voice transcription has minor typos, "
-                            f"and ALWAYS respond clearly and concisely in English. "
-                            f"When the user asks for balance or today's balance, clearly state the Available Balance (₹{bal:,.2f}) and today's summary. "
-                            f"Accurately interpret Malayalam/Arabic/Hindi/English expense words and numbers (for example 'ചായ മൂന്ന്' -> item 'Tea', amount 3; "
-                            f"'ജയയ്ക്ക് 500 കൊടുത്തു' -> debt lent to 'Jaya', amount 500). "
-                            f"Do NOT invent weird names or ask unnecessary follow-up questions when an expense item and amount are clear. "
-                            f"When the user adds an expense or income, call 'add_new_entry' or 'add_multiple_entries'. "
-                            f"When money is lent or borrowed, call 'add_debt_entry'."
-                        )
+                            router_system = (
+                                "You are PAICHI AI router. Analyze the user's input in Malayalam, English, Arabic, or Hindi. "
+                                f"LIVE APP DATA & MATH CONTEXT: {full_ctx} "
+                                "Reply ONLY with a valid JSON object (no markdown, no extra text) in one of these formats:\n"
+                                '1) Single expense/income: {"action":"single_entry","item":"English Item","amount":5,"category":"Food","type":"Debit"}\n'
+                                '2) Debt lent/borrowed: {"action":"debt_entry","name":"English Name","type":"Lent","amount":500}\n'
+                                '3) Question / math / balance / advice: {"action":"answer","reply":"Clear accurate answer in English using exact numbers from LIVE APP DATA"}'
+                            )
 
-                        recent_ctx = [
-                            {"role": m["role"], "content": m["content"]}
-                            for m in st.session_state.ai_chat_history[-5:-1]
-                        ]
-                        messages_for_api = [
-                            {"role": "system", "content": system_instruction},
-                            *recent_ctx,
-                            {"role": "user", "content": final_prompt}
-                        ]
+                            recent_ctx = [
+                                {"role": m["role"], "content": m["content"]}
+                                for m in st.session_state.ai_chat_history[-5:-1]
+                            ]
 
-                        response = client.chat.completions.create(
-                            model="openai/gpt-oss-120b",
-                            messages=messages_for_api,
-                            tools=tools,
-                            tool_choice="auto",
-                            max_tokens=1024
-                        )
+                            resp = client.chat.completions.create(
+                                model="openai/gpt-oss-120b",
+                                messages=[
+                                    {"role": "system", "content": router_system},
+                                    *recent_ctx,
+                                    {"role": "user", "content": final_prompt}
+                                ],
+                                max_tokens=600
+                            )
 
-                        response_message = response.choices[0].message
+                            raw_out = (resp.choices[0].message.content or "").strip()
+                            json_match = re.search(r"\{.*\}", raw_out, re.DOTALL)
+                            parsed_obj = None
+                            if json_match:
+                                try:
+                                    parsed_obj = json.loads(json_match.group(0))
+                                except Exception:
+                                    parsed_obj = None
 
-                        if response_message.tool_calls:
-                            for tool_call in response_message.tool_calls:
-                                if tool_call.function.name == 'add_new_entry':
-                                    args = json.loads(tool_call.function.arguments)
-                                    eng_item = translate_to_english_label(args.get("item", "Expense"), "Expense")
-                                    eng_cat = translate_to_english_label(args.get("category", "Others"), "Others")
-                                    st.session_state.pending_entry = {
-                                        "item": eng_item,
-                                        "amount": args.get("amount", 0),
-                                        "category": eng_cat,
-                                        "type": args.get("type", "Debit"),
-                                        "date": format_english_datetime(args.get("date"))
-                                    }
-                                    st.rerun()
+                            if isinstance(parsed_obj, dict) and parsed_obj.get("action") == "single_entry":
+                                eng_item = translate_to_english_label(str(parsed_obj.get("item", "Expense")), "Expense")
+                                eng_cat = translate_to_english_label(str(parsed_obj.get("category", "Others")), "Others")
+                                amt_val = float(parsed_obj.get("amount", 0) or 0)
+                                entry_type = "Credit" if str(parsed_obj.get("type", "Debit")).lower() == "credit" else "Debit"
+                                st.session_state.pending_entry = {
+                                    "item": eng_item,
+                                    "amount": amt_val,
+                                    "category": eng_cat,
+                                    "type": entry_type,
+                                    "date": format_english_datetime()
+                                }
+                                st.rerun()
 
-                                elif tool_call.function.name == 'add_multiple_entries':
-                                    args = json.loads(tool_call.function.arguments)
-                                    entries = args.get("entries_list", [])
-                                    ok, msg = add_multiple_entries(entries)
-                                    st.session_state.ai_action_notice = msg
-                                    st.session_state.ai_chat_history.append({"role": "assistant", "content": msg})
-                                    st.rerun()
+                            elif isinstance(parsed_obj, dict) and parsed_obj.get("action") == "debt_entry":
+                                d_name = translate_to_english_label(str(parsed_obj.get("name", "Person")), "Person")
+                                d_type = "Borrowed" if "borrow" in str(parsed_obj.get("type", "Lent")).lower() else "Lent"
+                                d_amount = float(parsed_obj.get("amount", 0) or 0)
+                                ok, msg = add_debt_via_ai(d_name, d_type, d_amount, format_english_datetime())
+                                st.session_state.ai_action_notice = msg
+                                st.session_state.ai_chat_history.append({"role": "assistant", "content": msg})
+                                st.rerun()
 
-                                elif tool_call.function.name == 'add_debt_entry':
-                                    args = json.loads(tool_call.function.arguments)
-                                    d_name = translate_to_english_label(args.get("name", "Person"), "Person")
-                                    d_type = args.get("type", "Lent")
-                                    d_amount = args.get("amount", 0)
-                                    d_date = format_english_datetime(args.get("date"))
-                                    ok, msg = add_debt_via_ai(d_name, d_type, d_amount, d_date)
-                                    st.session_state.ai_action_notice = msg
-                                    st.session_state.ai_chat_history.append({"role": "assistant", "content": msg})
-                                    st.rerun()
-
-                        elif response_message.content:
-                            reply_txt = response_message.content
-                            st.session_state.ai_chat_history.append({"role": "assistant", "content": reply_txt})
-                            st.rerun()
+                            else:
+                                reply_txt = (
+                                    str(parsed_obj.get("reply", "")).strip()
+                                    if isinstance(parsed_obj, dict) and parsed_obj.get("reply")
+                                    else raw_out
+                                )
+                                if not reply_txt:
+                                    reply_txt = f"Available Balance: ₹{bal:,.2f} (Total Credit: ₹{t_in:,.2f}, Total Debit: ₹{t_out:,.2f})."
+                                with st.chat_message("assistant"):
+                                    st.markdown(reply_txt)
+                                st.session_state.ai_chat_history.append({"role": "assistant", "content": reply_txt})
 
                     except Exception as e:
-                        st.error(f"AI Error: {str(e)}")
+                        err_text = f"AI Error: {str(e)}"
+                        st.error(err_text)
+                        st.session_state.ai_chat_history.append({"role": "assistant", "content": err_text})
