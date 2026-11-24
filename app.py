@@ -1349,8 +1349,8 @@ else:
                             f"When money is lent or borrowed, call 'add_debt_entry'."
                         )
 
-                        recent_ctx = [
-                            {"role": m["role"], "content": m["content"]}
+                        recent_ctx = 
+                            [{"role": m["role"], "content": m["content"]}
                             for m in st.session_state.ai_chat_history[-5:-1]
                         [
                         messages_for_api = ]
