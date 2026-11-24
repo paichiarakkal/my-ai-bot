@@ -1352,8 +1352,8 @@ else:
                         recent_ctx = [
                             {"role": m["role"], "content": m["content"]}
                             for m in st.session_state.ai_chat_history[-5:-1]
-                        ]
-                        messages_for_api = [
+                        [
+                        messages_for_api = ]
                             {"role": "system", "content": system_instruction},
                             *recent_ctx,
   
